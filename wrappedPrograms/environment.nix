@@ -6,6 +6,7 @@
 }: {
   flake.wrappers.environment = {pkgs, ...}: let
     selfpkgs = self.packages."${pkgs.stdenv.hostPlatform.system}";
+    qs = import ../quickshell/_default.nix { inherit self pkgs; };
   in {
     imports = [self.wrapperModules.fish];
     binName = "fish";
@@ -38,6 +39,7 @@
       pkgs.mpv
       pkgs.ffmpeg-full
       pkgs.yt-dlp
+      pkgs.jq
       pkgs.lazygit
       pkgs.just
       pkgs.mprocs
@@ -47,6 +49,7 @@
       selfpkgs.nix-check-bin
       selfpkgs.jprocsall
       selfpkgs.jprocs
+      qs.mujo
     ];
   };
 

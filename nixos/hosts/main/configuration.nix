@@ -40,8 +40,10 @@
       self.nixosModules.mullvad
       self.nixosModules.connections
       self.nixosModules.notifications
-      self.nixosModules.desktopShell
-      self.nixosModules.yin
+
+      self.nixosModules.quickshell
+
+      self.nixosModules.extra_plymouth
 
       # disko
       inputs.disko.nixosModules.disko
@@ -68,8 +70,6 @@
 
       binfmt.emulatedSystems = ["aarch64-linux"];
     };
-
-    boot.plymouth.enable = true;
 
     networking = {
       hostName = lib.mkDefault "main";
@@ -120,7 +120,7 @@
       package = self.packages.${pkgs.stdenv.hostPlatform.system}.niri;
     };
 
-    networking.firewall.enable = false;
+    networking.firewall.enable = true;
     programs.appimage.enable = true;
     programs.appimage.binfmt = true;
 

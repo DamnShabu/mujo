@@ -5,35 +5,18 @@
 
   config = {
     systems = [
-      "aarch64-darwin"
       "aarch64-linux"
-      "x86_64-darwin"
       "x86_64-linux"
     ];
 
     perSystem = {pkgs, lib, system, ...}: {
-      packages.yin = pkgs.stdenv.mkDerivation {
-        pname = "yin";
-        version = "unstable-2025-04-14";
-        src = pkgs.fetchFromGitHub {
-          owner = "SaverinOnRails";
-          repo = "yin";
-          rev = "ef3d2f7fb2b297322df28c7e0169d3d7aeb4e5bd";
-          hash = "sha256-yskUFINzewwePu8d250+Dm4E4n/zowYvHoCHdxmOKps=";
-        };
-        nativeBuildInputs = with pkgs; [meson ninja pkg-config python3 wayland-scanner];
-        buildInputs = with pkgs; [wayland wayland-protocols libglvnd mesa libva ffmpeg libxkbcommon];
-        installPhase = ''
-          mkdir -p $out/bin
-          cp yin yinctl $out/bin/
-        '';
-        meta = {
-          description = "Lightweight, Hardware Accelerated Wayland Wallpaper daemon";
-          homepage = "https://github.com/SaverinOnRails/yin";
-          license = pkgs.lib.licenses.gpl3Plus;
-          platforms = pkgs.lib.platforms.linux;
-          mainProgram = "yin";
-        };
+      packages.cursor-tracker = pkgs.stdenv.mkDerivation {
+        pname = "cursor-tracker";
+        version = "0.1";
+        src = ./quickshell/cursor-tracker;
+        nativeBuildInputs = [pkgs.linuxHeaders];
+        buildPhase = "cc -O2 -o cursor-tracker cursor-tracker.c";
+        installPhase = "mkdir -p $out/bin && cp cursor-tracker $out/bin/";
       };
 
       packages.phisch-psst = pkgs.rustPlatform.buildRustPackage rec {

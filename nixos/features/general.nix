@@ -15,7 +15,7 @@
       description = "${config.preferences.user.name}'s account";
       # ponytail: tss group grants access to /dev/tpmrm0 so the user-session
       # wizard can seal the age key via age-plugin-tpm (no plaintext on disk).
-      extraGroups = ["wheel" "networkmanager" "tss"];
+      extraGroups = ["wheel" "networkmanager" "tss" "input"];
       shell = self.packages.${pkgs.stdenv.hostPlatform.system}.environment;
 
       hashedPasswordFile = "/persist/passwd";
@@ -40,6 +40,7 @@
       "Documents"
       "Downloads"
       "Projects"
+      "Desktop"
 
       ".ssh"
 
@@ -48,6 +49,7 @@
       ".config/vicinae"
       ".local/share/vicinae"
       ".local/state/vicinae"
+      ".config/quickshell"
       ".config/Code"
       ".var/app/com.visualstudio.code"
 

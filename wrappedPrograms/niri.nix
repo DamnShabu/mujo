@@ -10,8 +10,7 @@
     config,
     ...
   }: let
-    quickshell = import ../quickshell/_init.nix { inherit pkgs; };
-    yin = self.packages.${pkgs.stdenv.hostPlatform.system}.yin;
+    qs = import ../quickshell/_default.nix { inherit self pkgs; };
   in {
     imports = [wlib.wrapperModules.niri];
 
@@ -44,6 +43,8 @@
           repeat-delay = 250;
         };
 
+        workspace-auto-back-and-forth = _: {};
+
         touchpad = {
           natural-scroll = _: {};
           tap = _: {};
@@ -65,22 +66,51 @@
         "Mod+F".maximize-column = _: {};
         "Mod+G".fullscreen-window = _: {};
         "Mod+Shift+F".toggle-window-floating = _: {};
+        "Mod+Shift+G".toggle-windowed-fullscreen = _: {};
         "Mod+C".center-column = _: {};
+        "Mod+W".toggle-column-tabbed-display = _: {};
+        "Mod+E".spawn = "org.kde.dolphin";
 
-        "Mod+H".focus-column-left = _: {};
-        "Mod+L".focus-column-right = _: {};
-        "Mod+K".focus-window-up = _: {};
-        "Mod+J".focus-window-down = _: {};
+        # cross-boundary navigation (wraps across monitors/workspaces)
+        "Mod+H"."focus-column-or-monitor-left" = _: {};
+        "Mod+L"."focus-column-or-monitor-right" = _: {};
+        "Mod+K"."focus-window-or-workspace-up" = _: {};
+        "Mod+J"."focus-window-or-workspace-down" = _: {};
 
         "Mod+Left".focus-column-left = _: {};
         "Mod+Right".focus-column-right = _: {};
-        "Mod+Up".focus-window-up = _: {};
-        "Mod+Down".focus-window-down = _: {};
+        "Mod+Up"."focus-window-up-or-bottom" = _: {};
+        "Mod+Down"."focus-window-down-or-top" = _: {};
 
-        "Mod+Shift+H".move-column-left = _: {};
-        "Mod+Shift+L".move-column-right = _: {};
-        "Mod+Shift+K".move-window-up = _: {};
-        "Mod+Shift+J".move-window-down = _: {};
+        "Mod+Home"."focus-column-first" = _: {};
+        "Mod+End"."focus-column-last" = _: {};
+        "Mod+BackSpace".focus-window-previous = _: {};
+
+        # move windows/columns across boundaries
+        "Mod+Shift+H"."move-column-left-or-to-monitor-left" = _: {};
+        "Mod+Shift+L"."move-column-right-or-to-monitor-right" = _: {};
+        "Mod+Shift+K"."move-window-up-or-to-workspace-up" = _: {};
+        "Mod+Shift+J"."move-window-down-or-to-workspace-down" = _: {};
+
+        "Mod+Shift+Home"."move-column-to-first" = _: {};
+        "Mod+Shift+End"."move-column-to-last" = _: {};
+
+        # swap windows within a column
+        "Mod+Ctrl+K".swap-window-left = _: {};
+        "Mod+Ctrl+J".swap-window-right = _: {};
+
+        # consume/expel windows between columns
+        "Mod+BraceLeft"."consume-or-expel-window-left" = _: {};
+        "Mod+BraceRight"."consume-or-expel-window-right" = _: {};
+
+        # opacity toggle
+        "Mod+O".toggle-window-rule-opacity = _: {};
+
+        # resize with brackets (replaces Ctrl+HJKL)
+        "Mod+Ctrl+BraceLeft".set-column-width = "-5%";
+        "Mod+Ctrl+BraceRight".set-column-width = "+5%";
+        "Mod+Ctrl+Minus".set-window-height = "-5%";
+        "Mod+Ctrl+Equal".set-window-height = "+5%";
 
         "Mod+1".focus-workspace = "w0";
         "Mod+2".focus-workspace = "w1";
@@ -104,31 +134,37 @@
         "Mod+Shift+9".move-column-to-workspace = "w8";
         "Mod+Shift+0".move-column-to-workspace = "w9";
 
-        "Mod+V".spawn-sh = "${pkgs.alsa-utils}/bin/amixer sset Capture toggle";
-
-        "XF86AudioRaiseVolume".spawn-sh = "wpctl set-volume -l 1.4 @DEFAULT_AUDIO_SINK@ 5%+";
-        "XF86AudioLowerVolume".spawn-sh = "wpctl set-volume -l 1.4 @DEFAULT_AUDIO_SINK@ 5%-";
-
-        "Mod+Ctrl+H".set-column-width = "-5%";
-        "Mod+Ctrl+L".set-column-width = "+5%";
-        "Mod+Ctrl+J".set-window-height = "-5%";
-        "Mod+Ctrl+K".set-window-height = "+5%";
-
+        # mouse/touchpad
         "Mod+WheelScrollDown".focus-column-left = _: {};
         "Mod+WheelScrollUp".focus-column-right = _: {};
         "Mod+Ctrl+WheelScrollDown".focus-workspace-down = _: {};
         "Mod+Ctrl+WheelScrollUp".focus-workspace-up = _: {};
 
-        "Mod+Ctrl+S".spawn-sh = "${pkgs.grim}/bin/grim -l 0 - | ${pkgs.wl-clipboard}/bin/wl-copy";
+        # audio
+        "Mod+V".spawn-sh = "${pkgs.alsa-utils}/bin/amixer sset Capture toggle";
+        "XF86AudioRaiseVolume".spawn-sh = "wpctl set-volume -l 1.4 @DEFAULT_AUDIO_SINK@ 5%+";
+        "XF86AudioLowerVolume".spawn-sh = "wpctl set-volume -l 1.4 @DEFAULT_AUDIO_SINK@ 5%-";
+        "XF86AudioMute".spawn-sh = "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
+        "XF86AudioMicMute".spawn-sh = "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle";
 
-        "Mod+Shift+E".spawn-sh = "${pkgs.wl-clipboard}/bin/wl-paste | ${pkgs.swappy}/bin/swappy -f -";
+        # brightness
+        "XF86MonBrightnessUp".spawn-sh = "${pkgs.brightnessctl}/bin/brightnessctl s 5%+";
+        "XF86MonBrightnessDown".spawn-sh = "${pkgs.brightnessctl}/bin/brightnessctl s 5%-";
 
-        "Mod+Shift+S".spawn-sh = "${pkgs.grim}/bin/grim -g \"$(${pkgs.slurp}/bin/slurp -w 0)\" - | ${pkgs.wl-clipboard}/bin/wl-copy";
+        # screenshots (built-in niri)
+        "Mod+Ctrl+S".screenshot = _: {};
+        "Mod+Shift+S".screenshot-window = _: {};
+        "Mod+Ctrl+Shift+S".screenshot-screen = _: {};
 
+        # display / session
+        "Mod+Shift+P"."power-off-monitors" = _: {};
+        "Mod+Shift+R".spawn-sh = "${lib.getExe pkgs.niri} msg action reload-config";
+        "Mod+Shift+Slash"."show-hotkey-overlay" = _: {};
       };
 
       layout = {
         gaps = 5;
+        background-color = "transparent";
 
         struts = {
           left = 10;
@@ -140,6 +176,13 @@
         focus-ring = {
           off = _: {};
         };
+      };
+
+      blur = {
+        passes = 3;
+        offset = 3.0;
+        noise = 0.02;
+        saturation = 1.5;
       };
 
       window-rules = [
@@ -155,6 +198,15 @@
         {
           matches = [
             { namespace = "^noctalia-overview-"; }
+          ];
+          place-within-backdrop = true;
+          background-effect = {
+            blur = true;
+          };
+        }
+        {
+          matches = [
+            { namespace = "^qs-wallpaper-bg"; }
           ];
           place-within-backdrop = true;
         }
@@ -205,13 +257,6 @@
         lib.getExe pkgs.xwayland-satellite;
 
       spawn-sh-at-startup = [
-        "${pkgs.quickshell}/bin/quickshell -p ${quickshell.desktop}"
-        "${pkgs.quickshell}/bin/quickshell -p ${quickshell.notifd}"
-        "${pkgs.swayosd}/bin/swayosd --style-path ${quickshell.swayosdCSS}"
-        "${pkgs.vicinae}/bin/vicinae server"
-        "${yin}/bin/yin"
-
-        "sleep 1 && ${yin}/bin/yinctl --restore"
         "sleep 1 && ${pkgs.mpv}/bin/mpv --no-video --no-terminal --volume=50 --ao=pipewire ${self}/sounds/unlocksystem.mp3"
       ];
     };

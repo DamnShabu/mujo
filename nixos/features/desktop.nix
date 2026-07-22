@@ -25,14 +25,14 @@
         primary = true;
         monitorConfig = ''
           Option "PreferredMode" "1920x1080_165.00"
-          Option "Position" "0x0"
+          Option "Position" "0x1080"
         '';
       }
       {
         output = "HDMI-A-1";
         monitorConfig = ''
           Option "PreferredMode" "1920x1080_60.00"
-          Option "Position" "0x1080"
+          Option "Position" "0x0"
         '';
       }
     ];
@@ -70,6 +70,7 @@
       pkgs.xdg-utils
       pkgs.age
       pkgs.sops
+      pkgs.cava
     ];
 
     fonts.packages = with pkgs; [

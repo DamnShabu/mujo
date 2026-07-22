@@ -34,7 +34,7 @@
         # ponytail: git config is decrypted on-demand into tmpfs (RAM only) and
         # pointed at via GIT_CONFIG_GLOBAL. Never written to a persistent path.
         path = "/run/secrets/git/config";
-        owner = "yurii";
+        owner = user;
       };
     };
 
@@ -77,7 +77,6 @@
 
     systemd.timers.secrets-lock-idle = {
       timerConfig = {
-        OnActiveSec = "30min";
         OnBootSec = "30min";
         Unit = "secrets-lock.service";
       };

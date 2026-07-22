@@ -49,7 +49,7 @@
         };
 
         user = lib.mkOption {
-          default = "username";
+          default = "yurii";
         };
 
         directories = lib.mkOption {

@@ -16,7 +16,7 @@
       "searxng"
     ];
 
-    networking.firewall.allowedTCPPorts = [8080];
+    networking.firewall.allowedTCPPorts = [8080]; # ponytail: localhost-only via podman --network=host, external access blocked by firewall default
 
     virtualisation.oci-containers = {
       backend = "podman";

@@ -4,11 +4,6 @@
     config,
     ...
   }: let
-    test = self.fun pkgs {
-      name = "testus11";
-      text = "ls";
-    };
-
     createVm = self.fun pkgs {
       name = "create-vm";
       runtimeInputs = [
@@ -20,13 +15,11 @@
         ''
           set -euo pipefail
 
+          MODE=''${1:-graphical}
           NAME="MyVM"
           ISO_DIR="$HOME/Documents/VMISO"
           GRAPHICAL_URL="https://channels.nixos.org/nixos-25.11/latest-nixos-graphical-x86_64-linux.iso"
           MINIMAL_URL="https://channels.nixos.org/nixos-25.11/latest-nixos-minimal-x86_64-linux.iso"
-
-          # MODE="graphical"
-          # MODE="minimal"
 
           case "$MODE" in
             graphical)
@@ -42,6 +35,7 @@
               CONSOLE_ARGS=(--console pty,target_type=virtio)
               ;;
             *)
+              echo "Usage: create-vm [graphical|minimal]" >&2
               exit 1
               ;;
           esac
@@ -83,7 +77,6 @@
       pkgs.spice-gtk
       pkgs.spice-protocol
       createVm
-      test
     ];
 
     virtualisation.podman = {
