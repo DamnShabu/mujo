@@ -31,6 +31,7 @@
     environment.variables = {
       GTK_THEME = theme-name;
       XCURSOR_THEME = cursor-theme-name;
+      QT_QPA_PLATFORMTHEME = "qt6ct";
     };
 
     programs = {
@@ -63,6 +64,9 @@
 
       pkgs.gtk3
       pkgs.gtk4
+      pkgs.adwaita-icon-theme
+      pkgs.libsForQt5.qt5ct
+      pkgs.qt6Packages.qt6ct
     ];
 
     systemd.user.tmpfiles.rules = [

@@ -28,6 +28,20 @@
     security.tpm2.enable = true;
     security.tpm2.applyUdevRules = true;
 
+    # ponytail: allow passwordless activation for nh (nixos-rebuild activate)
+    security.sudo.extraRules = [
+      {
+        users = [ "yurii" ];
+        runAs = "root";
+        commands = [
+          {
+            command = "/nix/store/*-nixos-system-*/bin/nixos-rebuild";
+            options = [ "NOPASSWD" ];
+          }
+        ];
+      }
+    ];
+
     environment.shells = [
       self.packages.${pkgs.stdenv.hostPlatform.system}.environment
     ];
@@ -52,6 +66,12 @@
       ".config/quickshell"
       ".config/Code"
       ".var/app/com.visualstudio.code"
+
+      ".config/dconf"
+      ".config/pcmanfm"
+      ".config/gtk-3.0"
+      ".config/gtk-4.0"
+      ".config/qt6ct"
 
       # ponytail: only the TPM-SEALED blob lives here (inert without hardware,
       # not a plaintext key). sops-age-restore copies it into tmpfs /run/sops-age

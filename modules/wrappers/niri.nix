@@ -10,7 +10,7 @@
     config,
     ...
   }: let
-    qs = import ../quickshell/_default.nix { inherit self pkgs; };
+    qs = import ../../quickshell/_default.nix { inherit self pkgs; };
   in {
     imports = [wlib.wrapperModules.niri];
 

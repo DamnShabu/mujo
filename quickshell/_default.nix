@@ -1,38 +1,28 @@
 {self, pkgs}: let
-  t = self.theme;
-  cavaConf = pkgs.writeText "cava-config" ''
-    [general]
-    framerate = 60
-    bars = 40
-
-    [output]
-    method = raw
-    raw_target = /dev/stdout
-    data_format = ascii
-    bar_delimiter = 32
-    frame_delimiter = 10
-    ascii_max_range = 1000
-  '';
+  desktop = pkgs.replaceVars ./Desktop.qml {
+    base02 = self.theme.base02; base03 = self.theme.base03; base05 = self.theme.base05;
+    base0D = self.theme.base0D; ffmpeg = pkgs.ffmpeg; "wl-clipboard" = pkgs.wl-clipboard;
+  };
+  shell = pkgs.replaceVars ./Shell.qml {
+    base00 = self.theme.base00; base02 = self.theme.base02; base03 = self.theme.base03;
+    base04 = self.theme.base04; base05 = self.theme.base05; base08 = self.theme.base08;
+    base09 = self.theme.base09; base0A = self.theme.base0A; base0B = self.theme.base0B;
+    base0C = self.theme.base0C; base0D = self.theme.base0D; base0E = self.theme.base0E; base0F = self.theme.base0F;
+  };
+  wallpaper = ./Wallpaper.qml;
 in {
-  desktop = pkgs.replaceVars ./desktop.qml {
-    base02 = t.base02; base03 = t.base03; base05 = t.base05;
-    base0D = t.base0D; ffmpeg = pkgs.ffmpeg; "wl-clipboard" = pkgs.wl-clipboard;
-  };
-  notifd = pkgs.replaceVars ./notifd.qml {
-    base00 = t.base00; base02 = t.base02; base03 = t.base03;
-    base04 = t.base04; base05 = t.base05; base08 = t.base08;
-    base09 = t.base09; base0A = t.base0A; base0B = t.base0B;
-    base0C = t.base0C; base0D = t.base0D; base0E = t.base0E; base0F = t.base0F;
-  };
-  visualizer = pkgs.replaceVars ./visualizer.qml {
-    base02 = t.base02; base05 = t.base05;
-    cavaConf = cavaConf;
-  };
-  wallpaper = ./wallpaper.qml;
-  wallpaperBg = ./wallpaper-bg.qml;
+  inherit desktop shell wallpaper;
+
   swayosdCSS = pkgs.replaceVars ./swayosd.css {
-    base01 = t.base01; base02 = t.base02; base05 = t.base05;
-    base0D = t.base0D; base0E = t.base0E;
+    base01 = self.theme.base01; base02 = self.theme.base02; base05 = self.theme.base05;
+    base0D = self.theme.base0D; base0E = self.theme.base0E;
   };
   mujo = pkgs.writeShellScriptBin "mujo" (builtins.readFile ./mujo.sh);
+
+  combined = pkgs.runCommand "quickshell-combined" {} ''
+    mkdir -p "$out"
+    cp ${shell}  "$out/Shell.qml"
+    cp ${desktop} "$out/Desktop.qml"
+    cp ${wallpaper} "$out/Wallpaper.qml"
+  '';
 }

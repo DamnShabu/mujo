@@ -8,7 +8,7 @@
 
 #define SAMPLE_RATE 44100
 #define FFT_SIZE 512
-#define NUM_BARS 40
+#define NUM_BARS 96
 #define FREQ_MIN 50.0
 #define FREQ_MAX 10000.0
 #define M_PI 3.14159265358979323846

@@ -36,9 +36,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    pi-flake.url = "github:ChauDucToan/pi-flake";
+
   };
 
-  # Import all .nix files from current directory except flake.nix recursively
+  # Import flake-parts modules from specific directories for clarity and safety
   outputs = inputs: let
     inherit (inputs.nixpkgs) lib;
     inherit (lib.fileset) toList fileFilter;
@@ -53,5 +55,10 @@
 
     mkFlake = inputs.flake-parts.lib.mkFlake {inherit inputs;};
   in
-    mkFlake {imports = importTree ./.;};
+    mkFlake {
+      imports =
+        [ ./modules/theme.nix ./modules/perSystem.nix ]
+        ++ importTree ./nixos
+        ++ importTree ./modules/wrappers;
+    };
 }

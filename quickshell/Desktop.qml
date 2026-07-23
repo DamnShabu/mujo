@@ -22,7 +22,7 @@ Variants {
     color: "transparent"
 
     readonly property string desktopPath: Quickshell.env("HOME") + "/Desktop"
-    readonly property string posFile: Quickshell.env("HOME") + "/.cache/quickshell/desktop-positions.json"
+    readonly property string posFile: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/quickshell/desktop-positions.json"
     readonly property string thumbDir: (Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache") + "/quickshell/thumbs/"
     readonly property color text: "@base05@"
     readonly property color surface: Qt.rgba(1, 1, 1, 0.1)
@@ -41,10 +41,88 @@ Variants {
     property var selectedFiles: []
     property var delegateMap: ({})
     property bool multiDragActive: false
+    property var mimeIconCache: ({})
+
+    readonly property var extIcons:({
+        // Images – jpg/png/webp go through imageThumb for actual thumbnails
+        jpg:"image-x-generic",jpeg:"image-x-generic",svg:"image-x-generic",
+        gif:"image-x-generic",bmp:"image-x-generic",ico:"image-x-generic",
+        tiff:"image-x-generic",tif:"image-x-generic",heic:"image-x-generic",
+        heif:"image-x-generic",avif:"image-x-generic",raw:"image-x-generic",
+        // Videos – mp4/mkv/webm get real thumbs via videoThumb; others get icon
+        mp4:"video-mp4",mkv:"video-x-matroska",webm:"video-webm",
+        avi:"video-x-msvideo",mov:"video-quicktime",m4v:"video-mp4",
+        flv:"video-x-flv",wmv:"video-x-ms-wmv",mpg:"video-mpeg",
+        mpeg:"video-mpeg","3gp":"video-3gpp",
+        // Audio – audio-x-generic is the standard XDG icon name
+        mp3:"audio-x-generic",flac:"audio-x-generic",ogg:"audio-x-generic",
+        wav:"audio-x-generic",m4a:"audio-x-generic",aac:"audio-x-generic",
+        opus:"audio-x-generic",wma:"audio-x-generic",aiff:"audio-x-generic",
+        ape:"audio-x-generic",alac:"audio-x-generic",
+        // Archives / compressed
+        zip:"application-zip",tar:"application-zip",gz:"application-zip",
+        rar:"application-zip",tgz:"application-zip","7z":"application-zip",
+        rar:"application-zip",tgz:"application-zip",tbz2:"application-zip",
+        txz:"application-zip",bz:"application-zip",zst:"application-zip",
+        // Packages
+        deb:"application-vnd.debian.binary-package",
+        rpm:"application-vnd.ms-software-installer",
+        pkg:"application-vnd.apple.installer",
+        // Disk images
+        iso:"application-x-iso9660-image",img:"application-x-iso9660-image",
+        dmg:"application-x-dmg",
+        // Documents – Office / OpenDoc
+        pdf:"application-pdf",
+        doc:"application-vnd.ms-word",docx:"application-vnd.ms-word",
+        odt:"application-vnd.oasis.opendocument.text",
+        xls:"application-vnd.ms-excel",xlsx:"application-vnd.ms-excel",
+        ods:"application-vnd.oasis.opendocument.spreadsheet",
+        ppt:"application-vnd.ms-powerpoint",pptx:"application-vnd.ms-powerpoint",
+        odp:"application-vnd.oasis.opendocument.presentation",
+        // Plain text
+        txt:"text-x-generic",rtf:"text-x-generic",csv:"text-csv",
+        md:"text-x-generic",org:"text-x-generic",rst:"text-x-generic",
+        tex:"text-x-generic",
+        // E-books
+        epub:"application-epub+zip",mobi:"application-ebook",
+        azw:"application-ebook",azw3:"application-ebook",
+        djvu:"image-vnd.djvu",
+        // Scripts & source code
+        py:"text-x-script",sh:"text-x-script",js:"text-x-script",
+        ts:"text-x-script",rs:"text-x-script",c:"text-x-script",
+        cpp:"text-x-script",h:"text-x-script",hh:"text-x-script",
+        json:"text-x-script",yaml:"text-x-script",yml:"text-x-script",
+        toml:"text-x-script",nix:"text-x-script",bash:"text-x-script",
+        zsh:"text-x-script",fish:"text-x-script",css:"text-x-script",
+        xml:"text-x-script",go:"text-x-script",rb:"text-x-script",
+        lua:"text-x-script",php:"text-x-script",java:"text-x-script",
+        kt:"text-x-script",swift:"text-x-script",sql:"text-x-script",
+        r:"text-x-script",scala:"text-x-script",hs:"text-x-script",
+        ml:"text-x-script",ex:"text-x-script",exs:"text-x-script",
+        clj:"text-x-script",vim:"text-x-script",el:"text-x-script",
+        jsx:"text-x-script",tsx:"text-x-script",vue:"text-x-script",
+        svelte:"text-x-script",dart:"text-x-script",wasm:"text-x-script",
+        ipynb:"text-x-script",html:"text-html",htm:"text-html",
+        // Binaries & libs
+        so:"application-x-elf",dll:"application-x-elf",dylib:"application-x-elf",
+        a:"application-x-elf",o:"application-x-elf",
+        jar:"application-java-archive",war:"application-java-archive",
+        exe:"application-x-executable",msi:"application-x-msi",
+        // Databases
+        sqlite:"application-sqlite3",db:"application-sqlite3",sqlite3:"application-sqlite3",
+        // Fonts
+        ttf:"font-x-generic",otf:"font-x-generic",woff:"font-x-generic",
+        woff2:"font-x-generic",eot:"font-x-generic",
+        // Misc
+        torrent:"application-x-bittorrent",
+        log:"text-x-generic",conf:"text-x-generic",config:"text-x-generic",
+        ini:"text-x-generic",cfg:"text-x-generic",env:"text-x-generic",
+        bin:"application-x-executable"
+    });
 
     FolderListModel {
       id: folderModel
-      folder: Qt.resolvedUrl(desktopPath)
+      folder: "file://" + desktopPath
       showDirs: true; showFiles: true; showHidden: false
       sortField: FolderListModel.Name
     }
@@ -52,10 +130,17 @@ Variants {
     Timer {
       interval: 2000; running: true; repeat: true
       onTriggered: {
-        folderModel.folder = Qt.resolvedUrl(root.desktopPath)
+        folderModel.folder = "file://" + root.desktopPath
         savePos()
       }
     }
+
+    function ensurePosDir() {
+      var cacheDir = root.posFile.substring(0, root.posFile.lastIndexOf("/") + 1)
+      Quickshell.execDetached(["/bin/sh", "-c", "mkdir -p '" + cacheDir + "'" ])
+    }
+
+    Component.onCompleted: ensurePosDir()
 
     Process {
       id: posLoader
@@ -251,6 +336,7 @@ Variants {
           property real grabY: 0
           property real prevX: 0
           property real prevY: 0
+          property string fileIconName: model.isDir ? "" : (root.extIcons[model.fileSuffix.toLowerCase()] || "")
 
           z: root.multiDragActive && isSelected ? 15 : wasDragged ? 20 : isSelected ? 10 : (isHovered ? 5 : 1)
 
@@ -263,7 +349,7 @@ Variants {
 
           Rectangle {
             anchors.fill: parent; anchors.margins: 3; radius: 8
-            color: wasDragged ? Qt.rgba(89, 194, 255, 0.2) : isHovered ? root.surface : isSelected ? Qt.rgba(89, 194, 255, 0.1) : "transparent"
+            color: wasDragged ? Qt.rgba(89 / 255, 194 / 255, 255 / 255, 0.2) : isHovered ? root.surface : isSelected ? Qt.rgba(89 / 255, 194 / 255, 255 / 255, 0.1) : "transparent"
             border.color: isSelected && !wasDragged ? root.blue : "transparent"
             border.width: 1
             Behavior on color { ColorAnimation { duration: 100 } }
@@ -275,10 +361,21 @@ Variants {
             Loader {
               Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 48; Layout.preferredHeight: 48
               sourceComponent: {
-                var ext = model.fileSuffix.toLowerCase()
-                if (["jpg","jpeg","png","gif","bmp","webp"].indexOf(ext) >= 0) return imageThumb
-                else if (["mp4","avi","mkv","mov","webm","flv"].indexOf(ext) >= 0) return videoThumb
-                else return iconThumb
+                var sp = model.fileSuffix.toLowerCase();
+                if (model.isDir) return folderThumb;
+                if (sp === "jpg" || sp === "jpeg" || sp === "png" || sp === "webp" || sp === "gif" || sp === "bmp" || sp === "ico" || sp === "tiff" || sp === "tif" || sp === "heic" || sp === "heif" || sp === "avif" || sp === "svg" || sp === "raw" || sp === "djvu") return imageThumb;
+                if (sp === "mp4" || sp === "mkv" || sp === "webm" || sp === "avi" || sp === "mov" || sp === "m4v" || sp === "flv" || sp === "wmv" || sp === "mpg" || sp === "mpeg" || sp === "3gp") return videoThumb;
+                if (delegateItem.fileIconName) return fileIcon;
+                return iconThumb;
+              }
+
+              Component { id: folderThumb
+                IconImage {
+                    width: 48; height: 48
+                    source: Quickshell.iconPath("folder", true)
+                        || Quickshell.iconPath("inode-directory", true)
+                        || Quickshell.iconPath("gnome-fs-directory", true)
+                }
               }
 
               Component { id: imageThumb
@@ -310,8 +407,26 @@ Variants {
               }
 
               Component { id: iconThumb
-                IconImage { source: Quickshell.iconPath("text-x-generic", true); width: 48; height: 48 }
+                IconImage {
+                    width: 48; height: 48
+                    source: Quickshell.iconPath("text-x-generic", true)
+                        || Quickshell.iconPath("application-x-generic", true)
+                        || Quickshell.iconPath("inode-x-generic", true)
+                        || Quickshell.iconPath("unknown", true)
+                }
               }
+
+              Component { id: fileIcon
+                IconImage {
+                    width: 48; height: 48
+                    source: Quickshell.iconPath(delegateItem.fileIconName, true)
+                        || Quickshell.iconPath("text-x-generic", true)
+                        || Quickshell.iconPath("application-x-generic", true)
+                        || Quickshell.iconPath("inode-x-generic", true)
+                        || Quickshell.iconPath("unknown", true)
+                }
+              }
+
             }
 
             Text {
@@ -424,7 +539,7 @@ Variants {
             onDoubleClicked: Quickshell.execDetached(["xdg-open", model.filePath])
           }
         }
-      }
+        }
 
       MouseArea {
         id: bgMouse
@@ -533,7 +648,7 @@ Variants {
                   Quickshell.execDetached(["bash", "-c", "printf '%s' \"$1\" | \"$2\"", "_", root.menuFilePath, "@wl-clipboard@/bin/wl-copy"])
                 } else if (rit.modelData === "Move to Trash") {
                   Quickshell.execDetached(["mv", root.menuFilePath, Quickshell.env("HOME") + "/.local/share/Trash/files/"])
-                  Qt.callLater(function() { folderModel.folder = Qt.resolvedUrl(root.desktopPath) })
+                  Qt.callLater(function() { folderModel.folder = "file://" + root.desktopPath })
                 } else if (rit.modelData === "Rename") {
                   renameDialog.open()
                 }
@@ -559,7 +674,7 @@ Variants {
         var old = root.menuFilePath
         var dir = old.substring(0, old.lastIndexOf("/") + 1)
         Quickshell.execDetached(["mv", old, dir + renameInput.text])
-        Qt.callLater(function() { folderModel.folder = Qt.resolvedUrl(root.desktopPath) })
+        Qt.callLater(function() { folderModel.folder = "file://" + root.desktopPath })
       }
     }
   }

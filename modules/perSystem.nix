@@ -13,7 +13,7 @@
       packages.cursor-tracker = pkgs.stdenv.mkDerivation {
         pname = "cursor-tracker";
         version = "0.1";
-        src = ./quickshell/cursor-tracker;
+        src = ../quickshell/cursor-tracker;
         nativeBuildInputs = [pkgs.linuxHeaders];
         buildPhase = "cc -O2 -o cursor-tracker cursor-tracker.c";
         installPhase = "mkdir -p $out/bin && cp cursor-tracker $out/bin/";

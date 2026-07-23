@@ -5,74 +5,59 @@
     imports = [
       self.nixosModules.gtk
       self.nixosModules.vicinae
-
       self.nixosModules.pipewire
       self.nixosModules.zen
-
-      inputs.silentSDDM.nixosModules.default
     ];
 
-    services.xserver.enable = true;
+    # ── niri Wayland compositor ───────────────────────────────────────────────
+    # This wires:
+    #   - niri into services.displayManager.sessionPackages (so the greeter can
+    #     discover and launch it),
+    #   - xdg-desktop-portal + recommended portals,
+    #   - services.graphical-desktop.enable → graphical-session.target in the
+    #     user systemd instance (so user services can declare their dependencies).
+    programs.niri.enable = true;
 
+    # ── display manager : greetd + tuigreet ────────────────────────────────────
+    # tuigreet is the greeter. It discovers sessions from the directories below,
+    # which NixOS populates from services.displayManager.sessionPackages.
+    # The niri desktop entry there points to niri-session(1), which in turn
+    # imports environment, starts niri.service in the user systemd instance,
+    # and waits for it to terminate.
+    services.greetd = {
+      enable = true;
+      settings = {
+        default_session = {
+          command = "${pkgs.tuigreet}/bin/tuigreet --time --sessions /run/current-system/sw/share/wayland-sessions --sessions /run/current-system/sw/share/xsessions --no-run-all";
+          user = "greeter";
+        };
+      };
+    };
+
+    services.displayManager.enable = true;
+
+    # ── GUI session environment ────────────────────────────────────────────────
     environment.sessionVariables = {
       XCURSOR_THEME = "Bibata-Modern-Classic";
       XCURSOR_SIZE = "24";
+      GDK_BACKEND = "wayland,x11";
+      NIXOS_OZONE_WL = "1";
+      QT_QPA_PLATFORM = "wayland;xcb";
     };
 
-    services.xserver.xrandrHeads = [
-      {
-        output = "DP-1";
-        primary = true;
-        monitorConfig = ''
-          Option "PreferredMode" "1920x1080_165.00"
-          Option "Position" "0x1080"
-        '';
-      }
-      {
-        output = "HDMI-A-1";
-        monitorConfig = ''
-          Option "PreferredMode" "1920x1080_60.00"
-          Option "Position" "0x0"
-        '';
-      }
-    ];
-
-    services.xserver.inputClassSections = [
-      ''
-        Identifier "Set cursor theme"
-        MatchIsPointer "on"
-        Option "XcursorTheme" "Bibata-Modern-Classic"
-        Option "XcursorSize" "24"
-      ''
-    ];
-
-    programs.silentSDDM = {
-      enable = true;
-      theme = "nord";
-    };
-
-    services.displayManager.sddm.settings = {
-      General.GreeterEnvironment = lib.mkForce
-        "QML2_IMPORT_PATH=${config.programs.silentSDDM.package'}/share/sddm/themes/silent/components/:${pkgs.kdePackages.qtvirtualkeyboard}/lib/qt-6/qml,QT_IM_MODULE=qtvirtualkeyboard,XCURSOR_THEME=Bibata-Modern-Classic,XCURSOR_SIZE=24,XCURSOR_PATH=${pkgs.bibata-cursors}/share/icons";
-      Input.XCursorTheme = "Bibata-Modern-Classic";
-      Users.DefaultFace = "/home/${config.preferences.user.name}/.face.icon";
-    };
-
-    services.displayManager.sddm.setupScript = ''
-      ${pkgs.xorg.xrandr}/bin/xrandr --output DP-1 --auto --output HDMI-A-1 --off
-      ${pkgs.mpv}/bin/mpv --no-video --no-terminal --audio-device=alsa/hw:0,0 ${self}/sounds/startup-sound1.mp3 &
-    '';
-
+    # ── packages ──────────────────────────────────────────────────────────────
     environment.systemPackages = [
       selfpkgs.terminal
       pkgs.pcmanfm
       pkgs.wl-clipboard
       pkgs.xdg-utils
+      pkgs.tuigreet
       pkgs.age
       pkgs.sops
-      pkgs.cava
+      pkgs.bibata-cursors
     ];
 
+    # ── fonts ─────────────────────────────────────────────────────────────────
     fonts.packages = with pkgs; [
       nerd-fonts.jetbrains-mono
       ubuntu-sans
@@ -87,10 +72,12 @@
       monospace = ["JetBrainsMono Nerd Font"];
     };
 
+    # ── locale ────────────────────────────────────────────────────────────────
     time.timeZone = config.preferences.locale.timeZone;
     i18n.defaultLocale = config.preferences.locale.default;
     i18n.extraLocaleSettings = config.preferences.locale.extra;
 
+    # ── desktop file associations (XDG) ───────────────────────────────────────
     xdg.mime = {
       enable = true;
       defaultApplications = {
@@ -113,13 +100,13 @@
       };
     };
 
+    # ── polkit ────────────────────────────────────────────────────────────────
     security.polkit.enable = true;
 
+    # ── hardware ──────────────────────────────────────────────────────────────
     hardware = {
       enableAllFirmware = true;
-
       bluetooth.enable = true;
-
       graphics = {
         enable = true;
         enable32Bit = true;

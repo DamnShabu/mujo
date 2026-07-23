@@ -1,5 +1,5 @@
 {inputs, ...}: {
-  flake.nixosModules.nix = {pkgs, ...}: {
+  flake.nixosModules.nix = {pkgs, lib, ...}: {
     imports = [
       inputs.nix-index-database.nixosModules.nix-index
     ];
@@ -15,7 +15,17 @@
       };
     };
 
-    nix.settings.experimental-features = ["nix-command" "flakes"];
+    nix.settings = {
+      experimental-features = ["nix-command" "flakes"];
+      auto-optimise-store = true;
+    };
+
+    nix.gc = {
+      automatic = true;
+      dates = "weekly";
+      options = "--delete-older-than 14d";
+    };
+
     programs.nix-ld.enable = true;
     nixpkgs.config.allowUnfree = true;
 
@@ -28,6 +38,21 @@
       manix
       nix-inspect
       mcp-nixos
+      diffutils
     ];
+
+    system.activationScripts.addDiffutilsToActivationPath = {
+      text = ''
+        if command -v cmp >/dev/null 2>&1; then
+          echo "cmp already available" >&2
+        else
+          export PATH="${pkgs.diffutils}/bin:$PATH"
+        fi
+      '';
+    };
+
+    system.activationScripts.piCodingAgentConfig = {
+      deps = lib.mkBefore [ "addDiffutilsToActivationPath" ];
+    };
   };
 }

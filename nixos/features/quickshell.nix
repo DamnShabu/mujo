@@ -8,6 +8,10 @@
       path ? [],
       environment ? {},
     }: {
+      # Quickshell is a Wayland shell client; wait for niri.service in the
+      # user systemd instance so the compositor is ready before quickshell
+      # tries to connect (avoids silent crash on early boot).
+      after = ["niri.service"];
       serviceConfig = {
         ExecStart = command;
         Restart = "always";
@@ -18,33 +22,29 @@
       wantedBy = ["graphical-session.target"];
       restartTriggers = ["/run/current-system"];
     };
-    daemons = ["qs-desktop" "qs-notifd" "qs-wallpaper" "qs-wallpaper-bg" "qs-visualizer" "swayosd" "vicinae"];
+    daemons = ["qs-combined" "swayosd" "vicinae"];
     user = "yurii";
     uid = toString config.users.users.${user}.uid;
   in {
+    environment.systemPackages = [qs.mujo];
+
     services.udev.extraRules = ''
       KERNEL=="event*", SUBSYSTEM=="input", MODE="0666"
     '';
 
     systemd.user.services = {
-      qs-desktop = mkDaemon {command = "${pkgs.quickshell}/bin/quickshell -p ${qs.desktop}";};
-      qs-notifd = mkDaemon {
-        command = "${pkgs.quickshell}/bin/quickshell -p ${qs.notifd}";
-        path = [pkgs.bash];
-      };
-      qs-wallpaper = mkDaemon {
-        command = "${pkgs.quickshell}/bin/quickshell -p ${qs.wallpaper}";
+      qs-combined = mkDaemon {
+        command = "${pkgs.quickshell}/bin/quickshell -p ${qs.combined}/Shell.qml";
         path = [self.packages.${pkgs.stdenv.hostPlatform.system}.cursor-tracker];
-      };
-      qs-wallpaper-bg = mkDaemon {command = "${pkgs.quickshell}/bin/quickshell -p ${qs.wallpaperBg}";};
-      qs-visualizer = mkDaemon {
-        command = "${pkgs.quickshell}/bin/quickshell -p ${qs.visualizer}";
-        path = [pkgs.cava];
+        environment = {
+          QS_ICON_THEME = "Gruvbox Plus Dark";
+          XDG_DATA_DIRS = "/run/current-system/sw/share";
+        };
       };
       swayosd = mkDaemon {command = "${pkgs.swayosd}/bin/swayosd-server --style ${qs.swayosdCSS}";};
       vicinae = mkDaemon {
         command = "${pkgs.vicinae}/bin/vicinae server --replace";
-        path = [pkgs.flatpak];
+        path = [pkgs.flatpak pkgs.mullvad-vpn];
         environment.XDG_DATA_DIRS = pkgs.lib.concatStringsSep ":" [
           "/run/current-system/sw/share"
           "/var/lib/flatpak/exports/share"
