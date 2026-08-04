@@ -1,5 +1,5 @@
 {inputs, ...}: {
-  flake.nixosModules.nix = {pkgs, lib, ...}: {
+  flake.nixosModules.mullvad = {pkgs, lib, ...}: {
     imports = [];
     nixpkgs.config.allowUnfree = true;
 

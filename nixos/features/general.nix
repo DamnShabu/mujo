@@ -21,7 +21,7 @@
     # ponytail: allow passwordless activation for nh (nixos-rebuild activate)
     security.sudo.extraRules = [
       {
-        users = [ "yurii" ];
+        users = [ config.preferences.user.name ];
         runAs = "root";
         commands = [
           {

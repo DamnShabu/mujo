@@ -24,7 +24,7 @@
       restartTriggers = ["/run/current-system"];
     };
     daemons = ["qs-combined" "vicinae" "pibble"];
-    user = "yurii";
+    user = config.preferences.user.name;
     uid = toString config.users.users.${user}.uid;
   in {
     environment.systemPackages = [qs.mujo self.packages.${pkgs.stdenv.hostPlatform.system}.quicksnip self.packages.${pkgs.stdenv.hostPlatform.system}.pibble];

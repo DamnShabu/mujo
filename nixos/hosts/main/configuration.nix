@@ -42,6 +42,8 @@
       self.nixosModules.virt
       self.nixosModules.user-config
       self.nixosModules.user
+      # mullvad was deliberately removed from this host in the WIP refactor
+      # (commit 3a69f50): re-enable via `self.nixosModules.mullvad` above.
       self.nixosModules.notifications
       self.nixosModules.quickshell
 
