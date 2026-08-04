@@ -1,4 +1,4 @@
-{ pkgs, self, ... }: {
+{ pkgs, self, lib, ... }: {
   hardware.cpu.amd.updateMicrocode = true;
 
   services = {
@@ -9,13 +9,8 @@
     power-profiles-daemon.enable = true;
   };
 
-  programs.alvr.enable = true;
-  programs.alvr.openFirewall = true;
-
   environment.systemPackages = with pkgs; [
     glib
-
-    bs-manager
 
     zerotierone
 
@@ -25,18 +20,23 @@
   ];
 
   xdg.portal = {
-    extraPortals = [pkgs.xdg-desktop-portal-gtk pkgs.xdg-desktop-portal-wlr];
+    extraPortals = [pkgs.xdg-desktop-portal-gtk pkgs.xdg-desktop-portal-gnome];
     enable = true;
     config = {
       common = {
-        default = ["gtk" "wlr"];
+        default = ["gnome" "gtk"];
         "org.freedesktop.impl.portal.FileChooser" = "gtk";
         "org.freedesktop.impl.portal.OpenURI" = "gtk";
       };
+      niri = {
+        default = lib.mkForce ["gnome" "gtk"];
+        "org.freedesktop.impl.portal.FileChooser" = "gtk";
+        "org.freedesktop.impl.portal.OpenURI" = "gtk";
+        "org.freedesktop.impl.portal.ScreenCast" = ["gnome"];
+        "org.freedesktop.impl.portal.Screenshot" = ["gnome"];
+      };
     };
   };
-
-  hardware.graphics.enable = true;
 
   programs.niri = {
     enable = true;
@@ -46,14 +46,4 @@
   services.xserver.videoDrivers = ["amdgpu"];
   boot.initrd.kernelModules = ["amdgpu"];
 
-  programs.obs-studio = {
-    enable = true;
-    plugins = with pkgs.obs-studio-plugins; [
-      obs-move-transition
-    ];
-  };
-
-  persistence.cache.directories = [
-    ".config/obs-studio"
-  ];
 }

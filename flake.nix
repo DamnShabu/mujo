@@ -29,14 +29,20 @@
 
     nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=v0.7.0";
 
-    sops-nix.url = "github:Mic92/sops-nix";
-
-    silentSDDM = {
-      url = "github:uiriansan/SilentSDDM";
+    thyx = {
+      url = "github:rccyx/thyx";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     pi-flake.url = "github:ChauDucToan/pi-flake";
+
+    # cachix/secretspec ships no flake.nix (devenv only), so this is a source
+    # input; the binary is built from it via rustPlatform.buildRustPackage in
+    # nixos/features/vaultwarden.nix with only the `cli` + `bw` features.
+    secretspec = {
+      url = "github:cachix/secretspec/v0.18.0";
+      flake = false;
+    };
 
   };
 

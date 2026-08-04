@@ -9,9 +9,7 @@
     pkgs,
     config,
     ...
-  }: let
-    qs = import ../../quickshell/_default.nix { inherit self pkgs; };
-  in {
+  }: {
     imports = [wlib.wrapperModules.niri];
 
     options.terminal = lib.mkOption {
@@ -36,7 +34,7 @@
 
         keyboard = {
           xkb = {
-            layout = "us,ru,ua";
+            layout = "us";
             options = "grp:alt_shift_toggle,caps:escape";
           };
           repeat-rate = 40;
@@ -61,7 +59,8 @@
         "Mod+Return".spawn = config.terminal;
 
         "Mod+Q".close-window = _: {};
-        "Mod+Space"."spawn-sh" = "vicinae toggle";
+        "Mod+D"."spawn-sh" = "vicinae toggle";
+        "Mod+Space"."spawn-sh" = "pibble toggle";
 
         "Mod+F".maximize-column = _: {};
         "Mod+G".fullscreen-window = _: {};
@@ -141,7 +140,7 @@
         "Mod+Ctrl+WheelScrollUp".focus-workspace-up = _: {};
 
         # audio
-        "Mod+V".spawn-sh = "${pkgs.alsa-utils}/bin/amixer sset Capture toggle";
+        "Mod+V".spawn-sh = "${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle";
         "XF86AudioRaiseVolume".spawn-sh = "wpctl set-volume -l 1.4 @DEFAULT_AUDIO_SINK@ 5%+";
         "XF86AudioLowerVolume".spawn-sh = "wpctl set-volume -l 1.4 @DEFAULT_AUDIO_SINK@ 5%-";
         "XF86AudioMute".spawn-sh = "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
@@ -151,9 +150,9 @@
         "XF86MonBrightnessUp".spawn-sh = "${pkgs.brightnessctl}/bin/brightnessctl s 5%+";
         "XF86MonBrightnessDown".spawn-sh = "${pkgs.brightnessctl}/bin/brightnessctl s 5%-";
 
-        # screenshots (built-in niri)
-        "Mod+Ctrl+S".screenshot = _: {};
-        "Mod+Shift+S".screenshot-window = _: {};
+        # screenshots: region/OCR via QuickSnip
+        "Mod+Shift+S".spawn-sh = "quicksnip";
+        "Mod+Ctrl+S".screenshot-window = _: {};
         "Mod+Ctrl+Shift+S".screenshot-screen = _: {};
 
         # display / session
@@ -230,34 +229,40 @@
         "w2" = settings;
       };
 
-      outputs = {
-        "DP-1" = {
-          mode = "1920x1080@165.003";
-          position = _: {
-            props = {
-              x = 0;
-              y = 1080;
+      outputs = let
+        wizardFile = ../../user-config/_user.nix;
+        wizardCfg = if builtins.pathExists wizardFile then import wizardFile else {};
+        wizardOutputs = wizardCfg.outputs or {};
+        # ponytail: hardcoded defaults when wizard hasn't run yet
+        fallbackOutputs = {
+          "DP-1" = {
+            mode = "1920x1080@165.003";
+            position = _: {
+              props = {
+                x = 0;
+                y = 1080;
+              };
             };
+            scale = 1.0;
           };
-          scale = 1.0;
-        };
-        "HDMI-A-1" = {
-          mode = "1920x1080@60";
-          position = _: {
-            props = {
-              x = 0;
-              y = 0;
+          "HDMI-A-1" = {
+            mode = "1920x1080@60";
+            position = _: {
+              props = {
+                x = 0;
+                y = 0;
+              };
             };
+            scale = 1.0;
           };
-          scale = 1.0;
         };
-      };
+      in fallbackOutputs // wizardOutputs;
 
       xwayland-satellite.path =
         lib.getExe pkgs.xwayland-satellite;
 
       spawn-sh-at-startup = [
-        "sleep 1 && ${pkgs.mpv}/bin/mpv --no-video --no-terminal --volume=50 --ao=pipewire ${self}/sounds/unlocksystem.mp3"
+        "sleep 1 && ${pkgs.mpv}/bin/mpv --no-video --no-terminal --volume=50 --ao=pipewire ${self}/sounds/startup-sound1.mp3"
       ];
     };
   };

@@ -43,8 +43,6 @@
               "/tmp"
 
               "/var/lib/zerotier-one"
-              "/etc/mullvad-vpn"
-              "/var/cache/mullvad-vpn"
             ]
             ++ cfg.directories;
           files =
@@ -58,6 +56,43 @@
             ]
             ++ cfg.files;
         };
+      };
+
+      # ponytail: one-time transition cleanup of persisted state and leftover
+      # bind mounts of the removed mullvad/searxng/sops features. Runs inside
+      # the activation script, i.e. AFTER switch-to-configuration-ng's stop
+      # phase, so it cannot prevent stop-phase errors — it only detaches
+      # leftover busy mounts (e.g. mullvad-daemon still holding them) and
+      # removes their persisted data. The original "Failed to stop
+      # etc-mullvad-vpn.mount" cannot recur: impermanence generated those as
+      # systemd .mount units, and the new generation ships no such unit, so
+      # switch-to-configuration-ng no longer tries to stop it.
+      # Self-disables via the marker; delete this whole block once migration
+      # is confirmed.
+      system.activationScripts."cleanup-removed-features" = {
+        deps = [ "createPersistentStorageDirs" ];
+        text = ''
+          if [ ! -e /persist/.cleanup-removed-features.done ]; then
+            for m in \
+              /etc/mullvad-vpn \
+              /var/cache/mullvad-vpn \
+              /home/${cfg.user}/Documents/.data/mullvad-vpn \
+              /home/${cfg.user}/searxng \
+              /home/${cfg.user}/sops-age
+            do
+              umount -l "$m" 2>/dev/null || true
+            done
+
+            rm -rf /persist/system/etc/mullvad-vpn
+            rm -rf /persist/system/var/cache/mullvad-vpn
+            rm -rf /persist/searxng
+            rm -rf /persist/userdata/home/${cfg.user}/searxng
+            rm -rf /persist/userdata/home/${cfg.user}/sops-age
+            rm -rf /persist/userdata/home/${cfg.user}/Documents/.data/mullvad-vpn
+
+            touch /persist/.cleanup-removed-features.done || true
+          fi
+        '';
       };
 
       boot.initrd.postDeviceCommands =

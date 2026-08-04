@@ -16,7 +16,15 @@
       mutableDir = true;
       extensions = [
         "npm:pi-free"
+        "npm:pi-subagents"
+        "git:github.com/DietrichGebert/ponytail"
       ];
+      models.providers = {};
     };
+
+    persistence.data.directories = [
+      ".pi/agent"
+      ".pi-subagents"
+    ];
   };
 }

@@ -7,6 +7,7 @@
       self.nixosModules.vicinae
       self.nixosModules.pipewire
       self.nixosModules.zen
+      inputs.thyx.nixosModules.default
     ];
 
     # ── niri Wayland compositor ───────────────────────────────────────────────
@@ -16,23 +17,15 @@
     #   - xdg-desktop-portal + recommended portals,
     #   - services.graphical-desktop.enable → graphical-session.target in the
     #     user systemd instance (so user services can declare their dependencies).
-    programs.niri.enable = true;
+    # ── display manager : SDDM ─────────────────────────────────────────────────
+    services.xserver.enable = true;
 
-    # ── display manager : greetd + tuigreet ────────────────────────────────────
-    # tuigreet is the greeter. It discovers sessions from the directories below,
-    # which NixOS populates from services.displayManager.sessionPackages.
-    # The niri desktop entry there points to niri-session(1), which in turn
-    # imports environment, starts niri.service in the user systemd instance,
-    # and waits for it to terminate.
-    services.greetd = {
+    services.displayManager.sddm = {
       enable = true;
-      settings = {
-        default_session = {
-          command = "${pkgs.tuigreet}/bin/tuigreet --time --sessions /run/current-system/sw/share/wayland-sessions --sessions /run/current-system/sw/share/xsessions --no-run-all";
-          user = "greeter";
-        };
-      };
+      thyx.enable = true;
     };
+
+    systemd.services.display-manager.environment.QML_IMPORT_PATH = "${pkgs.qt6.qt5compat}/lib/qt-6/qml";
 
     services.displayManager.enable = true;
 
@@ -40,21 +33,20 @@
     environment.sessionVariables = {
       XCURSOR_THEME = "Bibata-Modern-Classic";
       XCURSOR_SIZE = "24";
-      GDK_BACKEND = "wayland,x11";
+
       NIXOS_OZONE_WL = "1";
       QT_QPA_PLATFORM = "wayland;xcb";
+
+      XDG_CURRENT_DESKTOP = "niri:GNOME";
     };
 
     # ── packages ──────────────────────────────────────────────────────────────
     environment.systemPackages = [
       selfpkgs.terminal
-      pkgs.pcmanfm
       pkgs.wl-clipboard
       pkgs.xdg-utils
-      pkgs.tuigreet
-      pkgs.age
-      pkgs.sops
       pkgs.bibata-cursors
+      pkgs.gparted
     ];
 
     # ── fonts ─────────────────────────────────────────────────────────────────
@@ -75,7 +67,6 @@
     # ── locale ────────────────────────────────────────────────────────────────
     time.timeZone = config.preferences.locale.timeZone;
     i18n.defaultLocale = config.preferences.locale.default;
-    i18n.extraLocaleSettings = config.preferences.locale.extra;
 
     # ── desktop file associations (XDG) ───────────────────────────────────────
     xdg.mime = {
@@ -93,8 +84,8 @@
         "image/svg+xml" = ["org.gimp.GIMP.desktop"];
         "text/markdown" = ["md.obsidian.Obsidian.desktop"];
         "text/plain" = ["org.gnome.TextEditor.desktop" "kitty.desktop"];
-        "inode/directory" = ["pcmanfm.desktop"];
-        "x-scheme-handler/file" = ["pcmanfm.desktop"];
+        "inode/directory" = ["kitty.desktop"];
+        "x-scheme-handler/file" = ["kitty.desktop"];
         "x-scheme-handler/tg" = ["org.telegram.desktop.desktop"];
         "x-scheme-handler/spotify" = ["spotify.desktop"];
       };
@@ -102,6 +93,21 @@
 
     # ── polkit ────────────────────────────────────────────────────────────────
     security.polkit.enable = true;
+    # ponytail: Nix store binaries cannot carry setuid bits, so pkexec from
+    # polkit is not executable as root out of the store. Create a setuid-root
+    # wrapper in /run at boot via a systemd oneshot.
+    systemd.services.pkexec-wrapper = {
+      description = "Create setuid pkexec wrapper";
+      wantedBy = [ "sysinit.target" ];
+      before = [ "polkit.service" ];
+      after = [ "suid-sgid-wrappers.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = "${pkgs.bash}/bin/bash -c 'mkdir -p /run/wrappers/bin && cp ${pkgs.polkit}/bin/pkexec /run/wrappers/bin/pkexec && chmod 4755 /run/wrappers/bin/pkexec'";
+      };
+    };
+    services.udisks2.enable = true;
 
     # ── hardware ──────────────────────────────────────────────────────────────
     hardware = {

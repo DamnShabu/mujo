@@ -64,24 +64,21 @@
         '';
     };
   in {
-    users.users.${config.preferences.user.name}.extraGroups = ["libvirtd"];
+    users.users.${config.preferences.user.name}.extraGroups = ["libvirtd" "podman"];
 
     virtualisation.libvirtd.enable = true;
 
-    programs.virt-manager.enable = true;
-
     environment.systemPackages = [
-      pkgs.virt-manager
-      pkgs.virt-viewer
       pkgs.spice
-      pkgs.spice-gtk
       pkgs.spice-protocol
+      pkgs.docker-compose
       createVm
     ];
 
     virtualisation.podman = {
       enable = true;
       dockerCompat = true;
+      dockerSocket.enable = true;
       defaultNetwork.settings = {
         dns_enabled = true;
       };
@@ -89,6 +86,7 @@
 
     persistence.directories = [
       "/var/lib/libvirt"
+      "/var/lib/containers"
     ];
   };
 

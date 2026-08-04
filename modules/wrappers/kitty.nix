@@ -44,7 +44,7 @@
         window_padding_width = 10;
 
         background_opacity = "0.8";
-        background_blur = 1;
+        background_blur = 5;
 
         background = self.theme.base00;
         foreground = self.theme.base07;

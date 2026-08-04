@@ -1,0 +1,9 @@
+result
+result-*
+.direnv/
+secrets/
+secrets/vaultwarden-master-password
+user-config/
+.pi/
+.pi-subagents/
+.directory

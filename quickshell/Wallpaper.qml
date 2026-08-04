@@ -41,7 +41,7 @@ Item {
         color: "transparent"
 
         readonly property string confFile: Quickshell.env("HOME") + "/.config/quickshell/wallpaper.json"
-        readonly property real transitionDuration: 800
+        readonly property real transitionDuration: 600
 
         property var conf: ({})
         property color bgColor: "#111111"
@@ -145,8 +145,8 @@ Item {
         SequentialAnimation {
           id: crossfade
           ParallelAnimation {
-            NumberAnimation { id: animNew; property: "opacity"; from: 0; to: 1; duration: root.transitionDuration; easing.type: Easing.InOutQuad }
-            NumberAnimation { id: animOld; property: "opacity"; from: 1; to: 0; duration: root.transitionDuration; easing.type: Easing.InOutQuad }
+            NumberAnimation { id: animNew; property: "opacity"; from: 0; to: 1; duration: root.transitionDuration; easing.type: Easing.OutExpo }
+            NumberAnimation { id: animOld; property: "opacity"; from: 1; to: 0; duration: root.transitionDuration; easing.type: Easing.OutExpo }
           }
           ScriptAction {
             script: {
@@ -182,7 +182,7 @@ Item {
 
             Behavior on opacity {
               enabled: root.transitioning
-              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.InOutQuad }
+              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.OutExpo }
             }
 
             onStatusChanged: {
@@ -204,7 +204,7 @@ Item {
 
             Behavior on opacity {
               enabled: root.transitioning
-              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.InOutQuad }
+              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.OutExpo }
             }
 
             onStatusChanged: {
@@ -222,7 +222,7 @@ Item {
 
             Behavior on opacity {
               enabled: root.transitioning
-              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.InOutQuad }
+              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.OutExpo }
             }
           }
 
@@ -234,7 +234,7 @@ Item {
 
             Behavior on opacity {
               enabled: root.transitioning
-              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.InOutQuad }
+              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.OutExpo }
             }
           }
 
@@ -361,8 +361,8 @@ Item {
         FastBlur {
           anchors.fill: parent
           source: bgImage
-          visible: bgImage.visible
-          radius: 48
+          visible: bgRoot.imgSrc !== ""
+          radius: 64
           cached: true
         }
       }

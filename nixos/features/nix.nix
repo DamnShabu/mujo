@@ -39,6 +39,7 @@
       nix-inspect
       mcp-nixos
       diffutils
+      git
     ];
 
     system.activationScripts.addDiffutilsToActivationPath = {
@@ -47,6 +48,9 @@
           echo "cmp already available" >&2
         else
           export PATH="${pkgs.diffutils}/bin:$PATH"
+        fi
+        if ! command -v git >/dev/null 2>&1; then
+          export PATH="${pkgs.git}/bin:$PATH"
         fi
       '';
     };

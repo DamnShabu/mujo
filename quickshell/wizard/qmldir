@@ -1,0 +1,8 @@
+module Wizard
+singleton WizardTheme 1.0 WizardTheme.qml
+singleton WizardState 1.0 WizardState.qml
+Wizard 1.0 Wizard.qml
+WizField 1.0 WizField.qml
+PageIdentity 1.0 PageIdentity.qml
+PageMachine 1.0 PageMachine.qml
+PageSeal 1.0 PageSeal.qml

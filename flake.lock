@@ -347,22 +347,6 @@
     },
     "nixpkgs_5": {
       "locked": {
-        "lastModified": 1782175435,
-        "narHash": "sha256-EMzXKmnOtBQ2MnvpiNOm7E+kOMvdPrIKaeg52Tip2Uk=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "89570f24e97e614aa34aa9ab1c927b6578a43775",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixpkgs-unstable",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs_6": {
-      "locked": {
         "lastModified": 1780336545,
         "narHash": "sha256-vhVhuXzFrIOfcssC/9hDHx7MHzDKjF3keHuREOQqQiQ=",
         "owner": "NixOS",
@@ -424,52 +408,51 @@
         "nixpkgs-stable": "nixpkgs-stable",
         "persist-retro": "persist-retro",
         "pi-flake": "pi-flake",
-        "silentSDDM": "silentSDDM",
-        "sops-nix": "sops-nix",
+        "secretspec": "secretspec",
+        "thyx": "thyx",
         "wrapper-modules": "wrapper-modules"
       }
     },
-    "silentSDDM": {
+    "secretspec": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785820977,
+        "narHash": "sha256-ckaHzN8nAVnhBgdWLCbCnWcoovoUWOcnJv0eSQSpcWU=",
+        "owner": "cachix",
+        "repo": "secretspec",
+        "rev": "7ff76e8e351a6449e0a89289104a7ec62990461a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "cachix",
+        "ref": "v0.18.0",
+        "repo": "secretspec",
+        "type": "github"
+      }
+    },
+    "thyx": {
       "inputs": {
         "nixpkgs": [
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1782837720,
-        "narHash": "sha256-6t35AM4lhK7kQTH103YMICyHzMofZMgs+xIJ9kgMZ4I=",
-        "owner": "uiriansan",
-        "repo": "SilentSDDM",
-        "rev": "3b55533612bc66a225b8babc6abfc5f24d04f4ac",
+        "lastModified": 1782491382,
+        "narHash": "sha256-JB132Bwzq6UpXP5y6slNAYE00q8qJdyTRUzaiUpGbqw=",
+        "owner": "rccyx",
+        "repo": "thyx",
+        "rev": "68a0d7d9617ae8b110490810993005131bfa1f21",
         "type": "github"
       },
       "original": {
-        "owner": "uiriansan",
-        "repo": "SilentSDDM",
-        "type": "github"
-      }
-    },
-    "sops-nix": {
-      "inputs": {
-        "nixpkgs": "nixpkgs_5"
-      },
-      "locked": {
-        "lastModified": 1783174389,
-        "narHash": "sha256-aCWC8ngycU7OdJrU2+Je3qf+1a2ykuBvpPhZT/9tXMc=",
-        "owner": "Mic92",
-        "repo": "sops-nix",
-        "rev": "f1406619a3884cd5c47992a70b8b35c9c0fcb4c9",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Mic92",
-        "repo": "sops-nix",
+        "owner": "rccyx",
+        "repo": "thyx",
         "type": "github"
       }
     },
     "wrapper-modules": {
       "inputs": {
-        "nixpkgs": "nixpkgs_6"
+        "nixpkgs": "nixpkgs_5"
       },
       "locked": {
         "lastModified": 1782135443,

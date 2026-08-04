@@ -21,6 +21,11 @@
 
     persistence.data.directories = [
       ".config/opencode"
+      ".local/share/opencode"
+    ];
+
+    persistence.cache.directories = [
+      ".cache/opencode"
     ];
 
     hjem.users."${user}".files = {
