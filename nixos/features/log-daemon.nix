@@ -63,7 +63,7 @@
         after = [];
         wantedBy = ["graphical-session.target"];
         serviceConfig = {
-          ExecStart = "${python}/bin/python ${../../modules/log-daemon/log-daemon.py}";
+          ExecStart = "${python}/bin/python -u ${../../modules/log-daemon/log-daemon.py}";
           Restart = "always";
           RestartSec = 2;
           Type = "simple";

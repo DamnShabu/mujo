@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable"; # force rebuild 1784607705
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
     # The framework I use to structure the flake, module imports are automatic via custom function below
     flake-parts.url = "github:hercules-ci/flake-parts";

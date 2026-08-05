@@ -156,14 +156,16 @@ def record_skip(cfg, ledger, path, reason):
         f_id = file_id(path)
     except OSError:
         return
-    entry = ledger.get(path.name)
-    if isinstance(entry, dict) and entry.get("id") == f_id:
-        return
-    print(f"log-daemon: skipping {path.name}: {reason}", file=sys.stderr)
-    old_note = entry.get("note") if isinstance(entry, dict) else None
     with _LEDGER_LOCK:
-        ledger[path.name] = {"id": f_id, "note": old_note}
+        entry = ledger.get(path.name)
+        if isinstance(entry, dict) and entry.get("id") == f_id:
+            return
+        was_already_skip = isinstance(entry, dict) and entry.get("skipped") is True
+        old_note = entry.get("note") if isinstance(entry, dict) else None
+        ledger[path.name] = {"id": f_id, "note": old_note, "skipped": True}
         save_ledger(cfg["state_dir"], ledger)
+        if not was_already_skip:
+            print(f"log-daemon: skipping {path.name}: {reason}", file=sys.stderr)
 
 
 def process(cfg, ledger, path):

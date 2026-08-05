@@ -185,7 +185,7 @@ in {
         if ! ${secretspec} --file /run/secrets/secretspec.toml get "$key" --reason "vaultwarden-secrets bootstrap" > "$tmp"; then
           echo "vaultwarden-secrets: fetching item '$item' failed" >&2
           rm -f "$tmp"
-          return 0
+          return 1
         fi
         if [ -s "$tmp" ] && [ -z "$(tail -c 1 "$tmp")" ]; then
           truncate -s -1 "$tmp"

@@ -22,7 +22,7 @@
       ./_boot.nix
       ./_networking.nix
       ./_hardware-and-services.nix
-      
+
       self.nixosModules.base
       self.nixosModules.general
       self.nixosModules.desktop
