@@ -69,6 +69,10 @@
         "Mod+C".center-column = _: {};
         "Mod+W".toggle-column-tabbed-display = _: {};
         "Mod+E".spawn = "nautilus";
+        "Mod+B".spawn = "zen";
+        "Mod+M".spawn = "feishin";
+        "Mod+T".spawn = "code";
+        "Mod+P".spawn = "super-productivity";
 
         # cross-boundary navigation (wraps across monitors/workspaces)
         "Mod+H"."focus-column-or-monitor-left" = _: {};
@@ -223,6 +227,18 @@
         {
           matches = [ { app-id = "(?i)vesktop"; } ];
           open-maximized = true;
+        }
+        {
+            matches = [ { app-id = "(?i)steam"; title = "^notificationtoasts_\\d+_desktop$"; } ];
+            default-floating-position = _: {
+              props = {
+                x = 10;
+                y = 10;
+                relative-to = "bottom-right";
+              };
+            };
+            open-floating = true;
+            open-focused = false;
         }
       ];
 

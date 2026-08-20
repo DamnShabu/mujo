@@ -29,8 +29,6 @@
 
       self.nixosModules.impermanence
 
-      self.nixosModules.log-daemon
-
       self.nixosModules.preload
 
       self.nixosModules.flatpak
@@ -63,7 +61,6 @@
     nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 
     secrets.vaultwarden.enable = true;
-    services.log-daemon.enable = true;
     # Vendored package: preload was removed from nixpkgs, see
     # modules/perSystem.nix (packages.preload).
     services.preload.enable = true;

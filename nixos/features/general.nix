@@ -12,7 +12,7 @@
     users.users.${config.preferences.user.name} = {
       isNormalUser = true;
       description = "${config.preferences.user.name}'s account";
-      extraGroups = ["wheel" "networkmanager" "input" "disk"];
+      extraGroups = ["wheel" "networkmanager" "input" "disk" "docker"];
       shell = self.packages.${pkgs.stdenv.hostPlatform.system}.environment;
 
       hashedPasswordFile = "/persist/passwd";

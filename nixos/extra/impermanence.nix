@@ -38,7 +38,6 @@
               "/var/log"
               "/var/lib/bluetooth"
               "/var/lib/nixos"
-              "/var/lib/private/ollama"
               "/var/lib/systemd/coredump"
               "/etc/NetworkManager/system-connections"
               "/tmp"

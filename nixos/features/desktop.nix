@@ -50,17 +50,19 @@
 
     # ── fonts ─────────────────────────────────────────────────────────────────
     fonts.packages = with pkgs; [
+      fira-code
       nerd-fonts.jetbrains-mono
       ubuntu-sans
       cm_unicode
       corefonts
       unifont
+      material-symbols
     ];
 
     fonts.fontconfig.defaultFonts = {
       serif = ["Ubuntu Sans"];
       sansSerif = ["Ubuntu Sans"];
-      monospace = ["JetBrainsMono Nerd Font"];
+      monospace = ["Fira Code" "JetBrainsMono Nerd Font"];
     };
 
     # ── locale ────────────────────────────────────────────────────────────────

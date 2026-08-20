@@ -7,7 +7,6 @@ Usage: mujo <command> [args...]
 
 Commands:
   wallpaper <subcommand>   Wallpaper management
-  log <subcommand>         Trigger log-daemon capture
   help                      Show this help
 EOF
   exit 1
@@ -22,16 +21,6 @@ Commands:
   set <path> --monitor <name>    Set wallpaper for specific monitor
   motion <on|off>                 Toggle zoom + pan effect
   show                            Show current config
-EOF
-  exit 1
-}
-
-log_usage() {
-  cat >&2 <<EOF
-Usage: mujo log <command> [args...]
-
-Commands:
-  generate                      Run log capture now and generate a note
 EOF
   exit 1
 }
@@ -103,17 +92,6 @@ case "${CMD}" in
         ;;
 
       *) wallpaper_usage ;;
-    esac
-    ;;
-
-  log)
-    [[ $# -ge 1 ]] || log_usage
-    case "$1" in
-      generate)
-        systemctl --user start log-daemon-capture-now.service
-        echo "Log capture complete"
-        ;;
-      *) log_usage ;;
     esac
     ;;
 

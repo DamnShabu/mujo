@@ -9,6 +9,8 @@
     power-profiles-daemon.enable = true;
   };
 
+  virtualisation.docker.enable = true;
+
   # Compressed RAM swap. Layering: zram (priority 5, the module default) fills
   # first for cheap reclaim of cold pages; the 16G disk swap partition
   # (disko.nix) stays as overflow and for hibernation via its resumeDevice.
