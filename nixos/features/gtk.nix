@@ -1,23 +1,24 @@
-{
+{self, ...}: {
   flake.nixosModules.gtk = {
     pkgs,
     lib,
     config,
     ...
   }: let
-    theme-package = pkgs.orchis-theme;
-    theme-name = "Orchis-Dark";
+    selfpkgs = self.packages."${pkgs.stdenv.hostPlatform.system}";
+    theme-package = selfpkgs.skeuos-gtk;
+    theme-name = "Skeuos-Grey-Dark";
 
-    icon-theme-package = pkgs.gruvbox-plus-icons;
-    icon-theme-name = "Gruvbox-Plus-Dark";
+    icon-theme-package = pkgs.colloid-icon-theme;
+    icon-theme-name = "Colloid-Dark";
 
     cursor-theme-package = pkgs.bibata-cursors;
     cursor-theme-name = "Bibata-Modern-Classic";
 
     gtksettings = ''
       [Settings]
-      gtk-icon-theme-name = ${icon-theme-name}
       gtk-theme-name = ${theme-name}
+      gtk-icon-theme-name = ${icon-theme-name}
       gtk-cursor-theme-name = ${cursor-theme-name}
     '';
   in {
@@ -29,9 +30,8 @@
     };
 
     environment.variables = {
-      GTK_THEME = theme-name;
       XCURSOR_THEME = cursor-theme-name;
-      QT_QPA_PLATFORMTHEME = "qt6ct";
+      XCURSOR_SIZE = "24";
     };
 
     programs = {
@@ -65,20 +65,16 @@
       pkgs.gtk3
       pkgs.gtk4
       pkgs.adwaita-icon-theme
-      pkgs.libsForQt5.qt5ct
-      pkgs.qt6Packages.qt6ct
+      pkgs.gnome-themes-extra
     ];
 
     systemd.user.tmpfiles.rules = [
       "L+ %h/.local/share/themes/${theme-name} - - - - ${theme-package}/share/themes/${theme-name}"
-      "L+ %h/.config/gtk-4.0/gtk.css - - - - ${theme-package}/share/themes/${theme-name}/gtk-4.0/gtk-dark.css"
-      "L+ %h/.config/gtk-4.0/gtk-dark.css - - - - ${theme-package}/share/themes/${theme-name}/gtk-4.0/gtk-dark.css"
-      "L+ %h/.config/gtk-4.0/assets - - - - ${theme-package}/share/themes/${theme-name}/gtk-4.0/assets"
+      "L+ %h/.local/share/icons/${icon-theme-name} - - - - ${icon-theme-package}/share/icons/${icon-theme-name}"
     ];
 
-    # Make theme visible to Flatpak apps
     services.flatpak.overrides = lib.mkIf config.services.flatpak.enable {
-      global.Context.filesystems = ["xdg-data/themes:ro"];
+      global.Context.filesystems = ["xdg-data/icons:ro"];
     };
   };
 }

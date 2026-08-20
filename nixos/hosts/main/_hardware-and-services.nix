@@ -9,6 +9,13 @@
     power-profiles-daemon.enable = true;
   };
 
+  # Compressed RAM swap. Layering: zram (priority 5, the module default) fills
+  # first for cheap reclaim of cold pages; the 16G disk swap partition
+  # (disko.nix) stays as overflow and for hibernation via its resumeDevice.
+  # memoryPercent can be tuned after checking `zramctl` for actual usage.
+  zramSwap.enable = true;
+  zramSwap.memoryPercent = 50;
+
   environment.systemPackages = with pkgs; [
     glib
 

@@ -12,9 +12,7 @@
 
     environment.systemPackages = with pkgs; [
       dxvk
-
       gamescope
-
       mangohud
     ];
 

@@ -38,6 +38,7 @@
               "/var/log"
               "/var/lib/bluetooth"
               "/var/lib/nixos"
+              "/var/lib/private/ollama"
               "/var/lib/systemd/coredump"
               "/etc/NetworkManager/system-connections"
               "/tmp"
@@ -59,14 +60,16 @@
       };
 
       # ponytail: one-time transition cleanup of persisted state and leftover
-      # bind mounts of the removed mullvad/searxng/sops features. Runs inside
-      # the activation script, i.e. AFTER switch-to-configuration-ng's stop
-      # phase, so it cannot prevent stop-phase errors — it only detaches
-      # leftover busy mounts (e.g. mullvad-daemon still holding them) and
-      # removes their persisted data. The original "Failed to stop
-      # etc-mullvad-vpn.mount" cannot recur: impermanence generated those as
-      # systemd .mount units, and the new generation ships no such unit, so
-      # switch-to-configuration-ng no longer tries to stop it.
+      # bind mounts of the removed searxng/sops features and the old mullvad
+      # cache/data dirs. Runs inside the activation script, i.e. AFTER
+      # switch-to-configuration-ng's stop phase, so it cannot prevent
+      # stop-phase errors — it only detaches leftover busy mounts and
+      # removes their persisted data. (switch-to-configuration-ng does stop
+      # units active in the previous generation but absent in the new one, so
+      # the old "Failed to stop etc-mullvad-vpn.mount" could still fire on a
+      # host migrating from an older generation; it is only no longer expected
+      # here because the old mount is already gone on this host, and the
+      # marker prevents re-running.)
       # Self-disables via the marker; delete this whole block once migration
       # is confirmed.
       system.activationScripts."cleanup-removed-features" = {
@@ -74,7 +77,6 @@
         text = ''
           if [ ! -e /persist/.cleanup-removed-features.done ]; then
             for m in \
-              /etc/mullvad-vpn \
               /var/cache/mullvad-vpn \
               /home/${cfg.user}/Documents/.data/mullvad-vpn \
               /home/${cfg.user}/searxng \
@@ -83,7 +85,6 @@
               umount -l "$m" 2>/dev/null || true
             done
 
-            rm -rf /persist/system/etc/mullvad-vpn
             rm -rf /persist/system/var/cache/mullvad-vpn
             rm -rf /persist/searxng
             rm -rf /persist/userdata/home/${cfg.user}/searxng

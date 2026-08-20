@@ -41,21 +41,11 @@ Item {
         color: "transparent"
 
         readonly property string confFile: Quickshell.env("HOME") + "/.config/quickshell/wallpaper.json"
-        readonly property real transitionDuration: 600
 
-        property var conf: ({})
         property color bgColor: "#111111"
-        property string imgSrcA: ""
-        property string imgSrcB: ""
-        property string vidSrcA: ""
-        property string vidSrcB: ""
+        property string imgSrc: ""
+        property string vidSrc: ""
         property bool zoomEnabled: false
-        property bool panEnabled: false
-        property bool transitioning: false
-        property int activeIdx: 0
-
-        readonly property var screenMap: ({"DP-1":0,"HDMI-A-1":1,"DP-2":2,"HDMI-A-2":3,"eDP-1":4})
-        property int screenIdx: screenMap[screen.monitorName] !== undefined ? screenMap[screen.monitorName] : -1
 
         function loadConf() {
           confReader.running = true
@@ -69,32 +59,22 @@ Item {
             onStreamFinished: {
               try {
                 var c = JSON.parse(this.text)
-                root.conf = c
                 root.bgColor = c.background || "#111111"
                 root.zoomEnabled = !!(c.effects && c.effects.motion)
-                root.panEnabled = !!(c.effects && c.effects.motion)
 
                 var def = c.default || {}
-                var newImg = ""
-                var newVid = ""
+                var img = def.image || ""
+                var vid = def.video || ""
 
                 var monitors = c.monitors || {}
                 for (var name in monitors) {
-                  var mon = monitors[name]
                   if (name === screen.monitorName) {
-                    newImg = mon.image || def.image || ""
-                    newVid = mon.video || def.video || ""
+                    img = monitors[name].image || img
+                    vid = monitors[name].video || vid
                   }
                 }
-                if (newImg === "") newImg = def.image || ""
-                if (newVid === "") newVid = def.video || ""
-
-                if (newImg !== root.imgSrcA && newImg !== "") {
-                  root.startFadeIn(newImg, newVid)
-                } else if (newImg === "") {
-                  root.imgSrcA = ""
-                  root.vidSrcA = ""
-                }
+                root.imgSrc = img
+                root.vidSrc = vid
               } catch(e) {}
             }
           }
@@ -103,157 +83,33 @@ Item {
         Timer { interval: 2000; running: true; repeat: true; onTriggered: root.loadConf() }
         Component.onCompleted: root.loadConf()
 
-        function startFadeIn(newImg, newVid) {
-          root.transitioning = true
-          var oldIdx = root.activeIdx
-
-          if (newImg !== "") {
-            if (oldIdx === 0) {
-              root.imgSrcB = newImg
-              wallpaperB.source = "file://" + newImg
-              wallpaperB.opacity = 0
-              wallpaperB.visible = true
-              animNew.target = wallpaperB
-              animOld.target = wallpaperA
-            } else {
-              root.imgSrcA = newImg
-              wallpaperA.source = "file://" + newImg
-              wallpaperA.opacity = 0
-              wallpaperA.visible = true
-              animNew.target = wallpaperA
-              animOld.target = wallpaperB
-            }
-          }
-
-          if (newVid !== "") {
-            if (oldIdx === 0) {
-              root.vidSrcB = newVid
-              videoB.source = "file://" + newVid
-              videoB.opacity = 0
-              videoB.visible = true
-            } else {
-              root.vidSrcA = newVid
-              videoA.source = "file://" + newVid
-              videoA.opacity = 0
-              videoA.visible = true
-            }
-          }
-
-          crossfade.restart()
-        }
-
-        SequentialAnimation {
-          id: crossfade
-          ParallelAnimation {
-            NumberAnimation { id: animNew; property: "opacity"; from: 0; to: 1; duration: root.transitionDuration; easing.type: Easing.OutExpo }
-            NumberAnimation { id: animOld; property: "opacity"; from: 1; to: 0; duration: root.transitionDuration; easing.type: Easing.OutExpo }
-          }
-          ScriptAction {
-            script: {
-              var oldIdx = root.activeIdx
-              root.activeIdx = oldIdx === 0 ? 1 : 0
-              root.transitioning = false
-
-              if (oldIdx === 0) {
-                wallpaperA.visible = false; wallpaperA.opacity = 0
-                videoA.visible = false; videoA.opacity = 0
-              } else {
-                wallpaperB.visible = false; wallpaperB.opacity = 0
-                videoB.visible = false; videoB.opacity = 0
-              }
-            }
-          }
-        }
-
         Item {
           anchors.fill: parent
 
           Rectangle { anchors.fill: parent; color: root.bgColor }
 
           Image {
-            id: wallpaperA
+            id: wallpaper
             anchors.fill: parent
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             cache: true
-            visible: root.imgSrcA !== ""
-            source: root.imgSrcA !== "" ? "file://" + root.imgSrcA : ""
+            visible: root.imgSrc !== ""
+            source: root.imgSrc !== "" ? "file://" + root.imgSrc : ""
             mipmap: false
-
-            Behavior on opacity {
-              enabled: root.transitioning
-              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.OutExpo }
-            }
-
-            onStatusChanged: {
-              if (status === Image.Ready && !root.transitioning && opacity < 1) {
-                opacity = 1
-              }
-            }
-          }
-
-          Image {
-            id: wallpaperB
-            anchors.fill: parent
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            cache: true
-            visible: false
-            opacity: 0
-            mipmap: false
-
-            Behavior on opacity {
-              enabled: root.transitioning
-              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.OutExpo }
-            }
-
-            onStatusChanged: {
-              if (status === Image.Ready && !root.transitioning && opacity < 1) {
-                opacity = 1
-              }
-            }
           }
 
           VideoOutput {
-            id: videoA
+            id: video
             anchors.fill: parent
-            visible: false
-            opacity: 0
-
-            Behavior on opacity {
-              enabled: root.transitioning
-              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.OutExpo }
-            }
-          }
-
-          VideoOutput {
-            id: videoB
-            anchors.fill: parent
-            visible: false
-            opacity: 0
-
-            Behavior on opacity {
-              enabled: root.transitioning
-              NumberAnimation { duration: root.transitionDuration; easing.type: Easing.OutExpo }
-            }
+            visible: root.vidSrc !== ""
           }
 
           MediaPlayer {
-            id: playerA
-            videoOutput: videoA
+            id: player
+            videoOutput: video
             loops: MediaPlayer.Infinite
-            source: root.vidSrcA !== "" ? "file://" + root.vidSrcA : ""
-
-            onSourceChanged: {
-              if (source.toString() !== "") play()
-            }
-          }
-
-          MediaPlayer {
-            id: playerB
-            videoOutput: videoB
-            loops: MediaPlayer.Infinite
-            source: root.vidSrcB !== "" ? "file://" + root.vidSrcB : ""
+            source: root.vidSrc !== "" ? "file://" + root.vidSrc : ""
 
             onSourceChanged: {
               if (source.toString() !== "") play()

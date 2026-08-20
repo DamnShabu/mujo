@@ -70,7 +70,11 @@
                   };
 
                   "/nix" = {
-                    mountOptions = ["subvol=nix" "noatime"];
+                    # relatime (not noatime): the preload daemon learns which
+                    # files to prefetch from atime, so /nix (where all store
+                    # paths live) must track access times. /persist stays
+                    # noatime; user data doesn't need tracking.
+                    mountOptions = ["subvol=nix" "relatime"];
                     mountpoint = "/nix";
                   };
                 };

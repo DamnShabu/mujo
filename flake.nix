@@ -25,6 +25,19 @@
 
     nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=v0.7.0";
 
+    quickshell = {
+      url = "git+https://git.outfoxxed.me/outfoxxed/quickshell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # niri IPC QML plugin for quickshell shells; exposed on the QML import
+    # path in nixos/features/quickshell.nix.
+    qml-niri = {
+      url = "github:imiric/qml-niri/main";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.quickshell.follows = "quickshell";
+    };
+
     thyx = {
       url = "github:rccyx/thyx";
       inputs.nixpkgs.follows = "nixpkgs";

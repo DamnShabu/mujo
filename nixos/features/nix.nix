@@ -54,9 +54,5 @@
         fi
       '';
     };
-
-    system.activationScripts.piCodingAgentConfig = {
-      deps = lib.mkBefore [ "addDiffutilsToActivationPath" ];
-    };
   };
 }

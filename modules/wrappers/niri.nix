@@ -59,8 +59,8 @@
         "Mod+Return".spawn = config.terminal;
 
         "Mod+Q".close-window = _: {};
-        "Mod+D"."spawn-sh" = "vicinae toggle";
-        "Mod+Space"."spawn-sh" = "pibble toggle";
+        "Mod+Space"."spawn-sh" = "vicinae toggle";
+        # "Mod+Space"."spawn-sh" = "pibble toggle";
 
         "Mod+F".maximize-column = _: {};
         "Mod+G".fullscreen-window = _: {};
@@ -68,7 +68,7 @@
         "Mod+Shift+G".toggle-windowed-fullscreen = _: {};
         "Mod+C".center-column = _: {};
         "Mod+W".toggle-column-tabbed-display = _: {};
-        "Mod+E".spawn = "org.kde.dolphin";
+        "Mod+E".spawn = "nautilus";
 
         # cross-boundary navigation (wraps across monitors/workspaces)
         "Mod+H"."focus-column-or-monitor-left" = _: {};
@@ -162,7 +162,7 @@
       };
 
       layout = {
-        gaps = 5;
+        gaps = 10;
         background-color = "transparent";
 
         struts = {
@@ -175,6 +175,19 @@
         focus-ring = {
           off = _: {};
         };
+
+        shadow = {
+          softness = 1;
+          spread = 0;
+          offset = _: {
+            props = {
+              x = 0;
+              y = 0;
+            };
+          };
+          color = "#E6E1CFAA";
+          inactive-color = "#E6E1CF55";
+        };
       };
 
       blur = {
@@ -186,10 +199,30 @@
 
       window-rules = [
         {
-          geometry-corner-radius = 8;
+          geometry-corner-radius = 4;
           clip-to-geometry = true;
           opacity = 0.9;
           background-effect = { blur = true; };
+        }
+        {
+          matches = [ { app-id = "^kitty$"; } ];
+          open-maximized = true;
+        }
+        {
+          matches = [ { app-id = "zen"; } ];
+          open-maximized = true;
+        }
+        {
+          matches = [ { app-id = "(?i)nautilus"; } ];
+          open-maximized = true;
+        }
+        {
+          matches = [ { app-id = "(?i)steam"; } ];
+          open-maximized = true;
+        }
+        {
+          matches = [ { app-id = "(?i)vesktop"; } ];
+          open-maximized = true;
         }
       ];
 
@@ -217,7 +250,6 @@
             blur = true;
             xray = true;
           };
-          geometry-corner-radius = 16;
         }
       ];
 
@@ -229,34 +261,28 @@
         "w2" = settings;
       };
 
-      outputs = let
-        wizardFile = ../../user-config/_user.nix;
-        wizardCfg = if builtins.pathExists wizardFile then import wizardFile else {};
-        wizardOutputs = wizardCfg.outputs or {};
-        # ponytail: hardcoded defaults when wizard hasn't run yet
-        fallbackOutputs = {
-          "DP-1" = {
-            mode = "1920x1080@165.003";
-            position = _: {
-              props = {
-                x = 0;
-                y = 1080;
-              };
+      outputs = {
+        "DP-1" = {
+          mode = "1920x1080@165.003";
+          position = _: {
+            props = {
+              x = 0;
+              y = 1080;
             };
-            scale = 1.0;
           };
-          "HDMI-A-1" = {
-            mode = "1920x1080@60";
-            position = _: {
-              props = {
-                x = 0;
-                y = 0;
-              };
-            };
-            scale = 1.0;
-          };
+          scale = 1.0;
         };
-      in fallbackOutputs // wizardOutputs;
+        "HDMI-A-1" = {
+          mode = "1920x1080@60";
+          position = _: {
+            props = {
+              x = 0;
+              y = 0;
+            };
+          };
+          scale = 1.0;
+        };
+      };
 
       xwayland-satellite.path =
         lib.getExe pkgs.xwayland-satellite;

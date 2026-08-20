@@ -31,9 +31,6 @@
 
     # ── GUI session environment ────────────────────────────────────────────────
     environment.sessionVariables = {
-      XCURSOR_THEME = "Bibata-Modern-Classic";
-      XCURSOR_SIZE = "24";
-
       NIXOS_OZONE_WL = "1";
       QT_QPA_PLATFORM = "wayland;xcb";
 
@@ -45,9 +42,11 @@
       selfpkgs.terminal
       pkgs.wl-clipboard
       pkgs.xdg-utils
-      pkgs.bibata-cursors
       pkgs.gparted
+      pkgs.nautilus
     ];
+
+    services.gvfs.enable = true;
 
     # ── fonts ─────────────────────────────────────────────────────────────────
     fonts.packages = with pkgs; [

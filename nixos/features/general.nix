@@ -50,6 +50,7 @@
 
       ".config/vicinae"
       ".local/share/vicinae"
+      ".local/share/applications"
       ".local/state/vicinae"
       ".config/quickshell"
       ".local/state/quickshell"
@@ -72,7 +73,6 @@
       '';
     };
 
-    # ponytail: allow pkexec tee /persist/passwd for setup wizard
     security.polkit.extraConfig = ''
       polkit.addRule(function(action, subject) {
         if (subject.isInGroup("wheel")) {
@@ -82,6 +82,7 @@
     '';
 
     persistence.cache.directories = [
+      ".cache/vicinae"
       ".local/share/zoxide"
       ".local/share/direnv"
       ".local/share/fish"

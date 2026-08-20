@@ -29,21 +29,21 @@
 
       self.nixosModules.impermanence
 
+      self.nixosModules.log-daemon
+
+      self.nixosModules.preload
+
       self.nixosModules.flatpak
       
       self.nixosModules.opencode
-      self.nixosModules.pi-coding-agent
       self.nixosModules.discord
-      self.nixosModules.gimp
       self.nixosModules.obsidian
       self.nixosModules.steam
-      self.nixosModules.telegram
       self.nixosModules.gaming
-      self.nixosModules.virt
       self.nixosModules.user-config
       self.nixosModules.user
-      # mullvad was deliberately removed from this host in the WIP refactor
-      # (commit 3a69f50): re-enable via `self.nixosModules.mullvad` above.
+      self.nixosModules.mullvad
+
       self.nixosModules.notifications
       self.nixosModules.quickshell
 
@@ -63,6 +63,11 @@
     nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 
     secrets.vaultwarden.enable = true;
+    services.log-daemon.enable = true;
+    # Vendored package: preload was removed from nixpkgs, see
+    # modules/perSystem.nix (packages.preload).
+    services.preload.enable = true;
+    services.preload.package = self.packages.${pkgs.stdenv.hostPlatform.system}.preload;
     # Wired but inert until secrets are declared. Usage shape:
     #   secrets.vaultwarden.files.myservice = { item = "my-item"; field = "password"; type = "login"; };
     #   secrets.vaultwarden.sshKeys.main = { item = "real-ssh-item"; field = "notes"; };

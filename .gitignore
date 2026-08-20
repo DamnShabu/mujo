@@ -1,9 +1,9 @@
 result
 result-*
+__pycache__/
 .direnv/
 secrets/
 secrets/vaultwarden-master-password
-user-config/
 .pi/
 .pi-subagents/
 .directory
