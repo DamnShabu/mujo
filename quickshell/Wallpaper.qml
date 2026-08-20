@@ -7,6 +7,29 @@ import Quickshell.Io
 import Quickshell.Wayland
 
 Item {
+  property var wallpaperConfig: null
+
+  function loadWallpaperConfig() {
+    confReader.running = true
+  }
+
+  Process {
+    id: confReader
+    command: ["cat", Quickshell.env("HOME") + "/.config/quickshell/wallpaper.json"]
+    running: false
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          wallpaperConfig = JSON.parse(this.text)
+        } catch(e) {
+          console.log("Wallpaper: failed to parse config:", e)
+        }
+      }
+    }
+  }
+
+  Timer { interval: 2000; running: true; repeat: true; onTriggered: loadWallpaperConfig() } // poll config every 2s
+  Component.onCompleted: loadWallpaperConfig()
 
   Variants {
     model: Quickshell.screens
@@ -22,7 +45,7 @@ Item {
       property real smoothY: 0.5
 
       Timer {
-        interval: 16; running: true; repeat: true
+        interval: 16; running: true; repeat: true // ~60fps for smooth cursor tracking
         onTriggered: {
           var lerp = 0.15
           screen.smoothX += (screen.mouseX - screen.smoothX) * lerp
@@ -40,48 +63,32 @@ Item {
         exclusionMode: ExclusionMode.Ignore
         color: "transparent"
 
-        readonly property string confFile: Quickshell.env("HOME") + "/.config/quickshell/wallpaper.json"
-
         property color bgColor: "#111111"
         property string imgSrc: ""
         property string vidSrc: ""
         property bool zoomEnabled: false
 
-        function loadConf() {
-          confReader.running = true
-        }
+        onWallpaperConfigChanged: {
+          if (wallpaperConfig) {
+            var c = wallpaperConfig
+            root.bgColor = c.background || "#111111"
+            root.zoomEnabled = !!(c.effects && c.effects.motion)
 
-        Process {
-          id: confReader
-          command: ["cat", root.confFile]
-          running: false
-          stdout: StdioCollector {
-            onStreamFinished: {
-              try {
-                var c = JSON.parse(this.text)
-                root.bgColor = c.background || "#111111"
-                root.zoomEnabled = !!(c.effects && c.effects.motion)
+            var def = c.default || {}
+            var img = def.image || ""
+            var vid = def.video || ""
 
-                var def = c.default || {}
-                var img = def.image || ""
-                var vid = def.video || ""
-
-                var monitors = c.monitors || {}
-                for (var name in monitors) {
-                  if (name === screen.monitorName) {
-                    img = monitors[name].image || img
-                    vid = monitors[name].video || vid
-                  }
-                }
-                root.imgSrc = img
-                root.vidSrc = vid
-              } catch(e) {}
+            var monitors = c.monitors || {}
+            for (var name in monitors) {
+              if (name === screen.monitorName) {
+                img = monitors[name].image || img
+                vid = monitors[name].video || vid
+              }
             }
+            root.imgSrc = img
+            root.vidSrc = vid
           }
         }
-
-        Timer { interval: 2000; running: true; repeat: true; onTriggered: root.loadConf() }
-        Component.onCompleted: root.loadConf()
 
         Item {
           anchors.fill: parent
@@ -144,7 +151,9 @@ Item {
               var pos = JSON.parse(data)
               screen.mouseX = pos.x
               screen.mouseY = pos.y
-            } catch(e) {}
+            } catch(e) {
+              console.log("Wallpaper: cursor tracker parse error:", e)
+            }
           }
         }
       }
@@ -166,37 +175,26 @@ Item {
       exclusionMode: ExclusionMode.Ignore
       color: "transparent"
 
-      readonly property string confFile: Quickshell.env("HOME") + "/.config/quickshell/wallpaper.json"
       readonly property string monitorName: modelData.name
 
       property string imgSrc: ""
       property color bgColor: "#111111"
 
-      Process {
-        id: bgConfReader
-        command: ["cat", bgRoot.confFile]
-        running: false
-        stdout: StdioCollector {
-          onStreamFinished: {
-            try {
-              var c = JSON.parse(this.text)
-              bgRoot.bgColor = c.background || "#111111"
-              var def = c.default || {}
-              var src = def.image || ""
-              var monitors = c.monitors || {}
-              for (var name in monitors) {
-                if (name === bgRoot.monitorName) {
-                  src = monitors[name].image || src
-                }
-              }
-              bgRoot.imgSrc = src
-            } catch(e) {}
+      onWallpaperConfigChanged: {
+        if (wallpaperConfig) {
+          var c = wallpaperConfig
+          bgRoot.bgColor = c.background || "#111111"
+          var def = c.default || {}
+          var src = def.image || ""
+          var monitors = c.monitors || {}
+          for (var name in monitors) {
+            if (name === bgRoot.monitorName) {
+              src = monitors[name].image || src
+            }
           }
+          bgRoot.imgSrc = src
         }
       }
-
-      Timer { interval: 2000; running: true; repeat: true; onTriggered: bgConfReader.running = true }
-      Component.onCompleted: bgConfReader.running = true
 
       Item {
         anchors.fill: parent

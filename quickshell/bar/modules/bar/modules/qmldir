@@ -1,0 +1,15 @@
+singleton Theme Theme.qml
+SettingsMenu SettingsMenu.qml
+Workspaces Workspaces.qml
+ClockPill ClockPill.qml
+DynamicIsland DynamicIsland.qml
+WeatherIcon WeatherIcon.qml
+SystemTray SystemTray.qml
+TrayMenu TrayMenu.qml
+LauncherBody LauncherBody.qml
+LauncherActionBar LauncherActionBar.qml
+LauncherOverview LauncherOverview.qml
+LauncherResult LauncherResult.qml
+OverviewPlayer OverviewPlayer.qml
+OverviewClock OverviewClock.qml
+MaterialIcon MaterialIcon.qml

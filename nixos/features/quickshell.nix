@@ -64,7 +64,7 @@
         grep -q '^Exec=flatpak run com.valvesoftware.Steam steam://rungameid/' "$out" && rm -f "$out"
       done
     '';
-    daemons = ["qs-combined" "vicinae" "pibble" "steam-shortcuts"];
+    daemons = ["qs-combined" "qs-bar" "vicinae" "pibble" "steam-shortcuts"];
     user = config.preferences.user.name;
     uid = toString config.users.users.${user}.uid;
   in {
@@ -76,10 +76,25 @@
       KERNEL=="event*", SUBSYSTEM=="input", MODE="0666"
     '';
 
+    persistence.data.directories = [
+      ".config/qsshell"
+    ];
+
     systemd.user.services = {
       qs-combined = mkDaemon {
         command = "${pkgs.quickshell}/bin/quickshell -p ${qs.combined}/Shell.qml";
         path = with pkgs; [bash coreutils self.packages.${pkgs.stdenv.hostPlatform.system}.cursor-tracker];
+        environment = {
+          QS_ICON_THEME = "Colloid-Dark";
+          XDG_DATA_DIRS = "/run/current-system/sw/share";
+        };
+      };
+      # Bar shell: workspaces, launcher (Super tap via super-monitor.pl),
+      # tray, settings UI, weather. Needs perl (super-monitor), qs on PATH
+      # (its IPC toggle), curl (weather), wl-copy + xdg-open (launcher).
+      qs-bar = mkDaemon {
+        command = "${pkgs.quickshell}/bin/quickshell -p ${qs.bar}/shell.qml";
+        path = with pkgs; [bash coreutils perl curl wl-clipboard xdg-utils quickshell];
         environment = {
           QS_ICON_THEME = "Colloid-Dark";
           XDG_DATA_DIRS = "/run/current-system/sw/share";
