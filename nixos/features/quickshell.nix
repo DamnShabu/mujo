@@ -66,7 +66,6 @@
     '';
     daemons = ["qs-combined" "qs-bar" "vicinae" "pibble" "steam-shortcuts"];
     user = config.preferences.user.name;
-    uid = toString config.users.users.${user}.uid;
   in {
     environment.sessionVariables.QML2_IMPORT_PATH = lib.mkForce qmlPath;
 
@@ -145,14 +144,11 @@
         restartTriggers = ["/run/current-system"];
       };
     };
-    system.activationScripts.quickshell = pkgs.lib.mkAfter ''
-      if [ -d /run/user/${uid} ] && \
-         systemctl --machine=${user}@ --user is-active graphical-session.target >/dev/null 2>&1; then
-        systemctl --machine=${user}@ --user daemon-reload 2>/dev/null || true
-        ${pkgs.lib.concatMapStringsSep "\n" (svc: ''
-          systemctl --machine=${user}@ --user restart ${svc}.service 2>/dev/null || true
-        '') daemons}
-      fi
-    '';
+    # Start (and keep started) the graphical daemons whenever
+    # graphical-session.target is active. wantedBy alone only fires at login;
+    # switch-to-configuration does not start brand-new user units mid-session,
+    # and the previous root->user activation hook never worked. Upholds= is
+    # re-evaluated on every user-manager daemon-reload, i.e. on every switch.
+    systemd.user.targets.graphical-session.upholds = map (svc: "${svc}.service") daemons;
   };
 }
