@@ -10,9 +10,13 @@ FloatingWindow {
 
     property int currentCategory: 0
     property bool _saving: false
+    property bool _loading: false
+    property bool _dirty: false
     property string currentTheme: "Default"
     property var weather
-    readonly property int contentWidth: width - 230 - 32
+    readonly property int sidebarWidth: 230
+    readonly property int footerHeight: 44
+    readonly property int contentWidth: width - sidebarWidth - 32
 
     visible: false
     color: Theme.bg
@@ -40,6 +44,11 @@ FloatingWindow {
         NumberAnimation { target: menuBg; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutQuad }
     }
 
+    SystemClock {
+        id: menuClock
+        precision: SystemClock.Minutes
+    } // drives the static-text previews so they tick like the real bar
+
     function open() {
         visible = true
     }
@@ -52,6 +61,7 @@ FloatingWindow {
     }
 
     function loadFromTheme() {
+        _loading = true
         currentTheme = Theme.themeName || "Default"
         accentField.text = Theme.accent
         bgField.text = Theme.bg
@@ -84,24 +94,27 @@ FloatingWindow {
         lonField.text = String(Theme.weatherLon)
         celsiusToggle.isOn = Theme.weatherCelsius
         cityField.text = Theme.weatherCity || ""
+        _loading = false
     }
 
-    function safeInt(value, fallback) {
+    function clampInt(value, min, max, fallback) {
         var n = parseInt(value, 10)
-        return isNaN(n) ? fallback : n
+        if (isNaN(n)) return fallback
+        return Math.max(min, Math.min(max, n))
     }
 
-    function safeFloat(value, fallback) {
+    function clampFloat(value, min, max, fallback) {
         var n = parseFloat(value)
-        return isNaN(n) ? fallback : n
+        if (isNaN(n)) return fallback
+        return Math.max(min, Math.min(max, n))
     }
 
     function previewLauncherWidth() {
-        return Math.max(300, safeInt(launcherWField.text, 520))
+        return clampInt(launcherWField.text, 300, 2000, 520)
     }
 
     function previewLauncherHeight() {
-        return Math.max(200, safeInt(launcherHField.text, 400))
+        return clampInt(launcherHField.text, 200, 1500, 400)
     }
 
     function applySettings() {
@@ -125,36 +138,25 @@ FloatingWindow {
         if (/^#[0-9a-fA-F]{6}$/.test(wa)) Theme.workspaceActive = wa
         var wi = wsInactiveField.text.trim()
         if (/^#[0-9a-fA-F]{6}$/.test(wi)) Theme.workspaceInactive = wi
-        var bh = parseInt(barHeightField.text, 10)
-        if (!isNaN(bh) && bh >= 20 && bh <= 80) Theme.barHeight = bh
-        var bp = parseInt(barPaddingField.text, 10)
-        if (!isNaN(bp) && bp >= 4 && bp <= 40) Theme.barPadding = bp
+        Theme.barHeight = clampInt(barHeightField.text, 20, 80, Theme.barHeight)
+        Theme.barPadding = clampInt(barPaddingField.text, 4, 40, Theme.barPadding)
         Theme.clock24h = clock24hToggle.isOn
         Theme.clockShowSeconds = clockShowSecToggle.isOn
         Theme.clockShowDate = clockShowDateToggle.isOn
-        var cfs = parseInt(clockFontSizeField.text, 10)
-        if (!isNaN(cfs) && cfs >= 8 && cfs <= 32) Theme.clockFontSize = cfs
-        var lw = parseInt(launcherWField.text, 10)
-        if (!isNaN(lw) && lw >= 300) Theme.launcherWidth = lw
-        var lh = parseInt(launcherHField.text, 10)
-        if (!isNaN(lh) && lh >= 200) Theme.launcherHeight = lh
-        var lo = parseInt(launcherOpField.text, 10)
-        if (!isNaN(lo) && lo >= 30 && lo <= 100) Theme.launcherOpacity = lo / 100
+        Theme.clockFontSize = clampInt(clockFontSizeField.text, 8, 32, Theme.clockFontSize)
+        Theme.launcherWidth = clampInt(launcherWField.text, 300, 2000, Theme.launcherWidth)
+        Theme.launcherHeight = clampInt(launcherHField.text, 200, 1500, Theme.launcherHeight)
+        Theme.launcherOpacity = clampInt(launcherOpField.text, 30, 100, Theme.launcherOpacity * 100) / 100
         Theme.launcherWallpaper = launcherWpField.text.trim()
-        var ps = parseInt(pillSizeField.text, 10)
-        if (!isNaN(ps) && ps >= 8 && ps <= 30) Theme.workspacePillSize = ps
-        var pr = parseInt(pillRadiusField.text, 10)
-        if (!isNaN(pr) && pr >= 1 && pr <= 15) Theme.workspacePillRadius = pr
-        var psp = parseInt(pillSpacingField.text, 10)
-        if (!isNaN(psp) && psp >= 2 && psp <= 20) Theme.workspaceSpacing = psp
+        Theme.workspacePillSize = clampInt(pillSizeField.text, 8, 30, Theme.workspacePillSize)
+        Theme.workspacePillRadius = clampInt(pillRadiusField.text, 1, 15, Theme.workspacePillRadius)
+        Theme.workspaceSpacing = clampInt(pillSpacingField.text, 2, 20, Theme.workspaceSpacing)
         Theme.showClockPill = showClockToggle.isOn
         Theme.showWorkspaces = showWsToggle.isOn
         Theme.showSystemTray = showTrayToggle.isOn
         Theme.showWeather = showWeatherToggle.isOn
-        var lat = parseFloat(latField.text)
-        if (!isNaN(lat)) Theme.weatherLat = Math.max(-90, Math.min(90, lat))
-        var lon = parseFloat(lonField.text)
-        if (!isNaN(lon)) Theme.weatherLon = Math.max(-180, Math.min(180, lon))
+        Theme.weatherLat = clampFloat(latField.text, -90, 90, Theme.weatherLat)
+        Theme.weatherLon = clampFloat(lonField.text, -180, 180, Theme.weatherLon)
         Theme.weatherCelsius = celsiusToggle.isOn
         Theme.weatherCity = cityField.text.trim()
     }
@@ -184,14 +186,12 @@ FloatingWindow {
         }
         var json = JSON.stringify(obj)
         var dir = Quickshell.env("HOME") + "/.config/qsshell"
-        var file = dir + "/settings.json"
+        // ponytail: tmp+mv atomic replace; a crash mid-write can't leave a corrupt settings.json
         saveProc.command = ["sh", "-c",
-            "mkdir -p \"$1\" && printf '%s' \"$2\" > \"$1/settings.json\"",
+            "mkdir -p \"$1\" && printf '%s' \"$2\" > \"$1/.settings.json.tmp\" && mv \"$1/.settings.json.tmp\" \"$1/settings.json\"",
             "_", dir, json]
         saveProc.running = true
         console.log("Settings: saving config (" + json.length + " chars)")
-        saveStatus.text = "// SAVED"
-        saveStatusTimer.restart()
     }
 
     function resetToDefaults() {
@@ -213,7 +213,7 @@ FloatingWindow {
         Theme.weatherLat = 42.4501; Theme.weatherLon = -73.2454
         Theme.weatherCelsius = false; Theme.weatherCity = ""
         loadFromTheme()
-        writeConfig()
+        scheduleSave()
     }
 
     Process {
@@ -221,8 +221,13 @@ FloatingWindow {
         command: ["echo"]
         onExited: function(exitCode) {
             _saving = false
-            if (exitCode === 0) console.log("Settings: config saved successfully")
-            else console.log("Settings: save failed with exit code", exitCode)
+            var ok = exitCode === 0
+            console.log(ok ? "Settings: config saved successfully"
+                           : "Settings: save failed with exit code " + exitCode)
+            saveStatus.text = ok ? "// SAVED" : "// SAVE FAILED"
+            saveDot.color = ok ? "#4ade80" : Theme.error
+            saveStatusTimer.restart()
+            if (_dirty) saveTimer.restart() // flush edits typed while the write was in flight
         }
     }
 
@@ -236,7 +241,8 @@ Timer {
         id: saveTimer
         interval: 400
         onTriggered: {
-            if (_saving) return
+            if (_saving) return // onExited re-kicks the flush
+            _dirty = false
             _saving = true
             applySettings()
             writeConfig()
@@ -244,7 +250,9 @@ Timer {
       } // 400ms debounce for auto-save
 
     function scheduleSave() {
-        if (!_saving) saveTimer.restart()
+        if (_loading) return
+        _dirty = true
+        saveTimer.restart()
     }
 
     property var themes: ({
@@ -281,13 +289,13 @@ Timer {
 
         RowLayout {
             anchors.fill: parent
-            anchors.margins: 0
+            anchors.bottomMargin: root.footerHeight
             spacing: 0
 
             // ===== SIDEBAR =====
             Rectangle {
                 id: sidebar
-                Layout.preferredWidth: 230
+                Layout.preferredWidth: root.sidebarWidth
                 Layout.fillHeight: true
                 color: Theme.surface
 
@@ -517,6 +525,7 @@ Timer {
                             CardSection {
                                 label: "SHELL"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     InfoRow { icon: "info"; label: "Shell"; value: "QS Shell" }
                                     InfoRow { icon: "code"; label: "Framework"; value: "Quickshell" }
@@ -527,6 +536,7 @@ Timer {
                             CardSection {
                                 label: "CONFIGURATION"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     InfoRow { icon: "folder"; label: "Path"; value: "~/.config/qsshell/" }
                                     InfoRow { icon: "description"; label: "File"; value: "settings.json" }
@@ -537,6 +547,7 @@ Timer {
                             CardSection {
                                 label: "KEYBINDINGS"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     InfoRow { icon: "keyboard"; label: "Launcher"; value: "Mod+Space (niri)" }
                                     InfoRow { icon: "keyboard"; label: "Settings"; value: "Gear icon / IPC" }
@@ -546,6 +557,7 @@ Timer {
                             CardSection {
                                 label: "IPC"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     InfoRow { icon: "terminal"; label: "Toggle"; value: "qs ipc settings toggle" }
                                     InfoRow { icon: "terminal"; label: "Open"; value: "qs ipc settings open" }
@@ -590,7 +602,7 @@ Timer {
                                 description: "Select a color theme or customize individually."
 
                                 GridLayout {
-                                    width: parent.width
+                                    Layout.fillWidth: true
                                     columns: Math.max(2, Math.floor((root.contentWidth + 8) / 130))
                                     rowSpacing: 8
                                     columnSpacing: 8
@@ -701,7 +713,7 @@ Timer {
                                                 color: Theme.textSecondary
                                             }
                                             Text {
-                                                text: Qt.formatDateTime(new Date(), "HH:mm")
+                                                text: Qt.formatDateTime(menuClock.date, "HH:mm")
                                                 color: Theme.text
                                                 font.pixelSize: 10
                                                 font.bold: true
@@ -761,7 +773,7 @@ Timer {
 
                                             Text {
                                                 text: {
-                                                    var h = new Date().getHours()
+                                                    var h = menuClock.date.getHours()
                                                     if (h < 5) return "GOOD NIGHT"
                                                     if (h < 12) return "GOOD MORNING"
                                                     if (h < 17) return "GOOD AFTERNOON"
@@ -774,7 +786,7 @@ Timer {
                                             }
 
                                             Text {
-                                                text: Qt.formatDateTime(new Date(), Theme.clock24h ? "HH:mm" : "h:mm AP")
+                                                text: Qt.formatDateTime(menuClock.date, Theme.clock24h ? "HH:mm" : "h:mm AP")
                                                 color: Theme.text
                                                 font.pixelSize: 30
                                                 font.bold: true
@@ -878,12 +890,13 @@ Timer {
                             CardSection {
                                 label: "ACCENT"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 10
                                     RowLayout {
                                         Layout.fillWidth: true
                                         spacing: 12
                                         Rectangle { Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: 18; color: accentField.text; border.color: "#ffffff20"; border.width: 2 }
-                                        TextInput { id: accentField; Layout.preferredWidth: 90; color: Theme.text; font.pixelSize: 12; font.family: "monospace"; selectByMouse: true; verticalAlignment: Text.AlignVCenter; clip: true; onTextChanged: { if (root.currentTheme !== "Custom") root.currentTheme = "Custom"; root.scheduleSave() } }
+                                        TextInput { id: accentField; Layout.preferredWidth: 90; color: Theme.text; font.pixelSize: 12; font.family: "monospace"; selectByMouse: true; verticalAlignment: Text.AlignVCenter; clip: true; onTextEdited: { root.currentTheme = "Custom"; root.scheduleSave() } }
                                         Item { Layout.fillWidth: true }
                                     }
                                     Flow { Layout.fillWidth: true; spacing: 8
@@ -905,6 +918,7 @@ Timer {
                             CardSection {
                                 label: "PALETTE"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     ColorField { label: "Background"; id: bgField }
                                     ColorField { label: "Surface"; id: surfaceField }
@@ -915,6 +929,7 @@ Timer {
                             CardSection {
                                 label: "BORDERS"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     ColorField { label: "Default"; id: borderField }
                                     ColorField { label: "Interactive"; id: borderIntField }
@@ -924,6 +939,7 @@ Timer {
                             CardSection {
                                 label: "TEXT"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     ColorField { label: "Primary"; id: textField }
                                     ColorField { label: "Secondary"; id: textSecField }
@@ -933,6 +949,7 @@ Timer {
                             CardSection {
                                 label: "WORKSPACES"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     ColorField { label: "Active"; id: wsActiveField }
                                     ColorField { label: "Inactive"; id: wsInactiveField }
@@ -949,6 +966,7 @@ Timer {
                             CardSection {
                                 label: "LAYOUT"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     NumberField { id: barHeightField; label: "Bar Height"; suffix: "px"; minVal: 20; maxVal: 80 }
                                     NumberField { id: barPaddingField; label: "Padding"; suffix: "px"; minVal: 4; maxVal: 40 }
@@ -959,6 +977,7 @@ Timer {
                                 label: "WIDGETS"
                                 description: "Choose which widgets are visible in the bar."
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     SettingsToggle { id: showClockToggle; icon: "schedule"; label: "Clock Pill" }
                                     SettingsToggle { id: showWsToggle; icon: "view_carousel"; label: "Workspaces" }
@@ -977,6 +996,7 @@ Timer {
                             CardSection {
                                 label: "FORMAT"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     SettingsToggle { id: clock24hToggle; icon: "schedule"; label: "24-hour format" }
                                     SettingsToggle { id: clockShowSecToggle; icon: "timer"; label: "Show seconds" }
@@ -1048,6 +1068,7 @@ Timer {
                             CardSection {
                                 label: "DIMENSIONS"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     NumberField { id: launcherWField; label: "Width"; suffix: "px"; minVal: 300; maxVal: 2000 }
                                     NumberField { id: launcherHField; label: "Height"; suffix: "px"; minVal: 200; maxVal: 1500 }
@@ -1059,8 +1080,9 @@ Timer {
                                 label: "CANVAS"
                                 description: "Background image for the launcher overview clock widget."
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
-                                    TextField { id: launcherWpField; label: "Image Path" }
+                                    SettingsTextField { id: launcherWpField; label: "Image Path" }
                                 }
                             }
 
@@ -1087,7 +1109,7 @@ Timer {
                                         color: Theme.bg
                                         border.color: Theme.border
                                         border.width: 1
-                                        opacity: Math.max(0.3, Math.min(1, safeInt(launcherOpField.text, 100) / 100))
+                                        opacity: root.clampInt(launcherOpField.text, 30, 100, 100) / 100
 
                                         ColumnLayout {
                                             anchors.fill: parent
@@ -1268,6 +1290,7 @@ Timer {
                             CardSection {
                                 label: "PILL SIZE"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     NumberField { id: pillSizeField; label: "Size"; suffix: "px"; minVal: 8; maxVal: 30 }
                                     NumberField { id: pillRadiusField; label: "Radius"; suffix: "px"; minVal: 1; maxVal: 15 }
@@ -1300,15 +1323,15 @@ Timer {
                                                 leftMargin: 10
                                                 rightMargin: 10
                                             }
-                                            spacing: pillSpacingField.text ? parseInt(pillSpacingField.text, 10) : 5
+                                            spacing: root.clampInt(pillSpacingField.text, 2, 20, 5)
 
                                             Repeater {
                                                 model: [true, false, false, false, false]
                                                     Rectangle {
                                                         property bool isActive: modelData
-                                                        width: pillSizeField.text ? parseInt(pillSizeField.text, 10) : 15
-                                                        height: pillSizeField.text ? parseInt(pillSizeField.text, 10) : 15
-                                                        radius: pillRadiusField.text ? parseInt(pillRadiusField.text, 10) : 5
+                                                        width: root.clampInt(pillSizeField.text, 8, 30, 15)
+                                                        height: root.clampInt(pillSizeField.text, 8, 30, 15)
+                                                        radius: root.clampInt(pillRadiusField.text, 1, 15, 5)
                                                         color: Theme.workspaceInactive
 
                                                         Rectangle {
@@ -1342,16 +1365,18 @@ Timer {
                             CardSection {
                                 label: "LOCATION"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
-                                    TextField { id: latField; label: "Latitude" }
-                                    TextField { id: lonField; label: "Longitude" }
-                                    TextField { id: cityField; label: "City Name" }
+                                    SettingsTextField { id: latField; label: "Latitude" }
+                                    SettingsTextField { id: lonField; label: "Longitude" }
+                                    SettingsTextField { id: cityField; label: "City Name" }
                                 }
                             }
 
                             CardSection {
                                 label: "UNITS"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     SettingsToggle { id: celsiusToggle; icon: "thermostat"; label: "Celsius (vs Fahrenheit)" }
                                 }
@@ -1360,6 +1385,7 @@ Timer {
                             CardSection {
                                 label: "DATA SOURCE"
                                 ColumnLayout {
+                                    Layout.fillWidth: true
                                     spacing: 0
                                     InfoRow { icon: "cloud"; label: "Provider"; value: "Open-Meteo" }
                                     InfoRow { icon: "refresh"; label: "Refresh"; value: "10 min" }
@@ -1367,8 +1393,6 @@ Timer {
                                 }
                             }
                         }
-
-                        Item { Layout.preferredHeight: 48 }
                     }
                 }
             }
@@ -1378,9 +1402,8 @@ Timer {
         Rectangle {
             anchors.bottom: parent.bottom
             anchors.left: parent.left
-            anchors.leftMargin: 230
             anchors.right: parent.right
-            height: 44
+            height: root.footerHeight
             radius: 0
             color: Theme.bg
 
@@ -1400,7 +1423,7 @@ Timer {
                 // Status
                 RowLayout {
                     spacing: 8
-                    Rectangle { width: 6; height: 6; radius: 3; color: "#4ade80" }
+                    Rectangle { id: saveDot; width: 6; height: 6; radius: 3; color: "#4ade80" }
                     Text {
                         id: saveStatus
                         text: "// AUTO-SAVE ON"
@@ -1540,7 +1563,7 @@ Timer {
                 Layout.fillWidth: true
             }
 
-            Item { id: cardContent; Layout.fillWidth: true; implicitHeight: childrenRect.height }
+            ColumnLayout { id: cardContent; Layout.fillWidth: true; spacing: 10 }
         }
     }
 
@@ -1647,7 +1670,7 @@ Timer {
         Text { text: suffix; color: Theme.textSecondary; font.pixelSize: 10; font.family: "monospace" }
     }
 
-    component TextField: RowLayout {
+    component SettingsTextField: RowLayout {
         property alias text: tfInput.text
         property string label: ""
         Layout.fillWidth: true
