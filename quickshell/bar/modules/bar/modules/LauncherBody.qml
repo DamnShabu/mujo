@@ -64,7 +64,6 @@ Item {
             if (a._rank !== b._rank) return (a._rank || 0) - (b._rank || 0)
             return a.name.localeCompare(b.name)
         })
-        console.log("Launcher:", out.length, "results for", JSON.stringify(q))
         root.results = out
     }
 

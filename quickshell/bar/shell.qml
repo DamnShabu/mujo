@@ -11,7 +11,7 @@ ShellRoot{
     id: root
 
     Niri {
-        id: niri
+        id: wm
         Component.onCompleted: connect()
 
         onConnected: console.info("Connected to niri")
@@ -28,9 +28,9 @@ ShellRoot{
     }
 
     function focusedScreenName() {
-        if (!niri || !niri.workspaces) return ""
-        for (var i = 0; i < niri.workspaces.count; i++) {
-            var ws = niri.workspaces.get(i)
+        if (!wm || !wm.workspaces) return ""
+        for (var i = 0; i < wm.workspaces.count; i++) {
+            var ws = wm.workspaces.get(i)
             if (workspaceIsFocused(ws)) return ws.output || ""
         }
         return ""
@@ -40,10 +40,10 @@ ShellRoot{
     property string launcherScreen: ""
 
     function focusedScreen() {
-        if (!niri || !niri.workspaces) return null
+        if (!wm || !wm.workspaces) return null
         var screens = Quickshell.screens || []
-        for (var i = 0; i < niri.workspaces.count; i++) {
-            var ws = niri.workspaces.get(i)
+        for (var i = 0; i < wm.workspaces.count; i++) {
+            var ws = wm.workspaces.get(i)
             if (workspaceIsFocused(ws)) {
                 for (var j = 0; j < screens.length; j++) {
                     if (screens[j].name === ws.output) return screens[j]
@@ -189,7 +189,7 @@ ShellRoot{
                         margins: Theme.barPadding
                     }
                     Workspaces {
-                        niri: niri
+                        niri: wm
                         screenName: panelWindow.screenName
                         visible: Theme.showWorkspaces
                     }

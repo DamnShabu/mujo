@@ -12,7 +12,7 @@ Rectangle {
     Timer {
         interval: 500
         repeat: true
-        running: root.niri !== undefined
+        running: true
         onTriggered: root.myWorkspaces = root.computeWorkspaces()
       } // poll workspaces at 500ms
 
