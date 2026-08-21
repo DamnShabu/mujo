@@ -38,16 +38,17 @@ Item {
         var q = searchField.text.trim().toLowerCase()
         root.answer = q === "" ? "" : (Calc.tryEvaluate(q) || "")
 
+        // ponytail: UntypedObjectModel exposes only .values (QObjectList); duck-type on length since it may arrive as array-like, not a real Array
         var appsModel = DesktopEntries && DesktopEntries.applications
-        if (!appsModel) {
+        var apps = appsModel ? appsModel.values : null
+        if (!apps) {
             root.results = []
             return
         }
 
         var out = []
-        var count = appsModel.count
-        for (var i = 0; i < count; i++) {
-            var app = appsModel.get(i)
+        for (var i = 0; i < apps.length; i++) {
+            var app = apps[i]
             if (!app || !app.name) continue
             if (!q) { out.push(app); continue }
             var nameMatch = app.name.toLowerCase().includes(q)
@@ -63,6 +64,7 @@ Item {
             if (a._rank !== b._rank) return (a._rank || 0) - (b._rank || 0)
             return a.name.localeCompare(b.name)
         })
+        console.log("Launcher:", out.length, "results for", JSON.stringify(q))
         root.results = out
     }
 
