@@ -80,7 +80,7 @@
         "Mod+Q".close-window = _: {};
         # Path must match the qs-bar daemon's launch path (quickshell.nix
         # barConfig); a bare `qs ipc` can't pick between multiple running
-        # quickshell instances (qs-bar) and silently no-ops.
+        # quickshell instances (qs-bar, pibble) and silently no-ops.
         "Mod+Space"."spawn-sh" = "qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle";
         # Standalone Settings app (separate quickshell instance, floated by the
         # window-rule matching its title below).

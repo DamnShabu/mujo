@@ -33,7 +33,6 @@
       self.nixosModules.preload
 
       self.nixosModules.flatpak
-      self.nixosModules.ui-overrides
       
       self.nixosModules.opencode
       self.nixosModules.claude-code
