@@ -2,7 +2,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Widgets
 
-
 Rectangle {
     id: root
 
@@ -17,49 +16,57 @@ Rectangle {
     }
 
     width: 0
-    height: 36
-    radius: 5
+    height: 42
+    radius: Theme.radiusMd
     color: root.highlighted ? Theme.surfaceHover : "transparent"
+    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
     Rectangle {
         anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
+        anchors.leftMargin: 4
+        anchors.verticalCenter: parent.verticalCenter
         width: 3
+        height: root.highlighted ? 20 : 0
         radius: 1.5
-        color: Theme.textSecondary
-        opacity: root.highlighted ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 90 } }
+        color: Theme.accent
+        Behavior on height { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
     }
 
     Row {
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: 10
-        anchors.rightMargin: 10
-        spacing: 8
+        anchors.leftMargin: 14
+        anchors.rightMargin: 12
+        spacing: 11
 
         IconImage {
             anchors.verticalCenter: parent.verticalCenter
             source: root.entry ? root.iconSource(root.entry.icon) : ""
-            width: 18
-            height: 18
+            width: 22
+            height: 22
             visible: root.entry && root.entry.icon !== ""
         }
 
         Column {
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - 18 - 8 - 10
+            width: parent.width - 22 - 11 - 14
+            spacing: 1
             Text {
                 text: root.entry ? root.entry.name : ""
                 color: Theme.text
+                font.family: Theme.fontFamily
                 font.pixelSize: 13
+                elide: Text.ElideRight
+                width: parent.width
             }
             Text {
                 text: root.entry ? root.entry.genericName : ""
                 color: Theme.textSecondary
+                font.family: Theme.fontFamily
                 font.pixelSize: 10
+                elide: Text.ElideRight
+                width: parent.width
                 visible: root.entry && root.entry.genericName && root.entry.genericName !== "" &&
                          root.entry.genericName !== root.entry.name
             }

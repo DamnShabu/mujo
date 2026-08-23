@@ -16,6 +16,7 @@
         end
 
         set fish_greeting
+        set -gx PATH $HOME/.local/bin $PATH
         fish_vi_key_bindings
 
         ${lib.getExe pkgs.zoxide} init fish | source

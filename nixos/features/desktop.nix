@@ -4,7 +4,6 @@
   in {
     imports = [
       self.nixosModules.gtk
-      self.nixosModules.vicinae
       self.nixosModules.pipewire
       self.nixosModules.zen
       inputs.thyx.nixosModules.default
@@ -93,20 +92,12 @@
     };
 
     # ── polkit ────────────────────────────────────────────────────────────────
-    security.polkit.enable = true;
-    # ponytail: Nix store binaries cannot carry setuid bits, so pkexec from
-    # polkit is not executable as root out of the store. Create a setuid-root
-    # wrapper in /run at boot via a systemd oneshot.
-    systemd.services.pkexec-wrapper = {
-      description = "Create setuid pkexec wrapper";
-      wantedBy = [ "sysinit.target" ];
-      before = [ "polkit.service" ];
-      after = [ "suid-sgid-wrappers.service" ];
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-        ExecStart = "${pkgs.bash}/bin/bash -c 'mkdir -p /run/wrappers/bin && cp ${pkgs.polkit}/bin/pkexec /run/wrappers/bin/pkexec && chmod 4755 /run/wrappers/bin/pkexec'";
-      };
+    # Nix store binaries cannot carry setuid bits, so pkexec from polkit is
+    # not executable as root out of the store. security.wrappers handles
+    # this the standard way (built into the polkit module itself).
+    security.polkit = {
+      enable = true;
+      enablePkexecWrapper = true;
     };
     services.udisks2.enable = true;
 

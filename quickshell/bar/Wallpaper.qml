@@ -54,7 +54,7 @@ Item {
       }
 
       PanelWindow {
-        id: root
+        id: wallpaperWindow
         screen: screen.modelData
 
         WlrLayershell.namespace: "qs-wallpaper"
@@ -71,8 +71,8 @@ Item {
         onWallpaperConfigChanged: {
           if (wallpaperConfig) {
             var c = wallpaperConfig
-            root.bgColor = c.background || "#111111"
-            root.zoomEnabled = !!(c.effects && c.effects.motion)
+            wallpaperWindow.bgColor = c.background || "#111111"
+            wallpaperWindow.zoomEnabled = !!(c.effects && c.effects.motion)
 
             var def = c.default || {}
             var img = def.image || ""
@@ -85,15 +85,15 @@ Item {
                 vid = monitors[name].video || vid
               }
             }
-            root.imgSrc = img
-            root.vidSrc = vid
+            wallpaperWindow.imgSrc = img
+            wallpaperWindow.vidSrc = vid
           }
         }
 
         Item {
           anchors.fill: parent
 
-          Rectangle { anchors.fill: parent; color: root.bgColor }
+          Rectangle { anchors.fill: parent; color: wallpaperWindow.bgColor }
 
           Image {
             id: wallpaper
@@ -101,22 +101,22 @@ Item {
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             cache: true
-            visible: root.imgSrc !== ""
-            source: root.imgSrc !== "" ? "file://" + root.imgSrc : ""
+            visible: wallpaperWindow.imgSrc !== ""
+            source: wallpaperWindow.imgSrc !== "" ? "file://" + wallpaperWindow.imgSrc : ""
             mipmap: false
           }
 
           VideoOutput {
             id: video
             anchors.fill: parent
-            visible: root.vidSrc !== ""
+            visible: wallpaperWindow.vidSrc !== ""
           }
 
           MediaPlayer {
             id: player
             videoOutput: video
             loops: MediaPlayer.Infinite
-            source: root.vidSrc !== "" ? "file://" + root.vidSrc : ""
+            source: wallpaperWindow.vidSrc !== "" ? "file://" + wallpaperWindow.vidSrc : ""
 
             onSourceChanged: {
               if (source.toString() !== "") play()
@@ -126,15 +126,15 @@ Item {
           transform: [
             Scale {
               id: zoomScale
-              origin.x: root.width / 2
-              origin.y: root.height / 2
-              xScale: root.zoomEnabled ? 1.1 : 1.0
-              yScale: root.zoomEnabled ? 1.1 : 1.0
+              origin.x: wallpaperWindow.width / 2
+              origin.y: wallpaperWindow.height / 2
+              xScale: wallpaperWindow.zoomEnabled ? 1.1 : 1.0
+              yScale: wallpaperWindow.zoomEnabled ? 1.1 : 1.0
             },
             Translate {
               id: zoomTranslate
-              x: root.zoomEnabled ? (screen.smoothX - 0.5) * root.width * -0.1 : 0
-              y: root.zoomEnabled ? (screen.smoothY - 0.5) * root.height * -0.1 : 0
+              x: wallpaperWindow.zoomEnabled ? (screen.smoothX - 0.5) * wallpaperWindow.width * -0.1 : 0
+              y: wallpaperWindow.zoomEnabled ? (screen.smoothY - 0.5) * wallpaperWindow.height * -0.1 : 0
             }
           ]
         }
@@ -143,7 +143,7 @@ Item {
       Process {
         id: cursorTracker
         command: ["cursor-tracker", String(screen.modelData.width), String(screen.modelData.height)]
-        running: root.zoomEnabled
+        running: wallpaperWindow.zoomEnabled
 
         stdout: SplitParser {
           onRead: data => {

@@ -23,6 +23,23 @@ The host configuration is organized into focused Nix modules under the host dire
 
 This keeps platform-specific concerns separated from the broader feature modules in `nixos/features/` while preserving the existing flake structure and behavior.
 
+## Repo map
+
+Start with `AGENTS.md` (flake structure, auto-discovery, rebuilding,
+persistence, secrets) and `CLAUDE.md` (Claude Code-specific notes) at the
+root. Every major directory has its own `README.md` with a per-file
+breakdown:
+
+- [`modules/`](modules/README.md) — theming, vendored per-system packages
+  - [`modules/wrappers/`](modules/wrappers/README.md) — fish/kitty/niri program wrappers
+- [`nixos/`](nixos/README.md) — shared options + host wiring
+  - [`nixos/extra/`](nixos/extra/README.md) — hjem, impermanence, Plymouth theme
+  - [`nixos/features/`](nixos/features/README.md) — one module per concern (desktop, gaming, quickshell, vaultwarden, apps, ...)
+  - [`nixos/hosts/main/`](nixos/hosts/main/README.md) — the `main` host: entrypoint, boot/hardware/networking, disk layout
+- [`quickshell/`](quickshell/README.md) — the `mujō` desktop shell (bar, launcher, tray, settings, wallpaper)
+  - `quickshell/bar/AGENTS.md` — shell architecture, component recipe, gotchas
+  - [`quickshell/bar/modules/bar/modules/`](quickshell/bar/modules/bar/modules/README.md) — every QML component
+
 ## Fresh Install
 
 > Run from a **NixOS live USB**, not from the system being replaced.

@@ -48,13 +48,11 @@
 
       ".ssh"
 
-      ".config/vicinae"
-      ".local/share/vicinae"
       ".local/share/applications"
-      ".local/state/vicinae"
       ".config/quickshell"
       ".local/state/quickshell"
       ".config/Code"
+      ".gemini"
       ".var/app"
 
       ".config/dconf"
@@ -73,16 +71,7 @@
       '';
     };
 
-    security.polkit.extraConfig = ''
-      polkit.addRule(function(action, subject) {
-        if (subject.isInGroup("wheel")) {
-          return polkit.Result.YES;
-        }
-      });
-    '';
-
     persistence.cache.directories = [
-      ".cache/vicinae"
       ".local/share/zoxide"
       ".local/share/direnv"
       ".local/share/fish"

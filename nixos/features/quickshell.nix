@@ -1,9 +1,23 @@
-{self, inputs, ...}: {
-  flake.nixosModules.quickshell = {pkgs, config, lib, ...}: let
+{
+  self,
+  inputs,
+  ...
+}: {
+  flake.nixosModules.quickshell = {
+    pkgs,
+    config,
+    lib,
+    ...
+  }: let
     qs = import ../../quickshell/_default.nix {inherit self pkgs;};
 
     qmlDeps = with pkgs.qt6; [qtmultimedia qtdeclarative qtwayland qt5compat] ++ [pkgs.quickshell inputs.qml-niri.packages.${pkgs.stdenv.hostPlatform.system}.default];
     qmlPath = pkgs.lib.makeSearchPath "lib/qt-6/qml" qmlDeps;
+    qtPluginPath = pkgs.lib.makeSearchPath "lib/qt-6/plugins" qmlDeps;
+    # Forces a restart on every switch where the flake's revision changed.
+    # Can't use config.system.build.toplevel here: these services are part
+    # of the toplevel closure, so referencing it back would be a cycle.
+    generationTrigger = self.rev or self.dirtyRev or "unknown";
     mkDaemon = {
       command,
       path ? [],
@@ -18,18 +32,23 @@
         Restart = "always";
         RestartSec = 2;
       };
-      environment = {QML2_IMPORT_PATH = qmlPath;} // environment;
+      environment =
+        {
+          QML2_IMPORT_PATH = qmlPath;
+          QT_PLUGIN_PATH = qtPluginPath;
+        }
+        // environment;
       inherit path;
       partOf = ["graphical-session.target"];
       wantedBy = ["graphical-session.target"];
-      restartTriggers = ["/run/current-system"];
+      restartTriggers = [generationTrigger];
     };
 
     # Steam flatpak writes "create desktop shortcut" .desktop files into its
     # sandbox home (~/.var/app/com.valvesoftware.Steam/.local/share/applications)
-    # with Exec=steam steam://rungameid/<id>, which vicinae cannot launch (no
+    # with Exec=steam steam://rungameid/<id>, which no launcher can run (no
     # steam binary on PATH). Rewrite them into ~/.local/share/applications as
-    # `flatpak run ...` so vicinae indexes and launches them.
+    # `flatpak run ...` so they get indexed and launched.
     steamShortcutSync = pkgs.writeShellScript "steam-shortcuts-sync" ''
       set -euo pipefail
       src="/home/${user}/.var/app/com.valvesoftware.Steam/.local/share/applications"
@@ -64,12 +83,40 @@
         grep -q '^Exec=flatpak run com.valvesoftware.Steam steam://rungameid/' "$out" && rm -f "$out"
       done
     '';
-    daemons = ["qs-combined" "qs-bar" "vicinae" "pibble" "steam-shortcuts"];
+    daemons = ["qs-bar"  "steam-shortcuts"];
     user = config.preferences.user.name;
+    # Stable path the qs-bar shell is launched from. Both the systemd daemon and
+    # the niri Mod+Space keybind (`qs -p <this> ipc call launcher toggle`)
+    # reference it, so the launcher toggle reliably targets the running instance
+    # regardless of the qs.bar store path, which changes on every rebuild. It is
+    # an /etc symlink to qs.bar (see environment.etc below).
+    barConfig = "/etc/xdg/quickshell/bar/shell.qml";
+    # Where DesktopEntries / the launcher look for .desktop files. Must include the
+    # flatpak export dirs, otherwise flatpak apps never show up in the launcher,
+    # and the nix profile dirs so system + per-user nix apps show too. We set it
+    # explicitly rather than inherit the session value because on early boot the
+    # systemd user manager environment can still be truncated when qs-bar
+    # starts, which silently drops most apps from the launcher. XDG_DATA_HOME
+    # (~/.local/share) is scanned implicitly by Quickshell, covering user +
+    # synced steam entries.
+    appDataDirs = pkgs.lib.concatStringsSep ":" [
+      "/run/current-system/sw/share"
+      "/etc/profiles/per-user/${user}/share"
+      "/home/${user}/.nix-profile/share"
+      "/var/lib/flatpak/exports/share"
+      "/home/${user}/.local/share/flatpak/exports/share"
+    ];
   in {
     environment.sessionVariables.QML2_IMPORT_PATH = lib.mkForce qmlPath;
+    environment.sessionVariables.QT_PLUGIN_PATH = lib.mkForce qtPluginPath;
 
-    environment.systemPackages = [qs.mujo self.packages.${pkgs.stdenv.hostPlatform.system}.quicksnip self.packages.${pkgs.stdenv.hostPlatform.system}.pibble];
+    environment.systemPackages = [qs.mujo qs.mujo-keyring self.packages.${pkgs.stdenv.hostPlatform.system}.quicksnip ];
+
+    # Expose the bar tree at a stable, rebuild-invariant path so the launcher
+    # toggle keybind can address the running instance by config path, and the
+    # Settings app (bar/settings.qml, spawned by `mujo settings` / Mod+,) can be
+    # reached by path too.
+    environment.etc."xdg/quickshell/bar".source = qs.bar;
 
     services.udev.extraRules = ''
       KERNEL=="event*", SUBSYSTEM=="input", MODE="0666"
@@ -80,34 +127,29 @@
     ];
 
     systemd.user.services = {
-      qs-combined = mkDaemon {
-        command = "${pkgs.quickshell}/bin/quickshell -p ${qs.combined}/Shell.qml";
-        path = with pkgs; [bash coreutils self.packages.${pkgs.stdenv.hostPlatform.system}.cursor-tracker];
-        environment = {
-          QS_ICON_THEME = "Colloid-Dark";
-          XDG_DATA_DIRS = "/run/current-system/sw/share";
-        };
-      };
-      # Bar shell: workspaces, launcher (Super tap via super-monitor.pl),
-      # tray, settings UI, weather. Needs perl (super-monitor), qs on PATH
-      # (its IPC toggle), curl (weather), wl-copy + xdg-open (launcher).
+      # The one shell: workspaces, launcher (Mod+Space via niri → qs ipc),
+      # tray, settings UI, weather. Needs qs on PATH
+      # (its IPC toggle), curl (weather), wl-copy + xdg-open (launcher), jq
+      # (llm-usage.sh reads cached usage from provider config files).
       qs-bar = mkDaemon {
-        command = "${pkgs.quickshell}/bin/quickshell -p ${qs.bar}/shell.qml";
-        path = with pkgs; [bash coreutils perl curl wl-clipboard xdg-utils quickshell];
+        command = "${pkgs.quickshell}/bin/quickshell -p ${barConfig}";
+        # findutils (find/xargs) and sqlite (sqlite3) are required by
+        # llm-usage.sh's Antigravity token-transcript scan — without them the
+        # "Tokens by day/model" charts silently stay empty under the service
+        # even though they work under an interactive `qs -p` (whose shell PATH
+        # masks the gap).  gnugrep is needed for grep -oaP (PCRE).
+        # systemd provides systemd-run, used by Launch.qml to spawn launched apps
+        # in their own transient user scope (so they survive qs-bar restarts
+        # instead of dying inside qs-bar's cgroup on every rebuild).
+        # /run/current-system/sw must be on PATH (NixOS appends /bin to each
+        # entry): systemd-run resolves the launched app's binary against this
+        # service's PATH, and without it every app outside the package list
+        # below (i.e. all normal desktop apps) silently fails with
+        # "Failed to find executable <app>".
+        path = with pkgs; [bash coreutils findutils gnugrep jq curl sqlite wl-clipboard xdg-utils systemd quickshell qs.cursor-tracker] ++ ["/run/current-system/sw"];
         environment = {
           QS_ICON_THEME = "Colloid-Dark";
-          XDG_DATA_DIRS = "/run/current-system/sw/share";
-        };
-      };
-      pibble = mkDaemon {
-        command = "${self.packages.${pkgs.stdenv.hostPlatform.system}.pibble}/bin/pibble";
-        path = with pkgs; [bash coreutils procps systemd quickshell curl cliphist imagemagick matugen jq gtk3 flatpak wl-clipboard] ++ [qs.mujo];
-        environment = {
-          XDG_DATA_DIRS = pkgs.lib.concatStringsSep ":" [
-            "/run/current-system/sw/share"
-            "/var/lib/flatpak/exports/share"
-            "/home/${user}/.local/share/flatpak/exports/share"
-          ];
+          XDG_DATA_DIRS = appDataDirs;
         };
       };
       wl-cliphist = {
@@ -118,16 +160,7 @@
           RestartSec = 2;
         };
         wantedBy = ["graphical-session.target"];
-        restartTriggers = ["/run/current-system"];
-      };
-      vicinae = mkDaemon {
-        command = "${pkgs.coreutils}/bin/nice -n 19 ${pkgs.util-linux}/bin/ionice -c 3 ${pkgs.vicinae}/bin/vicinae server --replace";
-        path = with pkgs; [bash coreutils findutils gnugrep gnused flatpak mullvad-vpn python3];
-        environment.XDG_DATA_DIRS = pkgs.lib.concatStringsSep ":" [
-          "/run/current-system/sw/share"
-          "/var/lib/flatpak/exports/share"
-          "/home/${user}/.local/share/flatpak/exports/share"
-        ];
+        restartTriggers = [generationTrigger];
       };
       steam-shortcuts = {
         serviceConfig = {
@@ -138,10 +171,9 @@
           RestartSec = 30;
         };
         path = with pkgs; [coreutils gnused gnugrep gawk];
-        before = ["vicinae.service"];
         partOf = ["graphical-session.target"];
         wantedBy = ["graphical-session.target"];
-        restartTriggers = ["/run/current-system"];
+        restartTriggers = [generationTrigger];
       };
     };
     # Start (and keep started) the graphical daemons whenever

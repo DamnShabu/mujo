@@ -1,18 +1,22 @@
 //@ pragma UseQApplication
 //@ pragma IconTheme Colloid-Dark
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import Niri
 import "./modules/bar/modules"
+import "./modules/desktop/modules"
 
-ShellRoot{
+ShellRoot {
     id: root
 
     Niri {
         id: wm
-        Component.onCompleted: connect()
+        Component.onCompleted: {
+            connect()
+            Launch.wm = wm // lets Launch dismiss the "Launching…" pill on window-open
+        }
 
         onConnected: console.info("Connected to niri")
         onErrorOccurred: function(error) {
@@ -36,115 +40,91 @@ ShellRoot{
         return ""
     }
 
-    property bool launcherOpen: false
-    property string launcherScreen: ""
-
-    function focusedScreen() {
-        if (!wm || !wm.workspaces) return null
-        var screens = Quickshell.screens || []
-        for (var i = 0; i < wm.workspaces.count; i++) {
-            var ws = wm.workspaces.get(i)
-            if (workspaceIsFocused(ws)) {
-                for (var j = 0; j < screens.length; j++) {
-                    if (screens[j].name === ws.output) return screens[j]
-                }
-            }
-        }
-        return null
-    }
-
     IpcHandler {
         target: "launcher"
 
         function toggle(): void {
-            if (root.launcherOpen) {
-                root.launcherOpen = false
-            } else {
-                root.launcherScreen = root.focusedScreenName()
-                root.launcherOpen = true
+            PopupCoordinator.toggleLauncher(root.focusedScreenName())
+        }
+
+        function open(): void {
+            PopupCoordinator.openLauncher(root.focusedScreenName())
+        }
+
+        function close(): void {
+            PopupCoordinator.closeLauncher()
+        }
+    }
+
+    // Session-wide polkit authentication agent + themed prompt (one instance,
+    // renders its own Overlay layer-shell surface when a request arrives).
+    PolkitPrompt {}
+
+    // Shell-side UI for the mujō keyring prompter (talks to the
+    // mujo-keyring-prompter helper over a unix socket).
+    KeyringPrompt {}
+
+    // Per-screen wallpaper (image / video) with optional cursor-tracking
+    // zoom/pan, plus blurred backdrop surfaces for niri's overview.
+    // Config: ~/.config/quickshell/wallpaper.json  (managed by `mujo wallpaper`).
+    Wallpaper {}
+
+    // Right-click context menu on the empty desktop (per screen, below windows).
+    DesktopMenu {}
+
+    // Draggable, persistent desktop widgets (clock/weather/system), per screen.
+    // Config: ~/.config/qsshell/widgets.json (managed by `mujo widgets`).
+    DesktopWidgets {}
+
+    // Multi-screen dismissal scrim: captures clicks outside any open GUI/menu
+    // to close active popups/launcher immediately.
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: scrimWindow
+            required property var modelData
+            screen: modelData
+
+            WlrLayershell.namespace: "qs-scrim"
+            // Sit *below* the bar (Top) and its popups, but above the wallpaper
+            // (Background). If the scrim shared the bar's layer it would re-commit
+            // on top each time it became visible and swallow the next click —
+            // that's what forced multiple clicks to switch/close menus.
+            WlrLayershell.layer: WlrLayer.Bottom
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
             }
-        }
 
-        function open(): void {
-            root.launcherScreen = root.focusedScreenName()
-            root.launcherOpen = true
-        }
+            visible: PopupCoordinator.hasActivePopup
 
-        function close(): void {
-            root.launcherOpen = false
-        }
-    }
-
-    IpcHandler {
-        target: "settings"
-
-        function toggle(): void {
-            if (settingsMenu.visible) settingsMenu.close()
-            else settingsMenu.open()
-        }
-
-        function open(): void {
-            settingsMenu.open()
-        }
-
-        function close(): void {
-            settingsMenu.close()
-        }
-    }
-
-    Process {
-        id: superMonitor
-        command: ["perl", Qt.resolvedUrl("super-monitor.pl").toString().slice(7)]
-        running: true
-        onRunningChanged: if (!running) restartTimer.restart()
-    }
-
-    Timer {
-        id: restartTimer
-        interval: 1000
-        onTriggered: superMonitor.running = true
-    }
-
-    Process {
-        id: configLoad
-        command: ["sh", "-c", "cat \"$1\" 2>/dev/null || echo '{}'", "_", Quickshell.env("HOME") + "/.config/qsshell/settings.json"]
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    var obj = JSON.parse(this.text)
-                    var keys = Object.keys(obj)
-                    console.log("Settings: loaded config with " + keys.length + " keys:", keys.join(", "))
-                    if (keys.length === 0) console.log("Settings: config empty or missing, using defaults")
-                    var map = {
-                        accent: "accent", bg: "bg", surface: "surface", surfaceHover: "surfaceHover",
-                        border: "border", borderInteractive: "borderInteractive",
-                        text: "text", textSecondary: "textSecondary",
-                        workspaceActive: "workspaceActive", workspaceInactive: "workspaceInactive",
-                        barHeight: "barHeight", barPadding: "barPadding",
-                        clock24h: "clock24h", clockShowSeconds: "clockShowSeconds",
-                        clockShowDate: "clockShowDate", clockFontSize: "clockFontSize",
-                        launcherWidth: "launcherWidth", launcherHeight: "launcherHeight",
-                        launcherOpacity: "launcherOpacity", launcherWallpaper: "launcherWallpaper",
-                        workspacePillSize: "workspacePillSize", workspacePillRadius: "workspacePillRadius",
-                        workspaceSpacing: "workspaceSpacing",
-                        showClockPill: "showClockPill", showWorkspaces: "showWorkspaces",
-                        showSystemTray: "showSystemTray", showWeather: "showWeather",
-                        weatherLat: "weatherLat", weatherLon: "weatherLon",
-                        weatherCelsius: "weatherCelsius", weatherCity: "weatherCity",
-                        themeName: "themeName"
-                    }
-                    for (var k in map) {
-                        if (obj[k] !== undefined) Theme[map[k]] = obj[k]
-                    }
-                } catch (e) {
-                    console.log("Config: no valid settings.json found, using defaults")
-                }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: PopupCoordinator.closeAll()
             }
         }
     }
 
-    Component.onCompleted: configLoad.running = true
+    // App launcher overlay — one per screen, shows on the focused one. Owns its
+    // own layer-shell surface with exclusive keyboard focus (see Launcher.qml).
+    Variants {
+        model: Quickshell.screens
+        Launcher {}
+    }
+
+    // Bottom-center "launching…" indicator, shown on the initiating screen while
+    // an app spins up (driven by the Launch singleton). See LaunchFeedback.qml.
+    Variants {
+        model: Quickshell.screens
+        LaunchFeedback {}
+    }
 
     Variants {
         model: Quickshell.screens
@@ -152,117 +132,25 @@ ShellRoot{
         PanelWindow {
             id: panelWindow
             property var modelData
-            property string screenName: modelData.name
-            property bool launcherOpen: root.launcherOpen && root.launcherScreen === modelData.name
+            property bool launcherOpen: PopupCoordinator.isLauncherOpen && (PopupCoordinator.launcherScreen === "" || PopupCoordinator.launcherScreen === modelData.name)
+            screen: modelData
             visible: true
             color: "transparent"
-            screen: modelData
+            WlrLayershell.namespace: "qs-bar"
             anchors {
                 top: true
                 left: true
                 right: true
-                bottom: false
             }
-            implicitHeight: Theme.barHeight
+            implicitHeight: Theme.barHeight + Theme.barMargin * 2
 
-            Component.onCompleted: heightAnimation.start()
-
-            NumberAnimation {
-                id: heightAnimation
-                target: panelWindow
-                property: "implicitHeight"
-                from: 0
-                to: Theme.barHeight
-                duration: 200
-                easing.type: Easing.OutCubic
-            }
-
-            Rectangle {
+            Bar {
                 anchors.fill: parent
-                color: "transparent"
-
-                // ALIGN LEFT
-                RowLayout {
-                    anchors {
-                        verticalCenter: parent.verticalCenter
-                        left: parent.left
-                        margins: Theme.barPadding
-                    }
-                    Workspaces {
-                        niri: wm
-                        screenName: panelWindow.screenName
-                        visible: Theme.showWorkspaces
-                    }
-                }
-                // ALIGN CENTER
-                RowLayout {
-                    anchors {
-                        verticalCenter: parent.verticalCenter
-                        centerIn: parent
-                    }
-                    DynamicIsland {
-                        panelWindow: panelWindow
-                        launcherOpen: panelWindow.launcherOpen
-                        weather: sharedWeather
-                    }
-                }
-                // ALIGN RIGHT
-                RowLayout {
-                    anchors {
-                        verticalCenter: parent.verticalCenter
-                        right: parent.right
-                        rightMargin: Theme.barPadding
-                    }
-                    SystemTray {
-                        panelWindow: panelWindow
-                        visible: Theme.showSystemTray
-                    }
-
-                    Rectangle {
-                        id: settingsBtn
-                        width: 30
-                        height: 30
-                        radius: 5
-                        color: settingsHover.hovered ? Theme.surfaceHover : Theme.bg
-                        border.color: settingsMenu.visible ? Theme.accent : Theme.border
-
-                        MaterialIcon {
-                            iconName: "settings"
-                            pixelSize: 18
-                            anchors.centerIn: parent
-                            rotation: settingsMenu.visible ? 90 : 0
-                            Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
-                        }
-
-                        HoverHandler { id: settingsHover }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (settingsMenu.visible) settingsMenu.close()
-                                else settingsMenu.open()
-                            }
-                        }
-                    }
-                }
+                niri: wm
+                screenName: panelWindow.modelData.name
+                panelWindow: panelWindow
+                launcherOpen: panelWindow.launcherOpen
             }
         }
-    }
-
-    SettingsMenu {
-        id: settingsMenu
-        weather: sharedWeather
-        onVisibleChanged: {
-            if (visible) {
-                var s = root.focusedScreen()
-                if (s) settingsMenu.screen = s
-            }
-        }
-    }
-
-    WeatherIcon {
-        id: sharedWeather
-        visible: false
     }
 }

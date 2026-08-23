@@ -11,6 +11,8 @@
 
   virtualisation.docker.enable = true;
 
+  environment.localBinInPath = true;
+
   # Compressed RAM swap. Layering: zram (priority 5, the module default) fills
   # first for cheap reclaim of cold pages; the 16G disk swap partition
   # (disko.nix) stays as overflow and for hibernation via its resumeDevice.
@@ -25,7 +27,11 @@
 
     android-tools
 
-    self.packages."${pkgs.stdenv.hostPlatform.system}".phisch-psst
+    nodejs
+    bun
+    tmux
+
+    rtk
   ];
 
   xdg.portal = {

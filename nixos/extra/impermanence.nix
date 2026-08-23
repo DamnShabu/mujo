@@ -58,43 +58,6 @@
         };
       };
 
-      # ponytail: one-time transition cleanup of persisted state and leftover
-      # bind mounts of the removed searxng/sops features and the old mullvad
-      # cache/data dirs. Runs inside the activation script, i.e. AFTER
-      # switch-to-configuration-ng's stop phase, so it cannot prevent
-      # stop-phase errors — it only detaches leftover busy mounts and
-      # removes their persisted data. (switch-to-configuration-ng does stop
-      # units active in the previous generation but absent in the new one, so
-      # the old "Failed to stop etc-mullvad-vpn.mount" could still fire on a
-      # host migrating from an older generation; it is only no longer expected
-      # here because the old mount is already gone on this host, and the
-      # marker prevents re-running.)
-      # Self-disables via the marker; delete this whole block once migration
-      # is confirmed.
-      system.activationScripts."cleanup-removed-features" = {
-        deps = [ "createPersistentStorageDirs" ];
-        text = ''
-          if [ ! -e /persist/.cleanup-removed-features.done ]; then
-            for m in \
-              /var/cache/mullvad-vpn \
-              /home/${cfg.user}/Documents/.data/mullvad-vpn \
-              /home/${cfg.user}/searxng \
-              /home/${cfg.user}/sops-age
-            do
-              umount -l "$m" 2>/dev/null || true
-            done
-
-            rm -rf /persist/system/var/cache/mullvad-vpn
-            rm -rf /persist/searxng
-            rm -rf /persist/userdata/home/${cfg.user}/searxng
-            rm -rf /persist/userdata/home/${cfg.user}/sops-age
-            rm -rf /persist/userdata/home/${cfg.user}/Documents/.data/mullvad-vpn
-
-            touch /persist/.cleanup-removed-features.done || true
-          fi
-        '';
-      };
-
       boot.initrd.postDeviceCommands =
         lib.mkIf cfg.nukeRoot.enable
         (lib.mkAfter ''

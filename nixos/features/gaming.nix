@@ -1,11 +1,8 @@
 {self, inputs, ...}: {
   flake.nixosModules.gaming = {
     pkgs,
-    lib,
     ...
   }: {
-    hardware.graphics.enable = lib.mkDefault true;
-
     programs = {
       gamescope.enable = true;
     };
