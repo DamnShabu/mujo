@@ -1,10 +1,22 @@
 singleton Theme Theme.qml
+singleton Anim Anim.qml
 singleton Brand Brand.qml
+singleton Notifications Notifications.qml
 singleton Weather Weather.qml
+singleton AI AI.qml
 singleton SettingsBus SettingsBus.qml
 BrandIcon BrandIcon.qml
 singleton PopupCoordinator PopupCoordinator.qml
 singleton Launch Launch.qml
+singleton Session Session.qml
+singleton Lock Lock.qml
+LockScreen LockScreen.qml
+singleton Cava Cava.qml
+CavaOverlay CavaOverlay.qml
+Island Island.qml
+IslandPanel IslandPanel.qml
+Tooltip Tooltip.qml
+TrayIconDelegate TrayIconDelegate.qml
 LaunchFeedback LaunchFeedback.qml
 Pill Pill.qml
 BarGroup BarGroup.qml
@@ -16,6 +28,7 @@ PolkitPrompt PolkitPrompt.qml
 KeyringPrompt KeyringPrompt.qml
 Slider Slider.qml
 ToggleSwitch ToggleSwitch.qml
+TabIndicator TabIndicator.qml
 MaterialIcon MaterialIcon.qml
 Workspaces Workspaces.qml
 CalendarMenu CalendarMenu.qml
@@ -29,6 +42,10 @@ LlmTrackerMenu LlmTrackerMenu.qml
 LauncherResult LauncherResult.qml
 LauncherActionBar LauncherActionBar.qml
 LauncherBody LauncherBody.qml
+LauncherGrid LauncherGrid.qml
+CommandPalette CommandPalette.qml
+ClipboardList ClipboardList.qml
+SessionMenu SessionMenu.qml
 LauncherPill LauncherPill.qml
 Launcher Launcher.qml
 Spinner Spinner.qml
@@ -51,6 +68,13 @@ DisplayPanel DisplayPanel.qml
 PersistencePanel PersistencePanel.qml
 KeyringPanel KeyringPanel.qml
 IntegrationsPanel IntegrationsPanel.qml
+NotificationsPanel NotificationsPanel.qml
+AiPanel AiPanel.qml
+NotificationMenu NotificationMenu.qml
+NotificationCenter NotificationCenter.qml
+NotificationPopup NotificationPopup.qml
+CrashWatcher CrashWatcher.qml
+IdleService IdleService.qml
 AboutPanel AboutPanel.qml
 DesktopMenu DesktopMenu.qml
 Bar Bar.qml

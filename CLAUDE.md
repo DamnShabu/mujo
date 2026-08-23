@@ -31,7 +31,17 @@ There is no unit test suite; correctness is checked via `nix flake check` and, f
 - **Host wiring:** `nixos/hosts/main/configuration.nix` is the single place that turns an auto-discovered feature module into something that actually applies to the host — it lists `self.nixosModules.<name>` in `imports`. A feature file under `nixos/features/` that isn't in this list evaluates but does nothing.
 - **Host fragments:** `nixos/hosts/main/_boot.nix`, `_networking.nix`, `_hardware-and-services.nix` are underscore-prefixed (not auto-imported) and pulled in explicitly by `configuration.nix`.
 - **Features vs wrappers:** `nixos/features/*.nix` are NixOS feature modules (one concern each — gaming, steam, quickshell, vaultwarden secrets, etc.); `modules/wrappers/*.nix` wrap specific programs (fish, kitty, niri, environment) using the `nix-wrapper-modules` input.
-- **Vendored packages:** `modules/perSystem.nix` builds packages removed/broken upstream in nixpkgs (preload, skeuos-gtk, quicksnip, pibble) — check here before assuming a package comes from nixpkgs directly.
+- **Vendored packages:** `modules/perSystem.nix` builds packages removed/broken upstream in nixpkgs (preload, skeuos-gtk, quicksnip) — check here before assuming a package comes from nixpkgs directly.
 - **Theming:** `modules/theme.nix` defines the palette (`self.theme.base00..base0F`); wrapper configs read from it rather than hardcoding colors.
 - **Persistence:** btrfs root is wiped on boot (impermanence). Anything that must survive goes into `persistence.data.directories` / `persistence.cache.directories` / `persistence.directories` / `persistence.files`; each feature module owns its own persistence entries rather than a central list.
 - **User identity:** never hardcode `"yurii"` — use `config.preferences.user.name`, sourced from gitignored `secrets/username` with `"yurii"` as fallback (`nixos/features/user.nix`).
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub issues in `DamnShabu/mujo`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context (`CONTEXT.md` + `docs/adr/` at the repo root). See `docs/agents/domain.md`.

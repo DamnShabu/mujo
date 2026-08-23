@@ -121,6 +121,85 @@ Item {
                 }
             }
 
+            // Launcher command palette power actions (WP-10).
+            RowLayout {
+                Layout.fillWidth: true; spacing: 12
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 1
+                    Text { text: "Power actions in launcher"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
+                    Text { text: "Show Log out / Reboot / Shut down / Suspend in the “/” command palette and the bar power menu (each still asks to confirm)."; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                }
+                ToggleSwitch { Layout.alignment: Qt.AlignVCenter; checked: SettingsBus.get("launcher.enableDangerousActions", false); onToggled: function (c) { SettingsBus.set("launcher.enableDangerousActions", c) } }
+            }
+
+            // App favourites & recents (WP-06). Favourites are set by starring in
+            // the launcher's grid; recents are maintained by the Launch singleton.
+            ColumnLayout {
+                id: appsSec
+                Layout.fillWidth: true; spacing: 10
+                readonly property var favorites: SettingsBus.get("apps.favorites", [])
+                readonly property var recents: SettingsBus.get("apps.recent", [])
+                function nameFor(id) {
+                    var a = (DesktopEntries.applications ? DesktopEntries.applications.values : []) || []
+                    for (var i = 0; i < a.length; i++) if (a[i] && a[i].id === id) return a[i].name
+                    return id
+                }
+
+                SectionLabel { text: "Favourite apps" }
+                Flow {
+                    Layout.fillWidth: true; spacing: 7
+                    visible: appsSec.favorites.length > 0
+                    Repeater {
+                        model: appsSec.favorites
+                        delegate: Rectangle {
+                            id: favChip
+                            required property var modelData
+                            implicitWidth: fl.implicitWidth + 18; implicitHeight: 28
+                            radius: Theme.radiusMd; color: Theme.surface; border.color: Theme.borderStrong
+                            RowLayout {
+                                id: fl; anchors.centerIn: parent; spacing: 6
+                                MaterialIcon { iconName: "star"; pixelSize: 13; color: Theme.warning }
+                                Text { text: appsSec.nameFor(favChip.modelData); color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                                MaterialIcon {
+                                    iconName: "close"; pixelSize: 14; color: fh.hovered ? Theme.text : Theme.textDim
+                                    HoverHandler { id: fh; cursorShape: Qt.PointingHandCursor }
+                                    TapHandler { onTapped: SettingsBus.set("apps.favorites", appsSec.favorites.filter(function (x) { return x !== favChip.modelData })) }
+                                }
+                            }
+                        }
+                    }
+                }
+                Text { visible: appsSec.favorites.length === 0; text: "Star apps in the launcher's grid view to pin them here."; color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+
+                RowLayout {
+                    Layout.fillWidth: true; Layout.topMargin: 6
+                    SectionLabel { text: "Recent apps"; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter }
+                    Rectangle {
+                        visible: appsSec.recents.length > 0
+                        implicitWidth: rcl.implicitWidth + 18; implicitHeight: 24; radius: Theme.radiusSm
+                        color: rch.hovered ? Theme.surfaceHover : Theme.surface; border.color: Theme.borderStrong
+                        Text { id: rcl; anchors.centerIn: parent; text: "Clear"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                        HoverHandler { id: rch; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: SettingsBus.set("apps.recent", []) }
+                    }
+                }
+                Flow {
+                    Layout.fillWidth: true; spacing: 7
+                    visible: appsSec.recents.length > 0
+                    Repeater {
+                        model: appsSec.recents
+                        delegate: Rectangle {
+                            id: recChip
+                            required property var modelData
+                            implicitWidth: rl.implicitWidth + 16; implicitHeight: 26
+                            radius: Theme.radiusMd; color: Theme.surface; border.color: Theme.border
+                            Text { id: rl; anchors.centerIn: parent; text: appsSec.nameFor(recChip.modelData); color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                        }
+                    }
+                }
+                Text { visible: appsSec.recents.length === 0; text: "No recent apps yet."; color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+            }
+
             Repeater {
                 model: root.categories
                 delegate: ColumnLayout {

@@ -33,7 +33,11 @@ ShellRoot {
                 { key: "appearance",  label: "Appearance",   brand: "appearance",  icon: "palette" },
                 { key: "wallpaper",   label: "Wallpaper",    brand: "wallpaper",   icon: "wallpaper" },
                 { key: "desktop",     label: "Desktop",      brand: "desktop",     icon: "widgets" },
+                { key: "island",      label: "Island",       brand: "desktop",     icon: "blur_on" },
                 { key: "weather",     label: "Weather",      brand: "usage",       icon: "partly_cloudy_day" } ] },
+            { title: "Intelligence",    items: [
+                { key: "ai",            label: "AI",            brand: "usage",     icon: "neurology" },
+                { key: "notifications", label: "Notifications", brand: "usage",     icon: "notifications" } ] },
             { title: "Hardware",        items: [
                 { key: "display",     label: "Displays",     brand: "display",     icon: "monitor" },
                 { key: "devices",     label: "Devices",      brand: "devices",     icon: "keyboard" } ] },
@@ -66,6 +70,9 @@ ShellRoot {
             { title: "Cursor parallax",     desc: "Wallpaper zoom + pan effect",         cat: "Desktop",    key: "desktop" },
             { title: "Background color",    desc: "Letterbox fill around wallpapers",    cat: "Desktop",    key: "desktop" },
             { title: "Desktop widgets",     desc: "Add clock, weather, system widgets",  cat: "Desktop",    key: "desktop" },
+            { title: "Island modules",      desc: "Clock, media, weather, cava-mini",     cat: "Island",     key: "island" },
+            { title: "Island appearance",   desc: "Width, radius, opacity, offset",       cat: "Island",     key: "island" },
+            { title: "Island behavior",     desc: "Auto-expand on track / notification",  cat: "Island",     key: "island" },
             { title: "Weather location",    desc: "City, auto-detect, units, interval",  cat: "Weather",    key: "weather" },
             { title: "Temperature units",   desc: "Celsius or Fahrenheit",               cat: "Weather",    key: "weather" },
             { title: "Resolution",          desc: "Per-monitor resolution",              cat: "Displays",   key: "display" },
@@ -86,7 +93,15 @@ ShellRoot {
             { title: "Keyboard shortcuts",  desc: "niri key bindings",                   cat: "Shortcuts",  key: "shortcuts" },
             { title: "NixOS rebuild",       desc: "Apply and switch configuration",      cat: "System",     key: "system" },
             { title: "Generation",          desc: "Current system generation",           cat: "System",     key: "system" },
-            { title: "Integrations",        desc: "Discord, AI, media, apps",            cat: "Apps",       key: "applications" }
+            { title: "Integrations",        desc: "Discord, AI, media, apps",            cat: "Apps",       key: "applications" },
+            { title: "AI provider",          desc: "Ollama local or OpenAI-compatible",    cat: "Intelligence", key: "ai" },
+            { title: "AI model",             desc: "Model name and base URL",              cat: "Intelligence", key: "ai" },
+            { title: "AI API key",           desc: "Store the provider key in the keyring", cat: "Intelligence", key: "ai" },
+            { title: "AI privacy",           desc: "Shell context, crash data, confirm actions", cat: "Intelligence", key: "ai" },
+            { title: "Do Not Disturb",      desc: "Silence notification toasts",         cat: "Intelligence", key: "notifications" },
+            { title: "Notification position",desc: "Which corner toasts appear in",       cat: "Intelligence", key: "notifications" },
+            { title: "Battery warnings",     desc: "Low-battery notification thresholds",  cat: "Intelligence", key: "notifications" },
+            { title: "Mute apps",            desc: "Per-app notification mute list",       cat: "Intelligence", key: "notifications" }
         ]
 
         property string query: ""
@@ -134,6 +149,7 @@ ShellRoot {
         Component { id: appearanceComp;  AppearancePanel {} }
         Component { id: wallpaperComp;   WallpaperPanel {} }
         Component { id: desktopComp;     DesktopPanel {} }
+        Component { id: islandComp;      IslandPanel {} }
         Component { id: weatherComp;     WeatherPanel {} }
         Component { id: displayComp;     DisplayPanel {} }
         Component { id: devicesComp;     DevicesPanel {} }
@@ -142,6 +158,8 @@ ShellRoot {
         Component { id: persistenceComp; PersistencePanel {} }
         Component { id: shortcutsComp;   ShortcutsPanel {} }
         Component { id: systemComp;      SystemPanel {} }
+        Component { id: notificationsComp; NotificationsPanel {} }
+        Component { id: aiComp;          AiPanel {} }
         Component { id: applicationsComp; IntegrationsPanel {} }
 
         function componentFor(key) {
@@ -149,6 +167,7 @@ ShellRoot {
                  : key === "appearance" ? appearanceComp
                  : key === "wallpaper" ? wallpaperComp
                  : key === "desktop" ? desktopComp
+                 : key === "island" ? islandComp
                  : key === "weather" ? weatherComp
                  : key === "display" ? displayComp
                  : key === "devices" ? devicesComp
@@ -157,6 +176,8 @@ ShellRoot {
                  : key === "persistence" ? persistenceComp
                  : key === "shortcuts" ? shortcutsComp
                  : key === "system" ? systemComp
+                 : key === "notifications" ? notificationsComp
+                 : key === "ai" ? aiComp
                  : applicationsComp
         }
 
@@ -360,11 +381,27 @@ ShellRoot {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
-                    // Panel
-                    Loader {
+                    // Panel — fade + 8px slide on section change (WP-03 standard
+                    // transition via Anim; instant when reduceMotion is on).
+                    Item {
+                        id: panelHost
                         anchors.fill: parent
                         visible: !win.searching
-                        sourceComponent: win.componentFor(win.current)
+                        opacity: 1
+                        transform: Translate { id: panelShift; y: 0 }
+                        Loader {
+                            anchors.fill: parent
+                            sourceComponent: win.componentFor(win.current)
+                        }
+                        Connections {
+                            target: win
+                            function onCurrentChanged() { panelIn.restart() }
+                        }
+                        ParallelAnimation {
+                            id: panelIn
+                            NumberAnimation { target: panelHost; property: "opacity"; from: 0; to: 1; duration: Anim.d(Anim.enter); easing.type: Anim.easeEnter }
+                            NumberAnimation { target: panelShift; property: "y"; from: 8; to: 0; duration: Anim.d(Anim.enter); easing.type: Anim.easeEnter }
+                        }
                     }
 
                     // Search results

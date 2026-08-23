@@ -63,8 +63,8 @@ Pill {
         color: "transparent"
         anchor.window: root.panelWindow
         anchor.item: root
-        anchor.edges: Edges.Bottom
-        anchor.gravity: Edges.Bottom
+        anchor.edges: Theme.popupEdge
+        anchor.gravity: Theme.popupGravity
         anchor.adjustment: PopupAdjustment.Slide
 
         implicitWidth: 260 + 32

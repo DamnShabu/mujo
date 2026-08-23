@@ -49,14 +49,24 @@ Item {
         }
     }
 
-    // Center cluster: clock (opens the calendar).
+    // Center cluster: island (WP-16) when enabled, else the bare clock pill.
+    // Both open the calendar; the island bundles clock + media + weather + cava.
     ClockPill {
         anchors.centerIn: parent
+        visible: !SettingsBus.get("island.enabled", true)
         panelWindow: root.panelWindow
         screenName: root.screenName
     }
 
-    // Right cluster: LLM / network / bluetooth / volume / tray status icons.
+    Island {
+        anchors.centerIn: parent
+        visible: SettingsBus.get("island.enabled", true)
+        panelWindow: root.panelWindow
+        screenName: root.screenName
+    }
+
+    // Right cluster: data-driven (WP-17). `bar.rightModules` sets both order and
+    // visibility — drop a name to hide it, reorder to rearrange.
     BarGroup {
         id: rightGroup
         anchors {
@@ -66,10 +76,28 @@ Item {
         }
         spacing: 4
 
-        LlmTrackerMenu { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName }
-        NetworkMenu { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName }
-        BluetoothMenu { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName }
-        VolumeMenu { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName }
-        SystemTray { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName }
+        Repeater {
+            model: SettingsBus.get("bar.rightModules", ["llm", "network", "bluetooth", "volume", "notifications", "tray", "session"])
+            delegate: Loader {
+                required property var modelData
+                Layout.alignment: Qt.AlignVCenter
+                sourceComponent: modelData === "llm" ? llmC
+                               : modelData === "network" ? netC
+                               : modelData === "bluetooth" ? btC
+                               : modelData === "volume" ? volC
+                               : modelData === "notifications" ? notifC
+                               : modelData === "tray" ? trayC
+                               : modelData === "session" ? sessC
+                               : null
+            }
+        }
     }
+
+    Component { id: llmC;   LlmTrackerMenu  { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName } }
+    Component { id: netC;   NetworkMenu     { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName } }
+    Component { id: btC;    BluetoothMenu   { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName } }
+    Component { id: volC;   VolumeMenu      { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName } }
+    Component { id: notifC; NotificationMenu{ Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName } }
+    Component { id: trayC;  SystemTray      { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName } }
+    Component { id: sessC;  SessionMenu     { Layout.alignment: Qt.AlignVCenter; panelWindow: root.panelWindow; screenName: root.screenName } }
 }

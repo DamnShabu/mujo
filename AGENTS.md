@@ -36,7 +36,7 @@
 
 ## Misc
 * `modules/theme.nix` exposes palette `self.theme.base00..base0F`; wrapper configs (kitty, etc.) read colors from it.
-* `modules/perSystem.nix` vendors packages removed/broken in nixpkgs (preload, skeuos-gtk, quicksnip, pibble).
+* `modules/perSystem.nix` vendors packages removed/broken in nixpkgs (preload, skeuos-gtk, quicksnip).
 
 ## Linting & formatting
 * `trunk check` / `trunk fmt` only. Don't run standalone formatters (prettier/ruff/nixpkgs-fmt) manually — trunk manages them.
@@ -53,3 +53,4 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- Nix/QML support is a local patch (adapted from Graphify-Labs/graphify#1048 + a QML component-reference walker), NOT upstream. After any `uv tool install --upgrade graphifyy`, re-apply with `nix-shell -p uv --run ~/nixconf/tools/graphify/apply.sh` (idempotent; installs tree-sitter-nix/tree-sitter-qmljs and rewires the venv).

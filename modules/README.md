@@ -19,7 +19,7 @@ from `flake.nix` (or, for `wrappers/`, auto-discovered by `importTree` per
     fetched from an external Git repo, with its runtime deps (`grim`,
     `tesseract`, `wl-clipboard`, etc.) pinned.
   - Also home to other vendored packages referenced by `AGENTS.md`
-    (`preload`, `skeuos-gtk`, `pibble`) — check this file before
+    (`preload`, `skeuos-gtk`) — check this file before
     assuming a package comes from nixpkgs directly.
 
 ## Subdirectories

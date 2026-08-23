@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Niri
 
 Item {
@@ -10,6 +11,14 @@ Item {
 
     implicitHeight: Theme.workspacePillSize
     implicitWidth: rowLayout.implicitWidth
+
+    // Scroll over the workspaces pill to switch workspace (WP-17 scroll actions).
+    WheelHandler {
+        enabled: SettingsBus.get("bar.scrollActions", true)
+        onWheel: function (e) {
+            Quickshell.execDetached(["niri", "msg", "action", e.angleDelta.y > 0 ? "focus-workspace-up" : "focus-workspace-down"])
+        }
+    }
 
     // niri's WorkspaceModel.get() returns a plain QVariantMap with no change
     // notification per-field, so we poll rather than bind directly.

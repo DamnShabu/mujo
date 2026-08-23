@@ -200,31 +200,75 @@ Variants {
                 property real defaultW: modelData.type === "clock" ? 216 : (modelData.type === "sysmon" ? 216 : 240)
                 property real defaultH: modelData.type === "clock" ? 144 : (modelData.type === "weather" ? 96 : 96)
 
-                // The continuous snapped target values
+                // Snapped, committed geometry (what persists to widgets.json).
                 property real targetX: modelData.x
                 property real targetY: modelData.y
                 property real targetW: modelData.w || defaultW
                 property real targetH: modelData.h || defaultH
 
-                // Allow external edits from widgets.json to apply ONLY when idle
-                Binding on targetX { value: modelData.x; when: !host.dragging }
-                Binding on targetY { value: modelData.y; when: !host.dragging }
-                Binding on targetW { value: modelData.w || host.defaultW; when: !host.resizing }
-                Binding on targetH { value: modelData.h || host.defaultH; when: !host.resizing }
-
-                // The actual physical positions that smoothly glide to catch up with targets
-                x: targetX
-                y: targetY
-                width: targetW
-                height: targetH
-
-                Behavior on x { NumberAnimation { duration: host.dragging ? 150 : 0; easing.type: Easing.OutCubic } }
-                Behavior on y { NumberAnimation { duration: host.dragging ? 150 : 0; easing.type: Easing.OutCubic } }
-                Behavior on width { NumberAnimation { duration: host.resizing ? 150 : 0; easing.type: Easing.OutCubic } }
-                Behavior on height { NumberAnimation { duration: host.resizing ? 150 : 0; easing.type: Easing.OutCubic } }
-
+                // Continuous, UNSNAPPED geometry during an active drag/resize — the
+                // widget tracks the cursor exactly (WP-07); the grid snap is shown
+                // only as a ghost preview and committed on release.
+                property real freeX: modelData.x
+                property real freeY: modelData.y
+                property real freeW: modelData.w || defaultW
+                property real freeH: modelData.h || defaultH
+                property real grabOffX: 0
+                property real grabOffY: 0
                 property bool dragging: false
                 property bool resizing: false
+                readonly property bool active: host.dragging || host.resizing
+
+                // Allow external edits from widgets.json to apply ONLY when idle.
+                Binding on targetX { value: modelData.x; when: !host.active }
+                Binding on targetY { value: modelData.y; when: !host.active }
+                Binding on targetW { value: modelData.w || host.defaultW; when: !host.active }
+                Binding on targetH { value: modelData.h || host.defaultH; when: !host.active }
+
+                // While active: exact cursor-tracked free geometry (no glide, no
+                // detachment). Idle: the snapped target, glided into place.
+                x: host.active ? host.freeX : host.targetX
+                y: host.active ? host.freeY : host.targetY
+                width: host.active ? host.freeW : host.targetW
+                height: host.active ? host.freeH : host.targetH
+
+                Behavior on x { enabled: !host.active; NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Easing.OutCubic } }
+                Behavior on y { enabled: !host.active; NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Easing.OutCubic } }
+                Behavior on width { enabled: !host.active; NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Easing.OutCubic } }
+                Behavior on height { enabled: !host.active; NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Easing.OutCubic } }
+
+                // 8 resize zones (corners + edges); each moves its edge(s) with the
+                // opposite edge fixed.
+                readonly property var resizeZones: [
+                    { l: true, t: true, cur: Qt.SizeFDiagCursor },
+                    { t: true, cur: Qt.SizeVerCursor },
+                    { r: true, t: true, cur: Qt.SizeBDiagCursor },
+                    { r: true, cur: Qt.SizeHorCursor },
+                    { r: true, b: true, cur: Qt.SizeFDiagCursor },
+                    { b: true, cur: Qt.SizeVerCursor },
+                    { l: true, b: true, cur: Qt.SizeBDiagCursor },
+                    { l: true, cur: Qt.SizeHorCursor }
+                ]
+
+                // Finalize an interaction from EITHER onReleased OR onCanceled.
+                // On wlroots layer-shell the pointer grab is often *canceled*
+                // (not released) when the widget slides out from under the cursor
+                // mid-drag, so a release-only reset strands `dragging` true and
+                // freezes the widget at its last free position.
+                function endDrag() {
+                    if (!host.dragging) return
+                    host.dragging = false
+                    win.anyDragging = false
+                    win.activeWidget = null
+                    win.persistGeometry(host.modelData.id, host.targetX, host.targetY, host.targetW, host.targetH)
+                }
+                function endResize() {
+                    if (!host.resizing) return
+                    host.resizing = false
+                    win.anyResizing = false
+                    win.activeWidget = null
+                    win.persistGeometry(host.modelData.id, host.targetX, host.targetY, host.targetW, host.targetH)
+                }
 
                 // keep position synced if monitor shifts
                 Connections { target: win; function onScreenNameChanged() {} }
@@ -262,158 +306,131 @@ Variants {
                         NumberAnimation { duration: Theme.reduceMotion ? 0 : Theme.durationFast }
                     }
 
-                    // The widget implementation logic
+                    // The widget implementation logic. Widgets may expose
+                    // `wReady` (false while loading) / `wError` (message) / `wRetry()`
+                    // for the loading + error overlay below (WP-07).
+                    readonly property bool wLoading: loader.item && loader.item.wReady === false && !(loader.item.wError)
+                    readonly property string wErr: (loader.item && loader.item.wError) ? String(loader.item.wError) : ""
+
                     Loader {
                         id: loader
                         anchors.fill: parent
                         anchors.margins: 4
+                        visible: !content.wLoading && content.wErr === ""
                         sourceComponent: host.modelData.type === "clock" ? clockComp
                                        : host.modelData.type === "weather" ? weatherComp
                                        : host.modelData.type === "sysmon" ? sysmonComp
                                        : clockComp
                         property var wcfg: host.modelData.config || ({})
                     }
+
+                    Spinner {
+                        anchors.centerIn: parent
+                        visible: content.wLoading
+                        size: 24
+                    }
+
+                    Column {
+                        anchors.centerIn: parent
+                        width: parent.width - 24
+                        visible: content.wErr !== ""
+                        spacing: 6
+                        MaterialIcon { anchors.horizontalCenter: parent.horizontalCenter; iconName: "error_outline"; pixelSize: 26; color: Theme.error }
+                        Text { anchors.horizontalCenter: parent.horizontalCenter; width: parent.width; horizontalAlignment: Text.AlignHCenter; text: content.wErr; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: retryLbl.implicitWidth + 22; height: 26; radius: Theme.radiusSm
+                            color: retry_hh.hovered ? Theme.surfaceHover : Theme.surface; border.color: Theme.border
+                            Text { id: retryLbl; anchors.centerIn: parent; text: "Retry"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                            HoverHandler { id: retry_hh; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: if (loader.item && loader.item.wRetry) loader.item.wRetry() }
+                        }
+                    }
                 }
 
-                // ── Drag Handle (Body) ────────────────────────────────────────
-                // We use an invisible item as the raw drag target so the mouse can
-                // move freely while the actual widget snaps and glides behind it.
-                Item {
-                    id: rawDragTarget
-                    x: host.targetX
-                    y: host.targetY
-                    width: host.targetW
-                    height: host.targetH
-                }
-                
+                // ── Drag Body (WP-07) ─────────────────────────────────────────
+                // Grab offset captured once on press; the widget follows
+                // cursor − offset exactly and NEVER detaches. Only the ghost
+                // footprint (targetX/Y) is snapped; snapped geometry commits on
+                // release and the widget glides into it.
                 MouseArea {
+                    id: dragArea
                     anchors.fill: parent
-                    anchors.rightMargin: 12
-                    anchors.bottomMargin: 12
                     enabled: !cfg.locked
-                    cursorShape: cfg.locked ? Qt.ArrowCursor : Qt.SizeAllCursor
-                    drag.target: cfg.locked ? undefined : rawDragTarget
-                    drag.axis: Drag.XAndYAxis
-                    drag.minimumX: -1000 // Handled strictly by snapping
-                    drag.minimumY: -1000
+                    cursorShape: cfg.locked ? Qt.ArrowCursor
+                              : host.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                    onPressed: (mouse) => {
+                        var p = mapToItem(win.contentItem, mouse.x, mouse.y)
+                        host.grabOffX = p.x - host.targetX
+                        host.grabOffY = p.y - host.targetY
+                        host.freeX = host.targetX; host.freeY = host.targetY
+                        host.freeW = host.targetW; host.freeH = host.targetH
+                        host.dragging = true
+                        win.anyDragging = true
+                        win.activeWidget = host
+                    }
+                    onPositionChanged: (mouse) => {
+                        if (!host.dragging) return
+                        var p = mapToItem(win.contentItem, mouse.x, mouse.y)
+                        host.freeX = p.x - host.grabOffX
+                        host.freeY = p.y - host.grabOffY
+                        host.targetX = win.snapX(host.freeX, host.targetW)
+                        host.targetY = win.snapY(host.freeY, host.targetH)
+                    }
+                    onReleased: host.endDrag()
+                    onCanceled: host.endDrag()
+                }
 
-                    onPressed: {
-                        if (!cfg.locked) {
-                            rawDragTarget.x = host.targetX
-                            rawDragTarget.y = host.targetY
-                            host.dragging = true
-                            win.anyDragging = true
+                // ── Resize Grips (WP-07) ──────────────────────────────────────
+                // 8 zones (4 edges + 4 corners) from resizeZones; each moves its
+                // edge(s) with the opposite edge fixed. Geometry tracks the cursor
+                // freely and snaps only on release. Placed after the drag body so
+                // grips win the edge hit-test.
+                Repeater {
+                    model: host.resizeZones
+                    delegate: MouseArea {
+                        required property var modelData
+                        readonly property int grip: 12
+                        enabled: !cfg.locked
+                        visible: !cfg.locked
+                        cursorShape: modelData.cur
+                        x: modelData.l ? 0 : (modelData.r ? host.width - grip : grip)
+                        width: (modelData.l || modelData.r) ? grip : Math.max(0, host.width - 2 * grip)
+                        y: modelData.t ? 0 : (modelData.b ? host.height - grip : grip)
+                        height: (modelData.t || modelData.b) ? grip : Math.max(0, host.height - 2 * grip)
+
+                        property real sMx
+                        property real sMy
+                        property real sX
+                        property real sY
+                        property real sW
+                        property real sH
+                        onPressed: (mouse) => {
+                            var p = mapToItem(win.contentItem, mouse.x, mouse.y)
+                            sMx = p.x; sMy = p.y
+                            sX = host.targetX; sY = host.targetY
+                            sW = host.targetW; sH = host.targetH
+                            host.freeX = sX; host.freeY = sY; host.freeW = sW; host.freeH = sH
+                            host.resizing = true
+                            win.anyResizing = true
                             win.activeWidget = host
                         }
-                    }
-                    onPositionChanged: {
-                        if (host.dragging) {
-                            host.targetX = win.snapX(rawDragTarget.x, host.targetW)
-                            host.targetY = win.snapY(rawDragTarget.y, host.targetH)
+                        onPositionChanged: (mouse) => {
+                            if (!host.resizing) return
+                            var p = mapToItem(win.contentItem, mouse.x, mouse.y)
+                            var dx = p.x - sMx, dy = p.y - sMy
+                            var nx = sX, ny = sY, nw = sW, nh = sH
+                            if (modelData.l) { nx = sX + dx; nw = sW - dx; if (nw < win.minGridW) { nx = sX + sW - win.minGridW; nw = win.minGridW } }
+                            if (modelData.r) { nw = Math.max(win.minGridW, sW + dx) }
+                            if (modelData.t) { ny = sY + dy; nh = sH - dy; if (nh < win.minGridH) { ny = sY + sH - win.minGridH; nh = win.minGridH } }
+                            if (modelData.b) { nh = Math.max(win.minGridH, sH + dy) }
+                            host.freeX = nx; host.freeY = ny; host.freeW = nw; host.freeH = nh
+                            host.targetW = win.snapW(nw); host.targetH = win.snapH(nh)
+                            host.targetX = win.snapX(nx, host.targetW)
+                            host.targetY = win.snapY(ny, host.targetH)
                         }
-                    }
-                    onReleased: {
-                        if (!cfg.locked) {
-                            host.dragging = false
-                            win.anyDragging = false
-                            win.activeWidget = null
-                            win.persistGeometry(host.modelData.id, host.targetX, host.targetY, host.targetW, host.targetH)
-                        }
-                    }
-                }
-
-                // ── Resize Handle: Bottom-Right ───────────────────────────────
-                MouseArea {
-                    width: 20
-                    height: 20
-                    anchors { right: parent.right; bottom: parent.bottom }
-                    cursorShape: Qt.SizeFDiagCursor
-                    enabled: !cfg.locked
-                    visible: !cfg.locked
-                    property real startMouseX
-                    property real startMouseY
-                    property real startW
-                    property real startH
-                    onPressed: (mouse) => {
-                        var pt = mapToItem(win.contentItem, mouse.x, mouse.y)
-                        startMouseX = pt.x
-                        startMouseY = pt.y
-                        startW = host.targetW
-                        startH = host.targetH
-                        host.resizing = true
-                        win.anyResizing = true
-                        win.activeWidget = host
-                    }
-                    onPositionChanged: (mouse) => {
-                        var pt = mapToItem(win.contentItem, mouse.x, mouse.y)
-                        var maxW = win.width - host.targetX
-                        var maxH = win.height - host.targetY
-                        host.targetW = Math.min(maxW, win.snapW(startW + (pt.x - startMouseX)))
-                        host.targetH = Math.min(maxH, win.snapH(startH + (pt.y - startMouseY)))
-                    }
-                    onReleased: {
-                        host.resizing = false
-                        win.anyResizing = false
-                        win.activeWidget = null
-                        win.persistGeometry(host.modelData.id, host.targetX, host.targetY, host.targetW, host.targetH)
-                    }
-                }
-
-                // ── Resize Handle: Right ──────────────────────────────────────
-                MouseArea {
-                    width: 12
-                    anchors { right: parent.right; top: parent.top; bottom: parent.bottom; bottomMargin: 20; topMargin: 12 }
-                    cursorShape: Qt.SizeHorCursor
-                    enabled: !cfg.locked
-                    visible: !cfg.locked
-                    property real startMouseX
-                    property real startW
-                    onPressed: (mouse) => {
-                        startMouseX = mapToItem(win.contentItem, mouse.x, mouse.y).x
-                        startW = host.targetW
-                        host.resizing = true
-                        win.anyResizing = true
-                        win.activeWidget = host
-                    }
-                    onPositionChanged: (mouse) => {
-                        var pt = mapToItem(win.contentItem, mouse.x, mouse.y)
-                        var maxW = win.width - host.targetX
-                        host.targetW = Math.min(maxW, win.snapW(startW + (pt.x - startMouseX)))
-                    }
-                    onReleased: {
-                        host.resizing = false
-                        win.anyResizing = false
-                        win.activeWidget = null
-                        win.persistGeometry(host.modelData.id, host.targetX, host.targetY, host.targetW, host.targetH)
-                    }
-                }
-
-                // ── Resize Handle: Bottom ─────────────────────────────────────
-                MouseArea {
-                    height: 12
-                    anchors { bottom: parent.bottom; left: parent.left; right: parent.right; rightMargin: 20; leftMargin: 12 }
-                    cursorShape: Qt.SizeVerCursor
-                    enabled: !cfg.locked
-                    visible: !cfg.locked
-                    property real startMouseY
-                    property real startH
-                    onPressed: (mouse) => {
-                        startMouseY = mapToItem(win.contentItem, mouse.x, mouse.y).y
-                        startH = host.targetH
-                        host.resizing = true
-                        win.anyResizing = true
-                        win.activeWidget = host
-                    }
-                    onPositionChanged: (mouse) => {
-                        var pt = mapToItem(win.contentItem, mouse.x, mouse.y)
-                        var maxH = win.height - host.targetY
-                        host.targetH = Math.min(maxH, win.snapH(startH + (pt.y - startMouseY)))
-                    }
-                    onReleased: {
-                        host.resizing = false
-                        win.anyResizing = false
-                        win.activeWidget = null
-                        win.persistGeometry(host.modelData.id, host.targetX, host.targetY, host.targetW, host.targetH)
+                        onReleased: host.endResize()
+                        onCanceled: host.endResize()
                     }
                 }
             }
@@ -461,6 +478,13 @@ Variants {
             RowLayout {
                 anchors.fill: parent
                 spacing: 14
+                // Loading/error surface for the widget overlay (WP-07).
+                property bool wReady: Weather.data !== null || Weather.error !== ""
+                property string wError: Weather.data === null ? Weather.error : ""
+                function wRetry() { Weather.refresh(true) }
+                // Honour the shared style + stale flags (WP-05): compact hides the
+                // description/city; stale data renders muted.
+                opacity: Weather.stale ? 0.55 : 1
                 Item { Layout.fillWidth: true }
                 MaterialIcon { iconName: Weather.data ? Weather.iconFor(Weather.data.code) : "cloud"; pixelSize: 52; color: Theme.accent }
                 ColumnLayout {
@@ -470,8 +494,8 @@ Variants {
                         Text { text: Weather.data ? Weather.data.temp : "–"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: 34; font.bold: true }
                         Text { text: Weather.unitSymbol(); color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: 15; Layout.topMargin: 6 }
                     }
-                    Text { text: Weather.data ? Weather.descFor(Weather.data.code) : "Loading…"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
-                    Text { text: Weather.data ? Weather.data.city : ""; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel }
+                    Text { visible: Weather.style !== "compact"; text: Weather.data ? Weather.descFor(Weather.data.code) : "Loading…"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                    Text { visible: Weather.style !== "compact"; text: Weather.data ? Weather.data.city : ""; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel }
                 }
                 Item { Layout.fillWidth: true }
             }
@@ -480,27 +504,42 @@ Variants {
         Component {
             id: sysmonComp
             ColumnLayout {
+                id: sm
                 anchors.fill: parent
                 spacing: 10
                 property int cpu: 0
                 property int mem: 0
                 property string memText: ""
+                // Loading/error surface for the widget overlay (WP-07).
+                property bool wReady: false
+                property string wError: ""
+                function wRetry() { sm.wError = ""; smProc.running = true }
                 Process {
                     id: smProc
                     command: ["mujo", "sysmon"]
-                    stdout: StdioCollector { onStreamFinished: { try { var d = JSON.parse(this.text); parent.cpu = d.cpu; parent.mem = d.mem; parent.memText = d.memUsedGb + " / " + d.memTotalGb + " GB" } catch (e) {} } }
+                    stdout: StdioCollector {
+                        onStreamFinished: {
+                            try {
+                                var d = JSON.parse(this.text)
+                                sm.cpu = d.cpu; sm.mem = d.mem
+                                sm.memText = d.memUsedGb + " / " + d.memTotalGb + " GB"
+                                sm.wReady = true; sm.wError = ""
+                            } catch (e) { if (!sm.wReady) sm.wError = "sysmon unavailable" }
+                        }
+                    }
+                    onExited: (code) => { if (code !== 0 && !sm.wReady) sm.wError = "sysmon exited (" + code + ")" }
                 }
                 Timer { interval: 3000; running: true; repeat: true; onTriggered: smProc.running = true; Component.onCompleted: smProc.running = true }
                 Item { Layout.fillHeight: true }
                 SysBar {
                     Layout.alignment: Qt.AlignHCenter
-                    width: Math.min(190, parent.width - 24)
-                    label: "CPU"; value: parent.cpu; caption: parent.cpu + "%" 
+                    width: Math.min(190, sm.width - 24)
+                    label: "CPU"; value: sm.cpu; caption: sm.cpu + "%"
                 }
                 SysBar {
                     Layout.alignment: Qt.AlignHCenter
-                    width: Math.min(190, parent.width - 24)
-                    label: "RAM"; value: parent.mem; caption: parent.memText 
+                    width: Math.min(190, sm.width - 24)
+                    label: "RAM"; value: sm.mem; caption: sm.memText
                 }
                 Item { Layout.fillHeight: true }
             }

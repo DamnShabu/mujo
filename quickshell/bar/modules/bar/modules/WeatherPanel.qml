@@ -3,27 +3,56 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 
-// Weather — a large informational page: live current conditions + 5-day forecast
-// (from the shared Weather service) plus configuration. All consumers in the
-// shell read the same Weather singleton, so this page is both control and preview.
+// Weather (WP-05) — live current conditions + 5-day forecast (from the shared
+// Weather singleton) plus configuration, all reading/writing the unified store
+// under weather.*. Location search (Open-Meteo geocoding), units segmented
+// control, interval slider, style picker, detect-by-IP, and loading / error /
+// stale states. This page is both control and live preview.
 Item {
     id: root
 
-    property var cfg: ({ units: "celsius", wind: "kmh", interval: 900, location: "" })
-    property string loc: ""
-
-    function set(key, val) { Quickshell.execDetached(["mujo", "weather", "set", key, String(val)]) }
-
-    FileView {
-        id: cfgView
-        path: (Quickshell.env("HOME") || "/tmp") + "/.config/quickshell/weather.json"
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: { try { root.cfg = JSON.parse(text()); root.loc = root.cfg.location || "" } catch (e) {} }
-    }
+    readonly property string wname: SettingsBus.get("weather.name", "")
+    readonly property string units: SettingsBus.get("weather.units", "metric")
+    readonly property int intervalMin: SettingsBus.get("weather.intervalMin", 30)
+    readonly property string style: SettingsBus.get("weather.style", "detailed")
+    function wset(k, v) { SettingsBus.set("weather." + k, v) }
 
     readonly property var wx: Weather.data
-    readonly property var intervals: [{ v: 300, l: "5 min" }, { v: 900, l: "15 min" }, { v: 1800, l: "30 min" }, { v: 3600, l: "1 hour" }]
+
+    // ── location search ──
+    property var searchResults: []
+    property bool searching: false
+    property Process locProc: Process {
+        id: locProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.searching = false
+                try { root.searchResults = JSON.parse(this.text) || [] }
+                catch (e) { root.searchResults = [] }
+            }
+        }
+    }
+    function doSearch(q) {
+        if (q.trim() === "") return
+        root.searching = true
+        locProc.command = ["mujo", "weather", "locations", q]
+        locProc.running = true
+    }
+    function pick(r) {
+        SettingsBus.set("weather.name", r.name)
+        SettingsBus.set("weather.lat", r.latitude)
+        SettingsBus.set("weather.lon", r.longitude)
+        root.searchResults = []
+        searchField.text = ""
+        Weather.refresh(true)
+    }
+    function detectByIp() {
+        SettingsBus.set("weather.name", "")
+        SettingsBus.set("weather.lat", null)
+        SettingsBus.set("weather.lon", null)
+        root.searchResults = []
+        Weather.refresh(true)
+    }
 
     Flickable {
         anchors.fill: parent
@@ -37,9 +66,20 @@ Item {
             width: parent.width
             spacing: 20
 
-            Text { text: "Weather"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeTitle + 7; font.bold: true }
+            RowLayout {
+                Layout.fillWidth: true
+                Text { text: "Weather"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeTitle + 7; font.bold: true }
+                Item { Layout.fillWidth: true }
+                // stale badge
+                Rectangle {
+                    visible: Weather.stale
+                    implicitWidth: staleL.implicitWidth + 16; implicitHeight: 22
+                    radius: Theme.radiusSm; color: Theme.surface; border.color: Theme.warning
+                    Text { id: staleL; anchors.centerIn: parent; text: "STALE"; color: Theme.warning; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel; font.letterSpacing: Theme.labelSpacing }
+                }
+            }
 
-            // ── Hero: current conditions ──────────────────────────────────────
+            // ── Hero ──
             Rectangle {
                 Layout.fillWidth: true
                 radius: Theme.radiusLg
@@ -54,18 +94,16 @@ Item {
                     }
                 }
 
-                // loading / error / data
+                // data (muted when stale)
                 RowLayout {
                     anchors.fill: parent
                     anchors.margins: 22
                     spacing: 22
                     visible: root.wx !== null && Weather.error === ""
+                    opacity: Weather.stale ? 0.5 : 1
+                    Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.standard) } }
 
-                    MaterialIcon {
-                        iconName: root.wx ? Weather.iconFor(root.wx.code) : "cloud"
-                        pixelSize: 84
-                        color: Theme.accent
-                    }
+                    MaterialIcon { iconName: root.wx ? Weather.iconFor(root.wx.code) : "cloud"; pixelSize: 84; color: Theme.accent }
                     ColumnLayout {
                         spacing: 0
                         RowLayout {
@@ -74,31 +112,40 @@ Item {
                             Text { text: Weather.unitSymbol(); color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: 22; Layout.topMargin: 8 }
                         }
                         Text { text: root.wx ? Weather.descFor(root.wx.code) : ""; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeTitle }
-                        Text { text: root.wx ? (root.wx.city + "  ·  feels " + root.wx.feels + Weather.unitSymbol() + "  ·  " + root.wx.humidity + "%  ·  " + root.wx.wind + " " + root.wx.windUnit) : ""
-                               color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                        Text {
+                            text: root.wx ? (root.wx.city + "  ·  feels " + root.wx.feels + Weather.unitSymbol() + "  ·  " + root.wx.humidity + "%  ·  " + root.wx.wind + " " + root.wx.windUnit) : ""
+                            color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                        }
                     }
                     Item { Layout.fillWidth: true }
                     IconButton { iconName: "refresh"; onClicked: Weather.refresh(true) }
                 }
 
-                // states
+                // loading skeleton
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: 12
+                    visible: root.wx === null && Weather.error === ""
+                    Spinner { size: 20 }
+                    Text { text: "Loading weather…"; color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
+                }
+
+                // error + retry
                 ColumnLayout {
                     anchors.centerIn: parent
-                    spacing: 8
-                    visible: root.wx === null || Weather.error !== ""
-                    Spinner { Layout.alignment: Qt.AlignHCenter; visible: Weather.loading }
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: Weather.error !== "" ? ("Weather unavailable — " + Weather.error) : "Loading weather…"
-                        color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody
-                    }
+                    spacing: 10
+                    visible: Weather.error !== "" && root.wx === null
+                    Text { Layout.alignment: Qt.AlignHCenter; text: "Weather unavailable"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true }
+                    Text { Layout.alignment: Qt.AlignHCenter; text: Weather.error; color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                    DialogButton { Layout.alignment: Qt.AlignHCenter; text: "Retry"; primary: true; onClicked: Weather.refresh(true) }
                 }
             }
 
-            // ── 5-day forecast ────────────────────────────────────────────────
+            // ── 5-day forecast ──
             RowLayout {
                 Layout.fillWidth: true
                 visible: root.wx !== null && root.wx.daily !== undefined
+                opacity: Weather.stale ? 0.5 : 1
                 spacing: 10
                 Repeater {
                     model: root.wx ? root.wx.daily : []
@@ -113,79 +160,110 @@ Item {
                         ColumnLayout {
                             anchors.centerIn: parent
                             spacing: 4
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: index === 0 ? "Today" : Qt.formatDate(new Date(modelData.date), "ddd")
-                                color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                            }
+                            Text { Layout.alignment: Qt.AlignHCenter; text: index === 0 ? "Today" : Qt.formatDate(new Date(modelData.date), "ddd"); color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
                             MaterialIcon { Layout.alignment: Qt.AlignHCenter; iconName: Weather.iconFor(modelData.code); pixelSize: 26; color: Theme.text }
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: modelData.max + "° / " + modelData.min + "°"
-                                color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall
-                            }
+                            Text { Layout.alignment: Qt.AlignHCenter; text: modelData.max + "° / " + modelData.min + "°"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall }
                         }
                     }
                 }
             }
 
-            // ── Location ──────────────────────────────────────────────────────
+            // ── Location ──
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 10
                 SectionLabel { text: "Location" }
                 RowLayout {
                     Layout.fillWidth: true; spacing: 8
                     TextField {
+                        id: searchField
                         Layout.fillWidth: true
-                        placeholder: "City (e.g. Berlin) — leave empty to auto-detect"
-                        text: root.loc
-                        onAccepted: root.set("location", text)
+                        placeholder: root.wname !== "" ? root.wname : "Search a city…"
+                        onAccepted: root.doSearch(text)
                     }
-                    DialogButton { text: "Set"; primary: true; onClicked: root.set("location", root.loc) }
-                    DialogButton { text: "Auto-detect"; onClicked: root.set("location", "") }
+                    DialogButton { text: "Search"; primary: true; onClicked: root.doSearch(searchField.text) }
+                    DialogButton { text: "Detect by IP"; onClicked: root.detectByIp() }
+                }
+                Spinner { visible: root.searching; size: 16 }
+                // results
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 4
+                    visible: root.searchResults.length > 0
+                    Repeater {
+                        model: root.searchResults
+                        delegate: Rectangle {
+                            id: resRow
+                            required property var modelData
+                            Layout.fillWidth: true
+                            implicitHeight: 40
+                            radius: Theme.radiusMd
+                            color: resHover.hovered ? Theme.surfaceHover : Theme.surface
+                            border.color: Theme.border
+                            RowLayout {
+                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
+                                MaterialIcon { iconName: "location_on"; pixelSize: 16; color: Theme.textSecondary }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: resRow.modelData.name + (resRow.modelData.admin1 ? ", " + resRow.modelData.admin1 : "") + (resRow.modelData.country ? " · " + resRow.modelData.country : "")
+                                    color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideRight
+                                }
+                            }
+                            HoverHandler { id: resHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: root.pick(resRow.modelData) }
+                        }
+                    }
                 }
             }
 
-            // ── Units ─────────────────────────────────────────────────────────
+            // ── Units (segmented, via TabIndicator) ──
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 10
-                SectionLabel { text: "Temperature" }
-                Flow {
-                    Layout.fillWidth: true; spacing: 7
-                    DisplayChip { label: "Celsius (°C)"; selected: root.cfg.units === "celsius"; onClicked: root.set("units", "celsius") }
-                    DisplayChip { label: "Fahrenheit (°F)"; selected: root.cfg.units === "fahrenheit"; onClicked: root.set("units", "fahrenheit") }
-                }
-            }
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 10
-                SectionLabel { text: "Wind speed" }
-                Flow {
-                    Layout.fillWidth: true; spacing: 7
-                    Repeater {
-                        model: [{ v: "kmh", l: "km/h" }, { v: "mph", l: "mph" }, { v: "ms", l: "m/s" }]
-                        delegate: DisplayChip {
-                            required property var modelData
-                            label: modelData.l
-                            selected: root.cfg.wind === modelData.v
-                            onClicked: root.set("wind", modelData.v)
+                SectionLabel { text: "Units" }
+                Item {
+                    id: seg
+                    implicitWidth: 260; implicitHeight: 34
+                    readonly property var opts: [{ v: "metric", l: "Metric  °C" }, { v: "imperial", l: "Imperial  °F" }]
+                    Rectangle { anchors.fill: parent; radius: Theme.radiusMd; color: Theme.surface; border.color: Theme.border }
+                    TabIndicator { anchors.fill: parent; count: 2; currentIndex: root.units === "imperial" ? 1 : 0 }
+                    Row {
+                        anchors.fill: parent
+                        Repeater {
+                            model: seg.opts
+                            delegate: Item {
+                                id: segItem
+                                required property var modelData
+                                width: seg.width / 2; height: seg.height
+                                Text { anchors.centerIn: parent; text: segItem.modelData.l; color: root.units === segItem.modelData.v ? Theme.accent : Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: root.units === segItem.modelData.v }
+                                TapHandler { onTapped: root.wset("units", segItem.modelData.v) }
+                            }
                         }
                     }
                 }
             }
+
+            // ── Update interval ──
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 10
                 SectionLabel { text: "Update interval" }
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 14
+                    Slider {
+                        Layout.fillWidth: true
+                        from: 15; to: 120
+                        value: root.intervalMin
+                        onMoved: function (v) { root.wset("intervalMin", Math.round(v)) }
+                    }
+                    Text { text: root.intervalMin + " min"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 56 }
+                }
+            }
+
+            // ── Style ──
+            ColumnLayout {
+                Layout.fillWidth: true; spacing: 10
+                SectionLabel { text: "Widget style" }
                 Flow {
                     Layout.fillWidth: true; spacing: 7
-                    Repeater {
-                        model: root.intervals
-                        delegate: DisplayChip {
-                            required property var modelData
-                            label: modelData.l
-                            selected: (root.cfg.interval || 900) === modelData.v
-                            onClicked: root.set("interval", modelData.v)
-                        }
-                    }
+                    DisplayChip { label: "Compact"; selected: root.style === "compact"; onClicked: root.wset("style", "compact") }
+                    DisplayChip { label: "Detailed"; selected: root.style === "detailed"; onClicked: root.wset("style", "detailed") }
                 }
             }
 

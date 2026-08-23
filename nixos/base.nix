@@ -23,6 +23,12 @@
             default = "en_US.UTF-8";
           };
         };
+
+        overrides.report = lib.mkOption {
+          type = lib.types.attrsOf lib.types.str;
+          default = {};
+          description = "Local override drop-ins that failed to load, name -> reason.";
+        };
       };
 
       persistence = {

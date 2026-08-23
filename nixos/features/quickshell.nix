@@ -83,7 +83,7 @@
         grep -q '^Exec=flatpak run com.valvesoftware.Steam steam://rungameid/' "$out" && rm -f "$out"
       done
     '';
-    daemons = ["qs-bar" "pibble" "steam-shortcuts"];
+    daemons = ["qs-bar" "steam-shortcuts"];
     user = config.preferences.user.name;
     # Stable path the qs-bar shell is launched from. Both the systemd daemon and
     # the niri Mod+Space keybind (`qs -p <this> ipc call launcher toggle`)
@@ -110,7 +110,12 @@
     environment.sessionVariables.QML2_IMPORT_PATH = lib.mkForce qmlPath;
     environment.sessionVariables.QT_PLUGIN_PATH = lib.mkForce qtPluginPath;
 
-    environment.systemPackages = [qs.mujo qs.mujo-keyring self.packages.${pkgs.stdenv.hostPlatform.system}.quicksnip self.packages.${pkgs.stdenv.hostPlatform.system}.pibble];
+    environment.systemPackages = [qs.mujo qs.mujo-keyring self.packages.${pkgs.stdenv.hostPlatform.system}.quicksnip];
+
+    # PAM service the lock-screen helper (qs.unlock) authenticates against. A
+    # bare service gets NixOS's default unix auth (pam_unix → setuid unix_chkpwd),
+    # which is all the lock needs — same shape swaylock/hyprlock use.
+    security.pam.services.qsshell-lock = {};
 
     # Expose the bar tree at a stable, rebuild-invariant path so the launcher
     # toggle keybind can address the running instance by config path, and the
@@ -146,16 +151,9 @@
         # service's PATH, and without it every app outside the package list
         # below (i.e. all normal desktop apps) silently fails with
         # "Failed to find executable <app>".
-        path = with pkgs; [bash coreutils findutils gnugrep jq curl sqlite wl-clipboard xdg-utils systemd quickshell qs.cursor-tracker] ++ ["/run/current-system/sw"];
+        path = with pkgs; [bash coreutils findutils gnugrep jq curl sqlite wl-clipboard cliphist xdg-utils systemd swayidle brightnessctl cava quickshell qs.cursor-tracker qs.unlock] ++ ["/run/current-system/sw"];
         environment = {
           QS_ICON_THEME = "Colloid-Dark";
-          XDG_DATA_DIRS = appDataDirs;
-        };
-      };
-      pibble = mkDaemon {
-        command = "${self.packages.${pkgs.stdenv.hostPlatform.system}.pibble}/bin/pibble";
-        path = with pkgs; [bash coreutils procps systemd quickshell curl cliphist imagemagick matugen jq gtk3 flatpak wl-clipboard] ++ [qs.mujo];
-        environment = {
           XDG_DATA_DIRS = appDataDirs;
         };
       };

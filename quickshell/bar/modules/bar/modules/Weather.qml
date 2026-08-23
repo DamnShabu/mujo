@@ -3,20 +3,36 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Shared weather data service. One instance per process; every consumer (bar,
-// widgets, settings page) reads from here instead of hitting the API itself.
-// The actual fetch goes through `mujo weather fetch`, which caches to disk and
-// serves fresh cache — so even across processes the network is hit at most once
-// per interval. WMO code → icon/description mapping lives here too.
+// Shared weather data service. One instance per process; every consumer (widget,
+// settings page, island) reads from here instead of hitting the API itself. The
+// fetch goes through `mujo weather fetch`, which caches to disk and serves fresh
+// cache, so even across processes the network is hit at most once per interval.
+//
+// Config lives in the unified store (WP-05): .weather.{name,lat,lon,units,
+// intervalMin,style}. The poll interval + refetch-on-change derive from it via
+// SettingsBus; changing units or place forces a refetch. WMO code → icon/desc
+// mapping lives here too.
 QtObject {
     id: weather
 
     property var data: null        // normalized {temp, code, humidity, wind, city, daily…}
     property bool loading: false
     property string error: ""
-    property int intervalMs: 900000
 
-    readonly property string configPath: (Quickshell.env("HOME") || "/tmp") + "/.config/quickshell/weather.json"
+    readonly property int intervalMin: Math.max(15, Math.min(120, SettingsBus.get("weather.intervalMin", 30)))
+    readonly property int intervalMs: intervalMin * 60000
+    readonly property string style: SettingsBus.get("weather.style", "detailed")
+
+    // Data older than 2× the interval is stale (network likely down); consumers
+    // render the last data muted with a stale badge.
+    readonly property bool stale: weather.data !== null && weather.data.updated !== undefined
+        && ((Date.now() / 1000) - weather.data.updated) > 2 * weather.intervalMs / 1000
+
+    // Refetch (forced) when the place or units change.
+    readonly property string cfgUnits: SettingsBus.get("weather.units", "metric")
+    readonly property string cfgName: SettingsBus.get("weather.name", "")
+    onCfgUnitsChanged: refresh(true)
+    onCfgNameChanged: refresh(true)
 
     function refresh(force) {
         weather.loading = (weather.data === null)
@@ -35,19 +51,6 @@ QtObject {
                     else { weather.data = d; weather.error = "" }
                 } catch (e) { weather.error = "parse error" }
             }
-        }
-    }
-
-    property FileView _cfg: FileView {
-        path: weather.configPath
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: {
-            try {
-                var c = JSON.parse(text())
-                weather.intervalMs = Math.max(300, c.interval || 900) * 1000
-            } catch (e) {}
-            weather.refresh(false)
         }
     }
 

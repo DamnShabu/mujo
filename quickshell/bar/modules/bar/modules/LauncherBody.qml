@@ -9,6 +9,9 @@ Item {
     id: root
 
     property bool open: false
+    property bool gridMode: false   // WP-06: All-apps grid vs. search list
+    property bool clipMode: false   // WP-10: clipboard history sub-mode
+    readonly property bool cmdMode: searchField.text.charAt(0) === "/"   // WP-10: `/` command palette
     property string screenName: ""
     property int baseWidth: Theme.launcherWidth
     property int baseHeight: Theme.launcherHeight
@@ -95,6 +98,7 @@ Item {
     onOpenChanged: {
         if (root.open) {
             searchField.text = ""
+            root.clipMode = false
             doUpdateResults()
             root.selectedIndex = 0
         }
@@ -124,13 +128,18 @@ Item {
                     font.pixelSize: 15
                 }
                 SectionLabel {
-                    text: "Launcher"
+                    text: root.clipMode ? "Clipboard" : root.cmdMode ? "Command" : "Launcher"
                     accented: false
                     Layout.fillWidth: true
                 }
                 SectionLabel {
                     text: root.results.length + " result" + (root.results.length === 1 ? "" : "s")
-                    visible: searchField.text !== ""
+                    visible: searchField.text !== "" && !root.gridMode && !root.cmdMode && !root.clipMode
+                }
+                IconButton {
+                    iconName: root.gridMode ? "view_list" : "grid_view"
+                    active: root.gridMode
+                    onClicked: root.gridMode = !root.gridMode
                 }
             }
 
@@ -167,14 +176,28 @@ Item {
                     selectByMouse: true
                     activeFocusOnPress: true
                     onTextChanged: {
-                        updateResults()
+                        if (!root.gridMode && !root.cmdMode && !root.clipMode) updateResults()
+                        else root.answer = ""
                         root.selectedIndex = 0
                     }
                     Keys.onEscapePressed: {
-                        if (actionBar.dropdownOpen) actionBar.dropdownOpen = false
+                        if (root.clipMode) { root.clipMode = false; searchField.text = "/" }
+                        else if (actionBar.dropdownOpen) actionBar.dropdownOpen = false
+                        else if (root.cmdMode) searchField.text = ""   // WP-10: `/` → app mode
                         else root.requestClose()
                     }
+                    Keys.onLeftPressed: function (event) {
+                        if (root.gridMode && searchField.text === "") { appGrid.move(-1, 0); event.accepted = true }
+                        else event.accepted = false
+                    }
+                    Keys.onRightPressed: function (event) {
+                        if (root.gridMode && searchField.text === "") { appGrid.move(1, 0); event.accepted = true }
+                        else event.accepted = false
+                    }
                     Keys.onReturnPressed: {
+                        if (root.clipMode) { clipList.activateSelected(); return }
+                        if (root.cmdMode) { cmdPalette.activateSelected(); return }
+                        if (root.gridMode) { appGrid.activateSelected(); return }
                         if (actionBar.dropdownOpen) {
                             if (dropdown.hoverIndex >= 0) {
                                 actionBar.dropdownOpen = false
@@ -185,6 +208,9 @@ Item {
                         root.confirmSelection()
                     }
                     Keys.onUpPressed: {
+                        if (root.clipMode) { clipList.move(0, -1); return }
+                        if (root.cmdMode) { cmdPalette.move(0, -1); return }
+                        if (root.gridMode) { appGrid.move(0, -1); return }
                         if (actionBar.dropdownOpen) {
                             dropdown.hoverIndex = Math.max(0, dropdown.hoverIndex - 1)
                             return
@@ -194,6 +220,9 @@ Item {
                         resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
                     }
                     Keys.onDownPressed: {
+                        if (root.clipMode) { clipList.move(0, 1); return }
+                        if (root.cmdMode) { cmdPalette.move(0, 1); return }
+                        if (root.gridMode) { appGrid.move(0, 1); return }
                         if (actionBar.dropdownOpen) {
                             dropdown.hoverIndex = Math.min(dropdown.model.length - 1, dropdown.hoverIndex + 1)
                             return
@@ -278,8 +307,8 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    visible: root.results.length === 0
-                    text: searchField.text === "" ? "Type to search installed apps" : "No matches"
+                    visible: root.results.length === 0 && !root.gridMode && !root.cmdMode && !root.clipMode
+                    text: searchField.text === "" ? "Type to search apps · / for commands" : "No matches"
                     color: Theme.textDim
                     font.family: Theme.fontFamily
                     font.pixelSize: 12
@@ -288,6 +317,7 @@ Item {
                 ListView {
                     id: resultList
                     anchors.fill: parent
+                    visible: !root.gridMode && !root.cmdMode && !root.clipMode
                     clip: true
                     spacing: 3
                     model: root.results
@@ -306,6 +336,33 @@ Item {
                             }
                         }
                     }
+                }
+
+                LauncherGrid {
+                    id: appGrid
+                    anchors.fill: parent
+                    visible: root.gridMode && !root.cmdMode && !root.clipMode
+                    screenName: root.screenName
+                    query: searchField.text
+                    onRequestClose: root.requestClose()
+                }
+
+                CommandPalette {
+                    id: cmdPalette
+                    anchors.fill: parent
+                    visible: root.cmdMode && !root.clipMode
+                    screenName: root.screenName
+                    query: searchField.text.slice(1)
+                    onRequestClose: root.requestClose()
+                    onRequestClip: { root.clipMode = true; searchField.text = "" }
+                }
+
+                ClipboardList {
+                    id: clipList
+                    anchors.fill: parent
+                    visible: root.clipMode
+                    query: searchField.text
+                    onRequestClose: root.requestClose()
                 }
             }
 

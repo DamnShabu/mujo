@@ -17,7 +17,7 @@
   mujo = pkgs.runCommand "mujo" {nativeBuildInputs = [pkgs.makeWrapper];} ''
     install -Dm755 ${./mujo.sh} $out/bin/mujo
     wrapProgram $out/bin/mujo \
-      --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.jq pkgs.coreutils pkgs.gnused pkgs.curl pkgs.findutils pkgs.procps pkgs.git pkgs.util-linux pkgs.tmux]}
+      --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.jq pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.curl pkgs.findutils pkgs.procps pkgs.git pkgs.util-linux pkgs.tmux pkgs.pulseaudio]}
   '';
 
   # Keyring CRUD over the Secret Service (gnome-keyring) for the Settings
@@ -41,6 +41,23 @@
     installPhase = ''
       mkdir -p $out/bin
       cp cursor-tracker $out/bin/
+    '';
+  };
+
+  # PAM auth helper for the lock screen (WP-14). Reads a password on stdin,
+  # authenticates the current user via the `qsshell-lock` PAM service, exits 0/1.
+  # Not setuid — pam_unix uses the setuid unix_chkpwd for the shadow check.
+  unlock = pkgs.stdenv.mkDerivation {
+    pname = "qsshell-unlock";
+    version = "0.1.0";
+    src = ./unlock;
+    buildInputs = [pkgs.pam];
+    buildPhase = ''
+      $CC -O2 -o qsshell-unlock unlock.c -lpam
+    '';
+    installPhase = ''
+      mkdir -p $out/bin
+      cp qsshell-unlock $out/bin/
     '';
   };
 }

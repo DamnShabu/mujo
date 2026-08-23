@@ -67,8 +67,8 @@ Item {
         color: "transparent"
         anchor.window: root.panelWindow
         anchor.item: trigger
-        anchor.edges: Edges.Bottom | Edges.Right
-        anchor.gravity: Edges.Bottom | Edges.Left
+        anchor.edges: Theme.popupEdge | Edges.Right
+        anchor.gravity: Theme.popupGravity | Edges.Left
         anchor.adjustment: PopupAdjustment.Slide
 
         // card 320 + shadow pad 16*2; content margin 14*2 + shadow pad 16*2
