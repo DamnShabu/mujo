@@ -1,7 +1,5 @@
 # NixOS Flake & Quickshell Agent Instructions
 
-> **IMPORTANT**: See `AI_SKILL.md` in the repository root for the detailed agent repository skill guide on architectural rules, shared services, and workflow requirements.
-
 ## Flake structure
 * Single host `main`. `nixos/hosts/main/configuration.nix` defines both `nixosConfigurations.main` and `nixosModules.hostMain`; host-specific fragments are underscore files (`_boot.nix`, `_networking.nix`, `_hardware-and-services.nix`) imported there.
 
@@ -38,7 +36,7 @@
 
 ## Misc
 * `modules/theme.nix` exposes palette `self.theme.base00..base0F`; wrapper configs (kitty, etc.) read colors from it.
-* `modules/perSystem.nix` vendors packages removed/broken in nixpkgs (preload, skeuos-gtk, quicksnip).
+* `modules/perSystem.nix` vendors packages removed/broken in nixpkgs (preload, skeuos-gtk, quicksnip, pibble).
 
 ## Linting & formatting
 * `trunk check` / `trunk fmt` only. Don't run standalone formatters (prettier/ruff/nixpkgs-fmt) manually — trunk manages them.

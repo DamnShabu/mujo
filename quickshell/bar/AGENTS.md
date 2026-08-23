@@ -40,7 +40,7 @@ The launcher is opened by niri's `Mod+Space` bind, which runs
 `qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle` (see
 `modules/wrappers/niri.nix`). The `-p` path must match the qs-bar daemon's
 launch path (quickshell.nix `barConfig`) or a bare `qs ipc` can't pick between
-the running quickshell instances (qs-bar) and silently no-ops.
+the running quickshell instances (qs-bar, pibble) and silently no-ops.
 
 **Theme singleton** (`modules/bar/modules/Theme.qml`): every visual
 component reads colors/sizes/fonts from here — never hardcode a color, radius,

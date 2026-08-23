@@ -83,7 +83,7 @@
         grep -q '^Exec=flatpak run com.valvesoftware.Steam steam://rungameid/' "$out" && rm -f "$out"
       done
     '';
-    daemons = ["qs-bar"  "steam-shortcuts"];
+    daemons = ["qs-bar" "pibble" "steam-shortcuts"];
     user = config.preferences.user.name;
     # Stable path the qs-bar shell is launched from. Both the systemd daemon and
     # the niri Mod+Space keybind (`qs -p <this> ipc call launcher toggle`)
@@ -110,7 +110,7 @@
     environment.sessionVariables.QML2_IMPORT_PATH = lib.mkForce qmlPath;
     environment.sessionVariables.QT_PLUGIN_PATH = lib.mkForce qtPluginPath;
 
-    environment.systemPackages = [qs.mujo qs.mujo-keyring self.packages.${pkgs.stdenv.hostPlatform.system}.quicksnip ];
+    environment.systemPackages = [qs.mujo qs.mujo-keyring self.packages.${pkgs.stdenv.hostPlatform.system}.quicksnip self.packages.${pkgs.stdenv.hostPlatform.system}.pibble];
 
     # Expose the bar tree at a stable, rebuild-invariant path so the launcher
     # toggle keybind can address the running instance by config path, and the
@@ -149,6 +149,13 @@
         path = with pkgs; [bash coreutils findutils gnugrep jq curl sqlite wl-clipboard xdg-utils systemd quickshell qs.cursor-tracker] ++ ["/run/current-system/sw"];
         environment = {
           QS_ICON_THEME = "Colloid-Dark";
+          XDG_DATA_DIRS = appDataDirs;
+        };
+      };
+      pibble = mkDaemon {
+        command = "${self.packages.${pkgs.stdenv.hostPlatform.system}.pibble}/bin/pibble";
+        path = with pkgs; [bash coreutils procps systemd quickshell curl cliphist imagemagick matugen jq gtk3 flatpak wl-clipboard] ++ [qs.mujo];
+        environment = {
           XDG_DATA_DIRS = appDataDirs;
         };
       };
