@@ -1,0 +1,32 @@
+{
+  "outputs": {
+    "DP-1": {
+      "mode": "1920x1080@165.003",
+      "x": 3590,
+      "y": 2080,
+      "scale": 1.0,
+      "transform": "normal",
+      "enabled": true
+    },
+    "HDMI-A-1": {
+      "mode": "1920x1080@71.91",
+      "x": 3590,
+      "y": 1000,
+      "scale": 1.0,
+      "transform": "normal",
+      "enabled": true
+    }
+  },
+  "input": {
+    "keyboard_layout": "us",
+    "repeat_rate": 40,
+    "repeat_delay": 250,
+    "touchpad_natural_scroll": true,
+    "touchpad_tap": true,
+    "touchpad_dwt": false,
+    "mouse_accel_profile": "flat",
+    "mouse_accel_speed": 0.0,
+    "mouse_natural_scroll": false,
+    "mouse_middle_emulation": false
+  }
+}

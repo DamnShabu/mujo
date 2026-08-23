@@ -1,66 +1,86 @@
-import Quickshell
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Widgets
+import Quickshell
 
-Item {
-    id: systemClockWidget
-    width: 150
-    height: 30
+Pill {
+    id: root
+    interactive: true
+    active: calendarOpen
+    implicitHeight: Theme.barHeight
+    implicitWidth: rowLayout.implicitWidth + 26
 
-    property var weather
+    property var panelWindow
+    property string screenName: ""
+    readonly property string popupId: root.screenName + ":calendar"
+    readonly property bool calendarOpen: PopupCoordinator.activeId === root.popupId
 
-    Rectangle {
-        radius: 15
-        color: Theme.bg
-        border.color: Theme.border
-        anchors.fill: parent
+    property date now: new Date()
+    Timer { interval: 1000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.now = new Date() }
 
-        RowLayout {
-            anchors.centerIn: parent
+    readonly property string timeFormat: {
+        var f = Theme.clock24h ? "HH:mm" : "hh:mm"
+        if (Theme.clockShowSeconds) f += ":ss"
+        if (!Theme.clock24h) f += " AP"
+        return f
+    }
 
-            MaterialIcon {
-                id: weatherIcon
-                iconName: weather ? (weather.error ? "cloud_off" : weather.iconName) : "device_thermostat"
-                pixelSize: 14
-                color: weather && weather.error ? Theme.textSecondary : Theme.text
-                HoverHandler { id: errorHover }
-            }
+    onClicked: PopupCoordinator.toggle(root.popupId)
 
-            SystemClock {
-                id: clock
-                precision: Theme.clockShowSeconds ? SystemClock.Seconds : SystemClock.Minutes
-            }
+    RowLayout {
+        id: rowLayout
+        anchors.centerIn: parent
+        spacing: 8
 
-            Text {
-                id: clockText
-                text: {
-                    var fmt = Theme.clock24h ? "HH:mm" : "h:mm AP"
-                    if (Theme.clockShowSeconds) fmt += ":ss"
-                    return Qt.formatDateTime(clock.date, fmt)
-                }
-                color: Theme.text
-                font.pixelSize: Theme.clockFontSize
-                font.bold: true
-            }
+        Text {
+            text: Qt.formatDateTime(root.now, root.timeFormat)
+            color: root.active ? Theme.accent : Theme.text
+            font.family: Theme.fontMono
+            font.pixelSize: Theme.clockFontSize
+            font.letterSpacing: 0.5
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        }
 
-            Text {
-                id: dateText
-                text: Qt.formatDateTime(clock.date, "ddd, MMM d")
-                color: Theme.textSecondary
-                font.pixelSize: 10
-                visible: Theme.clockShowDate
-            }
+        Rectangle {
+            visible: Theme.clockShowDate
+            Layout.preferredWidth: 3
+            Layout.preferredHeight: 3
+            radius: 1.5
+            color: Theme.textDim
         }
 
         Text {
-            visible: weather && weather.error && errorHover.hovered
-            text: "Weather unavailable"
+            visible: Theme.clockShowDate
+            text: Qt.formatDate(root.now, "ddd, MMM d")
             color: Theme.textSecondary
-            font.pixelSize: 10
-            anchors.bottom: parent.top
-            anchors.bottomMargin: 4
-            anchors.horizontalCenter: parent.horizontalCenter
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+        }
+    }
+
+    PopupWindow {
+        id: popup
+        visible: root.calendarOpen && root.panelWindow
+        color: "transparent"
+        anchor.window: root.panelWindow
+        anchor.item: root
+        anchor.edges: Edges.Bottom
+        anchor.gravity: Edges.Bottom
+        anchor.adjustment: PopupAdjustment.Slide
+
+        implicitWidth: 260 + 32
+        implicitHeight: calendar.implicitHeight + 28 + 32
+
+        onClosed: PopupCoordinator.close(root.popupId)
+
+        PopupCard {
+            anchors.fill: parent
+            open: root.calendarOpen
+
+            CalendarMenu {
+                id: calendar
+                anchors.fill: parent
+                anchors.margins: 14
+            }
         }
     }
 }

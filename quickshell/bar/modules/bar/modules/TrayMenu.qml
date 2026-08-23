@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 
-
 PopupWindow {
     id: root
 
@@ -10,68 +9,30 @@ PopupWindow {
 
     visible: false
     color: "transparent"
-    grabFocus: true
 
     implicitWidth: 220
     implicitHeight: col.implicitHeight + 20
 
     onClosed: visible = false
 
-    function show(handle, x, y) {
-        var firstShow = !visible
+    function show(handle, item) {
         if (handle !== menuHandle) menuHandle = handle
-        anchor.rect.x = x
-        anchor.rect.y = y
+        anchor.item = item
         visible = true
-        if (firstShow) {
-            menuRect.opacity = 0
-            menuRect.scale = 0.92
-            menuAnim.restart()
-        } else {
-            menuRect.opacity = 1
-            menuRect.scale = 1
-        }
-    }
-
-    ParallelAnimation {
-        id: menuAnim
-        running: false
-
-        NumberAnimation {
-            target: menuRect
-            property: "opacity"
-            from: 0
-            to: 1
-            duration: 180
-            easing.type: Easing.OutQuad
-        }
-
-        NumberAnimation {
-            target: menuRect
-            property: "scale"
-            from: 0.92
-            to: 1
-            duration: 200
-            easing.type: Easing.OutBack
-            easing.overshoot: 0.6
-        }
     }
 
     Rectangle {
-        id: menuRect
         anchors.fill: parent
         anchors.margins: 4
         color: Theme.bg
-        radius: 8
+        radius: Theme.radiusLg
         border.color: Theme.border
-        border.width: 1
-        transformOrigin: Item.Top
         clip: true
 
         Column {
             id: col
             anchors.fill: parent
-            anchors.margins: 6
+            anchors.margins: 8
             spacing: 2
 
             QsMenuOpener {
@@ -87,8 +48,8 @@ PopupWindow {
 
                     width: col.width
                     height: modelData.isSeparator ? 9 : 30
-                    color: itemHover.hovered && !modelData.isSeparator && modelData.enabled ? Theme.border : "transparent"
-                    radius: 4
+                    color: itemHover.hovered && !modelData.isSeparator && modelData.enabled ? Theme.surfaceHover : "transparent"
+                    radius: Theme.radiusMd
 
                     Rectangle {
                         anchors.centerIn: parent

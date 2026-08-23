@@ -7,3 +7,4 @@ secrets/vaultwarden-master-password
 .pi/
 .pi-subagents/
 .directory
+graphify-out/

@@ -17,7 +17,21 @@
       default = "kitty";
     };
 
-    config.settings = {
+    config = let
+      # GUI-managed display + input settings — the single source of truth for
+      # these, edited by the Settings app (Display/Devices panels via
+      # `mujo niri`) and folded in below. Seeded to the current values so a
+      # rebuild is a no-op until something is changed. See niri-settings.json.
+      ns =
+        if builtins.pathExists ./niri-settings.json
+        then builtins.fromJSON (builtins.readFile ./niri-settings.json)
+        else {
+          outputs = {};
+          input = {};
+        };
+      nin = ns.input or {};
+    in {
+    settings = {
       prefer-no-csd = _: {};
 
       hotkey-overlay = {
@@ -34,23 +48,28 @@
 
         keyboard = {
           xkb = {
-            layout = "us";
+            layout = nin.keyboard_layout or "us";
             options = "grp:alt_shift_toggle,caps:escape";
           };
-          repeat-rate = 40;
-          repeat-delay = 250;
+          repeat-rate = nin.repeat_rate or 40;
+          repeat-delay = nin.repeat_delay or 250;
         };
 
         workspace-auto-back-and-forth = _: {};
 
-        touchpad = {
-          natural-scroll = _: {};
-          tap = _: {};
-        };
+        touchpad =
+          {}
+          // (lib.optionalAttrs (nin.touchpad_natural_scroll or true) {natural-scroll = _: {};})
+          // (lib.optionalAttrs (nin.touchpad_tap or true) {tap = _: {};})
+          // (lib.optionalAttrs (nin.touchpad_dwt or false) {dwt = _: {};});
 
-        mouse = {
-          accel-profile = "flat";
-        };
+        mouse =
+          {
+            accel-profile = nin.mouse_accel_profile or "flat";
+            accel-speed = nin.mouse_accel_speed or 0.0;
+          }
+          // (lib.optionalAttrs (nin.mouse_natural_scroll or false) {natural-scroll = _: {};})
+          // (lib.optionalAttrs (nin.mouse_middle_emulation or false) {middle-emulation = _: {};});
       };
 
       binds = {
@@ -59,8 +78,13 @@
         "Mod+Return".spawn = config.terminal;
 
         "Mod+Q".close-window = _: {};
-        "Mod+Space"."spawn-sh" = "vicinae toggle";
-        # "Mod+Space"."spawn-sh" = "pibble toggle";
+        # Path must match the qs-bar daemon's launch path (quickshell.nix
+        # barConfig); a bare `qs ipc` can't pick between multiple running
+        # quickshell instances (qs-bar) and silently no-ops.
+        "Mod+Space"."spawn-sh" = "qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle";
+        # Standalone Settings app (separate quickshell instance, floated by the
+        # window-rule matching its title below).
+        "Mod+Comma"."spawn-sh" = "qs -p /etc/xdg/quickshell/bar/settings.qml";
 
         "Mod+F".maximize-column = _: {};
         "Mod+G".fullscreen-window = _: {};
@@ -69,10 +93,13 @@
         "Mod+C".center-column = _: {};
         "Mod+W".toggle-column-tabbed-display = _: {};
         "Mod+E".spawn = "nautilus";
-        "Mod+B".spawn = "zen";
-        "Mod+M".spawn = "feishin";
-        "Mod+T".spawn = "code";
-        "Mod+P".spawn = "super-productivity";
+        # Flatpak exports binaries under the full app ID, not a short name
+        # (e.g. /var/lib/flatpak/exports/bin/app.zen_browser.zen), so these
+        # go through `flatpak run` rather than a bare spawn.
+        "Mod+B".spawn = ["flatpak" "run" "app.zen_browser.zen"];
+        "Mod+M".spawn = ["flatpak" "run" "org.jeffvli.feishin"];
+        "Mod+T".spawn = ["flatpak" "run" "com.visualstudio.code"];
+        "Mod+P".spawn = ["flatpak" "run" "com.super_productivity.SuperProductivity"];
 
         # cross-boundary navigation (wraps across monitors/workspaces)
         "Mod+H"."focus-column-or-monitor-left" = _: {};
@@ -206,46 +233,58 @@
           geometry-corner-radius = 4;
           clip-to-geometry = true;
           opacity = 0.9;
-          background-effect = { blur = true; };
+          background-effect = {blur = true;};
         }
         {
-          matches = [ { app-id = "^kitty$"; } ];
+          # mujō Settings — maximized like a regular window, just rounded.
+          matches = [{title = "^mujō Settings";}];
+          open-maximized = true;
+          geometry-corner-radius = 14;
+          clip-to-geometry = true;
+        }
+        {
+          matches = [{app-id = "^kitty$";}];
           open-maximized = true;
         }
         {
-          matches = [ { app-id = "zen"; } ];
+          matches = [{app-id = "zen";}];
           open-maximized = true;
         }
         {
-          matches = [ { app-id = "(?i)nautilus"; } ];
+          matches = [{app-id = "(?i)nautilus";}];
           open-maximized = true;
         }
         {
-          matches = [ { app-id = "(?i)steam"; } ];
+          matches = [{app-id = "(?i)steam";}];
           open-maximized = true;
         }
         {
-          matches = [ { app-id = "(?i)vesktop"; } ];
+          matches = [{app-id = "(?i)vesktop";}];
           open-maximized = true;
         }
         {
-            matches = [ { app-id = "(?i)steam"; title = "^notificationtoasts_\\d+_desktop$"; } ];
-            default-floating-position = _: {
-              props = {
-                x = 10;
-                y = 10;
-                relative-to = "bottom-right";
-              };
+          matches = [
+            {
+              app-id = "(?i)steam";
+              title = "^notificationtoasts_\\d+_desktop$";
+            }
+          ];
+          default-floating-position = _: {
+            props = {
+              x = 10;
+              y = 10;
+              relative-to = "bottom-right";
             };
-            open-floating = true;
-            open-focused = false;
+          };
+          open-floating = true;
+          open-focused = false;
         }
       ];
 
       layer-rules = [
         {
           matches = [
-            { namespace = "^noctalia-overview-"; }
+            {namespace = "^noctalia-overview-";}
           ];
           place-within-backdrop = true;
           background-effect = {
@@ -254,51 +293,35 @@
         }
         {
           matches = [
-            { namespace = "^qs-wallpaper-bg"; }
+            {namespace = "^qs-wallpaper-bg";}
           ];
           place-within-backdrop = true;
-        }
-        {
-          matches = [
-            { namespace = "^psst-"; }
-          ];
-          background-effect = {
-            blur = true;
-            xray = true;
-          };
         }
       ];
 
       workspaces = let
         settings = {layout.gaps = 5;};
-      in {
-        "w0" = settings;
-        "w1" = settings;
-        "w2" = settings;
-      };
+      in
+        lib.genAttrs (map (i: "w${toString i}") (lib.range 0 9)) (_: settings);
 
-      outputs = {
-        "DP-1" = {
-          mode = "1920x1080@165.003";
-          position = _: {
-            props = {
-              x = 0;
-              y = 1080;
-            };
-          };
-          scale = 1.0;
-        };
-        "HDMI-A-1" = {
-          mode = "1920x1080@60";
-          position = _: {
-            props = {
-              x = 0;
-              y = 0;
-            };
-          };
-          scale = 1.0;
-        };
-      };
+      # Built from niri-settings.json (the single source of truth). Each output:
+      #   { mode; x; y; scale; transform?; enabled? }
+      outputs =
+        lib.mapAttrs (
+          _name: o:
+            {
+              mode = o.mode;
+              position = _: {
+                props = {
+                  x = o.x;
+                  y = o.y;
+                };
+              };
+              scale = o.scale;
+            }
+            // (lib.optionalAttrs ((o.transform or "normal") != "normal") {transform = o.transform;})
+            // (lib.optionalAttrs (! (o.enabled or true)) {off = _: {};})
+        ) (ns.outputs or {});
 
       xwayland-satellite.path =
         lib.getExe pkgs.xwayland-satellite;
@@ -306,6 +329,7 @@
       spawn-sh-at-startup = [
         "sleep 1 && ${pkgs.mpv}/bin/mpv --no-video --no-terminal --volume=50 --ao=pipewire ${self}/sounds/startup-sound1.mp3"
       ];
+    };
     };
   };
 }

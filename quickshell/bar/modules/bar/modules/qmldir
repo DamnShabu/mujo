@@ -1,15 +1,56 @@
 singleton Theme Theme.qml
-SettingsMenu SettingsMenu.qml
-Workspaces Workspaces.qml
-ClockPill ClockPill.qml
-DynamicIsland DynamicIsland.qml
-WeatherIcon WeatherIcon.qml
-SystemTray SystemTray.qml
-TrayMenu TrayMenu.qml
-LauncherBody LauncherBody.qml
-LauncherActionBar LauncherActionBar.qml
-LauncherOverview LauncherOverview.qml
-LauncherResult LauncherResult.qml
-OverviewPlayer OverviewPlayer.qml
-OverviewClock OverviewClock.qml
+singleton Brand Brand.qml
+singleton Weather Weather.qml
+singleton SettingsBus SettingsBus.qml
+BrandIcon BrandIcon.qml
+singleton PopupCoordinator PopupCoordinator.qml
+singleton Launch Launch.qml
+LaunchFeedback LaunchFeedback.qml
+Pill Pill.qml
+BarGroup BarGroup.qml
+SectionLabel SectionLabel.qml
+IconButton IconButton.qml
+PopupCard PopupCard.qml
+DialogButton DialogButton.qml
+PolkitPrompt PolkitPrompt.qml
+KeyringPrompt KeyringPrompt.qml
+Slider Slider.qml
+ToggleSwitch ToggleSwitch.qml
 MaterialIcon MaterialIcon.qml
+Workspaces Workspaces.qml
+CalendarMenu CalendarMenu.qml
+ClockPill ClockPill.qml
+TrayMenu TrayMenu.qml
+SystemTray SystemTray.qml
+NetworkMenu NetworkMenu.qml
+BluetoothMenu BluetoothMenu.qml
+VolumeMenu VolumeMenu.qml
+LlmTrackerMenu LlmTrackerMenu.qml
+LauncherResult LauncherResult.qml
+LauncherActionBar LauncherActionBar.qml
+LauncherBody LauncherBody.qml
+LauncherPill LauncherPill.qml
+Launcher Launcher.qml
+Spinner Spinner.qml
+SysBar SysBar.qml
+DesktopWidgets DesktopWidgets.qml
+TextField TextField.qml
+DeviceSlider DeviceSlider.qml
+DeviceToggle DeviceToggle.qml
+OverviewPanel OverviewPanel.qml
+DevicesPanel DevicesPanel.qml
+WeatherPanel WeatherPanel.qml
+NetworkPanel NetworkPanel.qml
+ShortcutsPanel ShortcutsPanel.qml
+SystemPanel SystemPanel.qml
+AppearancePanel AppearancePanel.qml
+WallpaperPanel WallpaperPanel.qml
+DesktopPanel DesktopPanel.qml
+DisplayChip DisplayChip.qml
+DisplayPanel DisplayPanel.qml
+PersistencePanel PersistencePanel.qml
+KeyringPanel KeyringPanel.qml
+IntegrationsPanel IntegrationsPanel.qml
+AboutPanel AboutPanel.qml
+DesktopMenu DesktopMenu.qml
+Bar Bar.qml

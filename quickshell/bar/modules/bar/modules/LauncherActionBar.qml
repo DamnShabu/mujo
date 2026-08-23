@@ -3,11 +3,11 @@ import QtQuick.Layouts
 import Quickshell.Io
 import Quickshell
 
-
 Rectangle {
     id: root
 
     property var selectedEntry: null
+    property string screenName: ""
     property bool dropdownOpen: false
     property point dropdownPos: Qt.point(0, 0)
     property var dropdownParent: null
@@ -15,11 +15,10 @@ Rectangle {
     signal requestClose
 
     Layout.fillWidth: true
-    Layout.preferredHeight: 32
-    radius: 5
+    Layout.preferredHeight: 36
+    radius: Theme.radiusMd
     color: Theme.surface
     border.color: Theme.border
-    border.width: 1
     visible: root.selectedEntry != null
 
     function entryIcon(entry) {
@@ -41,8 +40,6 @@ Rectangle {
             return "code"
         if (n.includes("setting"))
             return "settings"
-        if (n.includes("store") || n.includes("discover"))
-            return "store"
         if (n.includes("chat") || n.includes("discord") || n.includes("signal"))
             return "chat"
         if (n.includes("mail"))
@@ -60,7 +57,7 @@ Rectangle {
         var e = root.selectedEntry
 
         if (index === 0) {
-            e.execute()
+            Launch.app(e, root.screenName)
             root.triggered()
         } else if (index === 1) {
             copyToClipboard(e.name || "")
@@ -81,15 +78,8 @@ Rectangle {
         }
     }
 
-    Process {
-        id: copyProc
-        command: ["wl-copy"]
-    }
-
-    Process {
-        id: openDirProc
-        command: ["xdg-open"]
-    }
+    Process { id: copyProc; command: ["wl-copy"] }
+    Process { id: openDirProc; command: ["xdg-open"] }
 
     RowLayout {
         anchors.fill: parent
@@ -106,21 +96,23 @@ Rectangle {
         Text {
             text: "Open Application"
             color: Theme.text
+            font.family: Theme.fontFamily
             font.pixelSize: 12
             Layout.fillWidth: true
         }
 
         Rectangle {
-            Layout.preferredWidth: 20
-            Layout.preferredHeight: 20
-            radius: 3
-            color: Theme.border
+            Layout.preferredWidth: 22
+            Layout.preferredHeight: 22
+            radius: Theme.radiusSm
+            color: Theme.surfaceActive
+            border.color: Theme.borderStrong
 
             MaterialIcon {
                 anchors.centerIn: parent
                 iconName: "keyboard_return"
-                pixelSize: 12
-                color: Theme.textSecondary
+                pixelSize: 13
+                color: Theme.accent
             }
         }
 
@@ -135,8 +127,8 @@ Rectangle {
 
             Rectangle {
                 anchors.fill: parent
-                radius: 4
-                color: actionsBtn.containsMouse ? Theme.border : "transparent"
+                radius: Theme.radiusSm
+                color: actionsBtn.containsMouse ? Theme.surfaceHover : "transparent"
             }
 
             RowLayout {
@@ -144,23 +136,21 @@ Rectangle {
                 anchors.centerIn: parent
                 spacing: 6
 
-                Text {
-                    text: "Actions"
-                    color: Theme.textSecondary
-                    font.pixelSize: 11
-                }
+                Text { text: "Actions"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: 11 }
 
                 Rectangle {
-                    Layout.preferredWidth: kLabel.implicitWidth + 8
-                    Layout.preferredHeight: 16
-                    radius: 3
-                    color: Theme.border
+                    Layout.preferredWidth: kLabel.implicitWidth + 10
+                    Layout.preferredHeight: 17
+                    radius: Theme.radiusSm
+                    color: Theme.surfaceActive
+                    border.color: Theme.borderStrong
 
                     Text {
                         id: kLabel
                         anchors.centerIn: parent
                         text: "Ctrl K"
                         color: Theme.textSecondary
+                        font.family: Theme.fontMono
                         font.pixelSize: 9
                     }
                 }

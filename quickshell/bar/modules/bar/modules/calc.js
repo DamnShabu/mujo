@@ -1,5 +1,3 @@
-.pragma library
-
 function tryEvaluate(input) {
     var tokens = tokenize(input)
     if (!tokens || tokens.length === 0) return null
@@ -57,7 +55,7 @@ function tryEvaluate(input) {
 }
 
 function tokenize(input) {
-    var s = input.replace(/\s+/g, "").replace(/\u2212/g, "-")
+    var s = input.replace(/\s+/g, "").replace(/−/g, "-")
     if (s === "") return null
 
     var toks = []

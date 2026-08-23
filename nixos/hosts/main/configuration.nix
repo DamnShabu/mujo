@@ -28,15 +28,19 @@
       self.nixosModules.desktop
 
       self.nixosModules.impermanence
+      self.nixosModules.user-persistence
 
       self.nixosModules.preload
 
       self.nixosModules.flatpak
+      self.nixosModules.ui-overrides
       
       self.nixosModules.opencode
+      self.nixosModules.claude-code
       self.nixosModules.discord
       self.nixosModules.obsidian
       self.nixosModules.steam
+      self.nixosModules.telegram
       self.nixosModules.gaming
       self.nixosModules.user-config
       self.nixosModules.user
@@ -44,6 +48,7 @@
 
       self.nixosModules.notifications
       self.nixosModules.quickshell
+      self.nixosModules.keyring-prompter
 
       self.nixosModules.vaultwarden
 

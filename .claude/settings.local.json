@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rtk grep *)",
+      "Bash(rtk read *)",
+      "Bash(rtk ls *)",
+      "Bash(rtk find *)",
+      "Bash(rtk wc *)",
+      "Bash(rtk git *)",
+      "Bash(sort -t: -k2 -n)",
+      "Bash(uniq -c -f1)",
+      "Bash(awk -F: '{print $3}')",
+      "Bash(nix flake *)",
+      "Bash(rtk tree *)",
+      "Bash(qmllint /home/yurii/nixconf/quickshell/bar/modules/bar/modules/LlmTrackerMenu.qml)",
+      "Read(//home/yurii/**)",
+      "Read(//home/yurii/.claude/**)",
+      "Bash(qs -p /home/yurii/nixconf/quickshell/bar/shell.qml)",
+      "Bash(disown)",
+      "Bash(qs -p /home/yurii/nixconf/quickshell/bar/shell.qml list)",
+      "Bash(qs kill *)",
+      "Bash(chmod +x /home/yurii/nixconf/quickshell/bar/claude-usage.sh)",
+      "Bash(bash /home/yurii/nixconf/quickshell/bar/claude-usage.sh)",
+      "Bash(timeout 5 qs -p ./quickshell/bar/shell.qml)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(qs list *)",
+      "Bash(rtk diff *)",
+      "Bash(timeout 6 qs -p ./quickshell/bar/shell.qml)",
+      "Bash(nix build *)",
+      "Bash(nix eval *)",
+      "Bash(grep -n PopupCoordinator __TRACKED_VAR__/modules/bar/modules/qmldir)",
+      "Bash(systemctl --user status qs-bar --no-pager -l)",
+      "Bash(journalctl --user -u qs-bar --no-pager -n 80)",
+      "Bash(env -i HOME=/home/yurii PATH=/run/current-system/sw/bin bash /nix/store/4gd4d1fg233b5wb5xv3yxjyrpjxy5gbf-quickshell-bar/claude-usage.sh)",
+      "Bash(xargs -I{} echo {})",
+      "Bash(systemctl --user stop psst-polkit-agent psst-keyring-prompter)",
+      "Bash(systemctl --user disable psst-polkit-agent psst-keyring-prompter)",
+      "Bash(systemctl --user status psst-polkit-agent psst-keyring-prompter --no-pager)"
+    ]
+  },
+  "outputStyle": "default",
+  "skillOverrides": {
+    "graphify": "off"
+  }
+}

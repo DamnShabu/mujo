@@ -1,105 +1,113 @@
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
 import Niri
 
-Rectangle {
+Item {
     id: root
     property var niri
     property string screenName: ""
-    property var myWorkspaces: computeWorkspaces()
+    property var workspaceList: []
 
-    Timer {
-        interval: 500
-        repeat: true
-        running: true
-        onTriggered: root.myWorkspaces = root.computeWorkspaces()
-      } // poll workspaces at 500ms
+    implicitHeight: Theme.workspacePillSize
+    implicitWidth: rowLayout.implicitWidth
 
-    function isWorkspaceActive(ws) {
+    // niri's WorkspaceModel.get() returns a plain QVariantMap with no change
+    // notification per-field, so we poll rather than bind directly.
+    function isWorkspaceFocused(ws) {
         if (!ws) return false
-        if (ws.isActive !== undefined) return !!ws.isActive
         if (ws.isFocused !== undefined) return !!ws.isFocused
+        if (ws.isActive !== undefined) return !!ws.isActive
         return false
     }
 
-    function computeWorkspaces() {
+    function refresh() {
         var result = []
-        if (!root.niri || !root.niri.workspaces) return result
-        var count = root.niri.workspaces.count
-        for (var i = 0; i < count; i++) {
-            var ws = root.niri.workspaces.get(i)
-            if (ws && (ws.output === root.screenName || root.screenName === "")) {
-                result.push({wsId: ws.id, wsActive: isWorkspaceActive(ws)})
+        if (root.niri && root.niri.workspaces) {
+            var count = root.niri.workspaces.count
+            for (var i = 0; i < count; i++) {
+                var ws = root.niri.workspaces.get(i)
+                if (ws && (root.screenName === "" || ws.output === root.screenName)) {
+                    result.push({wsId: ws.id, wsFocused: root.isWorkspaceFocused(ws), wsIndex: result.length + 1})
+                }
             }
         }
-        return result
+        root.workspaceList = result
     }
 
-    function switchTo(wsId) {
-        if (!root.niri || !root.niri.focusWorkspaceById) return
-        root.niri.focusWorkspaceById(wsId)
-        var result = []
-        for (var i = 0; i < myWorkspaces.length; i++) {
-            var ws = myWorkspaces[i]
-            result.push({wsId: ws.wsId, wsActive: ws.wsId === wsId})
-        }
-        myWorkspaces = result
+    // niri's WorkspaceModel is a QAbstractListModel: it emits dataChanged when a
+    // workspace's focus role flips and count/rows/reset signals on layout
+    // changes. Binding to those makes switches show *immediately* instead of on
+    // the next 500ms tick. focusedWindowChanged covers focusing a window that
+    // lives on another workspace. A slow safety Timer catches anything the
+    // plugin doesn't signal, without adding perceptible latency.
+    Connections {
+        target: root.niri ? root.niri.workspaces : null
+        function onDataChanged() { root.refresh() }
+        function onCountChanged() { root.refresh() }
+        function onModelReset() { root.refresh() }
+        function onRowsInserted() { root.refresh() }
+        function onRowsRemoved() { root.refresh() }
+        function onLayoutChanged() { root.refresh() }
     }
 
-    color: Theme.bg
-    border.color: Theme.border
-    implicitHeight: 25
-    implicitWidth: Math.max(50, 20 + myWorkspaces.length * 20)
-    radius: 5
+    Connections {
+        target: root.niri
+        function onFocusedWindowChanged() { root.refresh() }
+    }
+
+    Timer { interval: 2000; running: true; repeat: true; onTriggered: root.refresh() }
+    Component.onCompleted: root.refresh()
 
     RowLayout {
-        anchors {
-            verticalCenter: parent.verticalCenter
-            left: parent.left
-            right: parent.right
-            leftMargin: 10
-            rightMargin: 10
-        }
+        id: rowLayout
+        anchors.centerIn: parent
         spacing: Theme.workspaceSpacing
 
         Repeater {
-            model: root.myWorkspaces
+            model: root.workspaceList
 
             Rectangle {
                 id: wsPill
-                property bool isActive: modelData.wsActive
-                width: Theme.workspacePillSize
-                height: Theme.workspacePillSize
+                required property var modelData
+                property bool focused: modelData.wsFocused
+                property bool hovered: wsHover.hovered
+
+                Layout.preferredWidth: focused ? Theme.workspacePillSize + 12 : Theme.workspacePillSize
+                Layout.preferredHeight: Theme.workspacePillSize
                 radius: Theme.workspacePillRadius
-                color: Theme.workspaceInactive
+                // Only the active pill carries a fill (accent); inactive pills are
+                // bare numbers so the cluster stays calm, lighting up on hover.
+                color: focused ? Theme.accent
+                               : (hovered ? Theme.surfaceHover : "transparent")
 
-                Rectangle {
-                    anchors.fill: parent
-                    radius: Theme.workspacePillRadius
-                    color: Theme.workspaceActive
-                    opacity: wsPill.isActive ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    hoverEnabled: true
-                    onClicked: root.switchTo(modelData.wsId)
-                    onEntered: if (!wsPill.isActive) wsPill.color = Theme.borderInteractive
-                    onExited: if (!wsPill.isActive) wsPill.color = Theme.workspaceInactive
+                Behavior on color { ColorAnimation { duration: Theme.reduceMotion ? 0 : Theme.durationFast } }
+                Behavior on Layout.preferredWidth {
+                    NumberAnimation { duration: Theme.reduceMotion ? 0 : Theme.durationFast; easing.type: Easing.OutCubic }
                 }
 
                 Text {
-                    anchors {
-                        verticalCenter: parent.verticalCenter
-                        horizontalCenter: parent.horizontalCenter
+                    anchors.centerIn: parent
+                    text: wsPill.modelData.wsIndex
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.bold: wsPill.focused
+                    color: wsPill.focused ? Theme.accentText
+                                          : (wsPill.hovered ? Theme.text : Theme.textSecondary)
+
+                    // Subtle pop as a pill becomes active — communicates the
+                    // switch without adding latency (fast, overshoot easing).
+                    scale: wsPill.focused ? 1.0 : 0.92
+                    Behavior on scale {
+                        NumberAnimation { duration: Theme.reduceMotion ? 0 : Theme.durationFast; easing.type: Easing.OutBack }
                     }
-                    text: model.index + 1
-                    color: Theme.text
-                    font.pixelSize: 11
-                    font.bold: true
+                }
+
+                HoverHandler { id: wsHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler {
+                    onTapped: {
+                        PopupCoordinator.closeAll()
+                        if (root.niri) root.niri.focusWorkspaceById(wsPill.modelData.wsId)
+                    }
                 }
             }
         }

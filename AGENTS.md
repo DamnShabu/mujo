@@ -1,5 +1,7 @@
 # NixOS Flake & Quickshell Agent Instructions
 
+> **IMPORTANT**: See `AI_SKILL.md` in the repository root for the detailed agent repository skill guide on architectural rules, shared services, and workflow requirements.
+
 ## Flake structure
 * Single host `main`. `nixos/hosts/main/configuration.nix` defines both `nixosConfigurations.main` and `nixosModules.hostMain`; host-specific fragments are underscore files (`_boot.nix`, `_networking.nix`, `_hardware-and-services.nix`) imported there.
 
@@ -10,7 +12,8 @@
 * `modules/theme.nix` and `modules/perSystem.nix` are flake-parts modules imported explicitly in `flake.nix` (outside `importTree`).
 
 ## Rebuilding
-* Apply: `nh os switch ~/nixconf/`. Passwordless because a sudo rule whitelists `/nix/store/*-nixos-system-*/bin/nixos-rebuild`; don't invoke `nixos-rebuild` by hand.
+* The agent is allowed to rebuild the NixOS system by using `pkexec nixos-rebuild switch --flake .#main`. The user will accept the pkexec authorization prompt.
+* Apply: `pkexec nixos-rebuild switch --flake .#main` (run from `~/nixconf`). Escalates via polkit's pkexec wrapper (`security.polkit.enablePkexecWrapper`, see `nixos/features/desktop.nix`).
 * Validate: `nix flake check` / `nix flake show`.
 
 ## User identity
@@ -28,14 +31,27 @@
   Also `secrets.vaultwarden.sshKeys.*` / `gpgKeys.*`.
 
 ## Quickshell shell (`quickshell/`)
-* This is a full desktop shell (launcher, settings UI, tray, weather), not just a status bar. Two shells run as systemd user services from Nix-built copies (`quickshell/_default.nix`): `qs-bar` (main shell, `quickshell/bar/shell.qml`) and `qs-combined` (`Shell.qml` + `Wallpaper.qml`). Repo edits do NOT go live until rebuild; iterate from the working tree with `qs -r ./quickshell/bar/shell.qml`.
+* This is a full desktop shell (launcher, settings UI, tray, weather, wallpaper) — one shell, `quickshell/bar/shell.qml`, run as the `qs-bar` systemd user service from a Nix-built copy (`quickshell/_default.nix`). `Wallpaper.qml` lives alongside `shell.qml` in `quickshell/bar/` and is instantiated as `Wallpaper {}` inside `shell.qml`'s `ShellRoot`. Repo edits do NOT go live until rebuild; iterate from the working tree with `qs -p ./quickshell/bar/shell.qml` (spawns a separate instance from the live systemd one — `qs kill -i <id>` afterward, see `qs list --all`).
 * New QML components MUST be registered manually in `quickshell/bar/modules/bar/modules/qmldir` as `<Name> <Name.qml>`.
 * Theme singleton: a new property needs sync in three places — `Theme.qml` (decl), `SettingsMenu.qml` (load/apply/write), `shell.qml` (config load).
 * Details: `quickshell/bar/AGENTS.md`.
 
 ## Misc
 * `modules/theme.nix` exposes palette `self.theme.base00..base0F`; wrapper configs (kitty, etc.) read colors from it.
-* `modules/perSystem.nix` vendors packages removed/broken in nixpkgs (preload, psst, skeuos-gtk, quicksnip, pibble, cursor-tracker).
+* `modules/perSystem.nix` vendors packages removed/broken in nixpkgs (preload, skeuos-gtk, quicksnip).
 
 ## Linting & formatting
 * `trunk check` / `trunk fmt` only. Don't run standalone formatters (prettier/ruff/nixpkgs-fmt) manually — trunk manages them.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
