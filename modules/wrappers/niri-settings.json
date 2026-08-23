@@ -2,16 +2,16 @@
   "outputs": {
     "DP-1": {
       "mode": "1920x1080@165.003",
-      "x": 3590,
-      "y": 2080,
+      "x": 3610,
+      "y": 2410,
       "scale": 1.0,
       "transform": "normal",
       "enabled": true
     },
     "HDMI-A-1": {
       "mode": "1920x1080@71.91",
-      "x": 3590,
-      "y": 1000,
+      "x": 3610,
+      "y": 1330,
       "scale": 1.0,
       "transform": "normal",
       "enabled": true

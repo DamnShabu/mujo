@@ -35,11 +35,15 @@
       "Bash(xargs -I{} echo {})",
       "Bash(systemctl --user stop psst-polkit-agent psst-keyring-prompter)",
       "Bash(systemctl --user disable psst-polkit-agent psst-keyring-prompter)",
-      "Bash(systemctl --user status psst-polkit-agent psst-keyring-prompter --no-pager)"
+      "Bash(systemctl --user status psst-polkit-agent psst-keyring-prompter --no-pager)",
+      "WebFetch(domain:www.skills.sh)",
+      "Bash(bash -n quickshell/mujo.sh)",
+      "Bash(HOME=/home/yurii bash quickshell/mujo.sh idle-guard audio)",
+      "Bash(echo \"audio_exit=$?\")",
+      "Bash(HOME=/home/yurii bash quickshell/mujo.sh idle-guard charging)",
+      "Bash(echo \"charging_exit=$?\")"
     ]
   },
-  "outputStyle": "default",
-  "skillOverrides": {
-    "graphify": "off"
-  }
+  "skillOverrides": {},
+  "outputStyle": "default"
 }

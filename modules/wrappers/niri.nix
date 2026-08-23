@@ -80,11 +80,14 @@
         "Mod+Q".close-window = _: {};
         # Path must match the qs-bar daemon's launch path (quickshell.nix
         # barConfig); a bare `qs ipc` can't pick between multiple running
-        # quickshell instances (qs-bar, pibble) and silently no-ops.
+        # quickshell instances and silently no-ops.
         "Mod+Space"."spawn-sh" = "qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle";
         # Standalone Settings app (separate quickshell instance, floated by the
         # window-rule matching its title below).
         "Mod+Comma"."spawn-sh" = "qs -p /etc/xdg/quickshell/bar/settings.qml";
+        # Lock screen (WP-14). Mod+Shift+L is taken (move-column-right); path must
+        # match the qs-bar daemon so the IPC targets the running instance.
+        "Mod+Ctrl+L"."spawn-sh" = "qs -p /etc/xdg/quickshell/bar/shell.qml ipc call lock lock";
 
         "Mod+F".maximize-column = _: {};
         "Mod+G".fullscreen-window = _: {};

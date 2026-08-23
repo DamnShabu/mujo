@@ -229,6 +229,114 @@ Item {
             }
         }
 
+        // ── Audio visualizer (WP-15) ──────────────────────────────────────────
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 12
+
+            RowLayout {
+                Layout.fillWidth: true
+                SectionLabel { text: "Audio visualizer" }
+                Item { Layout.fillWidth: true }
+                ToggleSwitch {
+                    checked: SettingsBus.get("cava.enabled", false)
+                    onToggled: function (c) { SettingsBus.set("cava.enabled", c) }
+                }
+            }
+            Text {
+                Layout.fillWidth: true
+                text: "cava spectrum on the desktop. Pauses when audio is muted or nothing is playing."
+                color: Theme.textSecondary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+                wrapMode: Text.WordWrap
+            }
+
+            // Style + position chips.
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Repeater {
+                    model: ["bars", "wave", "circle"]
+                    delegate: DisplayChip {
+                        required property var modelData
+                        label: modelData
+                        selected: SettingsBus.get("cava.style", "bars") === modelData
+                        onClicked: SettingsBus.set("cava.style", modelData)
+                    }
+                }
+                Item { Layout.fillWidth: true }
+                Repeater {
+                    model: ["bottom", "center", "top"]
+                    delegate: DisplayChip {
+                        required property var modelData
+                        label: modelData
+                        selected: SettingsBus.get("cava.position", "bottom") === modelData
+                        onClicked: SettingsBus.set("cava.position", modelData)
+                    }
+                }
+            }
+
+            // Color: accent or a preset swatch.
+            Flow {
+                Layout.fillWidth: true
+                spacing: 8
+                DisplayChip {
+                    label: "Accent"
+                    selected: SettingsBus.get("cava.color", "") === ""
+                    onClicked: SettingsBus.set("cava.color", "")
+                }
+                Repeater {
+                    model: ["#f38ba8", "#a6e3a1", "#89b4fa", "#f9e2af", "#cba6f7"]
+                    delegate: Rectangle {
+                        required property var modelData
+                        readonly property bool sel: SettingsBus.get("cava.color", "") === modelData
+                        width: 30; height: 30
+                        radius: Theme.radiusSm
+                        color: modelData
+                        border.width: sel ? 3 : 1
+                        border.color: sel ? Theme.accent : Theme.borderStrong
+                        TapHandler { onTapped: SettingsBus.set("cava.color", modelData) }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                Text {
+                    text: "Opacity"
+                    color: Theme.text
+                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody
+                }
+                Slider {
+                    Layout.fillWidth: true
+                    from: 0.2; to: 1
+                    value: SettingsBus.get("cava.opacity", 0.85)
+                    onMoved: function (v) { SettingsBus.set("cava.opacity", v) }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                Text {
+                    text: "Height"
+                    color: Theme.text
+                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody
+                }
+                Slider {
+                    Layout.fillWidth: true
+                    from: 0.08; to: 0.4
+                    value: SettingsBus.get("cava.height", 0.18)
+                    onMoved: function (v) { SettingsBus.set("cava.height", v) }
+                }
+                ToggleSwitch {
+                    checked: SettingsBus.get("cava.reflection", true)
+                    onToggled: function (c) { SettingsBus.set("cava.reflection", c) }
+                }
+            }
+        }
+
         // ── Keyboard ──────────────────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true

@@ -13,6 +13,16 @@ Item {
     implicitWidth: trigger.width
     implicitHeight: trigger.height
 
+    // Scroll over the pill to adjust volume (WP-17 scroll actions).
+    WheelHandler {
+        enabled: SettingsBus.get("bar.scrollActions", true)
+        onWheel: function (e) {
+            if (!root.sink || !root.sink.audio) return
+            var step = e.angleDelta.y > 0 ? 0.05 : -0.05
+            root.sink.audio.volume = Math.max(0, Math.min(1.0, root.sink.audio.volume + step))
+        }
+    }
+
     // Track the default sink/source *and* every per-application playback stream,
     // otherwise their .audio.volume/.muted don't update reactively.
     PwObjectTracker {
@@ -66,8 +76,8 @@ Item {
         color: "transparent"
         anchor.window: root.panelWindow
         anchor.item: trigger
-        anchor.edges: Edges.Bottom | Edges.Right
-        anchor.gravity: Edges.Bottom | Edges.Left
+        anchor.edges: Theme.popupEdge | Edges.Right
+        anchor.gravity: Theme.popupGravity | Edges.Left
         anchor.adjustment: PopupAdjustment.Slide
 
         implicitWidth: 340 + 32

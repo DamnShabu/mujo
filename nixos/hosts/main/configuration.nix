@@ -27,6 +27,8 @@
       self.nixosModules.general
       self.nixosModules.desktop
 
+      self.nixosModules.ui-overrides
+
       self.nixosModules.impermanence
       self.nixosModules.user-persistence
 

@@ -10,6 +10,8 @@
 
     persistence.data.directories = [
       ".cache/quickshell"
+      # Notification-center history (WP-04) survives the impermanence wipe.
+      ".local/state/qsshell"
     ];
   };
 }

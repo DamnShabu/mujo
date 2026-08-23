@@ -21,6 +21,7 @@ QtObject {
     property string presetName: "ayu"
     property string accentOverride: ""   // "" → use preset accent
     property real transparency: 1.0      // 0.6–1.0
+    readonly property real surfaceOpacity: transparency  // WP-02 alias: surface-fill alpha
 
     readonly property string configPath:
         (Quickshell.env("HOME") || "/tmp") + "/.config/quickshell/theme.json"
@@ -167,16 +168,28 @@ QtObject {
     property int radiusLg: 16
 
     // ─── Bar layout ───────────────────────────────────────────────────────────
-    property int barHeight: 34            // content height of the floating groups
-    property int barMargin: 7             // gap between screen edge and groups
-    property int barPadding: 6            // spacing between groups
+    // Sizing is store-backed (WP-17): change from bar.* and the bar restyles live.
+    property int barHeight: SettingsBus.get("bar.height", 34)    // content height of the floating groups
+    property int barMargin: SettingsBus.get("bar.margin", 7)     // gap between screen edge and groups
+    property int barPadding: SettingsBus.get("bar.spacing", 6)   // spacing between groups
     property int groupPadding: 4          // inner padding inside a floating group
     property int groupRadius: radiusMd
+    property real barGroupOpacity: SettingsBus.get("bar.opacity", 1)   // group background alpha
+
+    // Bar position (WP-17). barBottom flips the panel anchor AND every menu
+    // popup's vertical edge/gravity through these two tokens, so all popups open
+    // away from the bar together (top bar → popups below; bottom bar → above).
+    readonly property bool barBottom: SettingsBus.get("bar.position", "top") === "bottom"
+    readonly property int popupEdge: barBottom ? Edges.Top : Edges.Bottom
+    readonly property int popupGravity: barBottom ? Edges.Top : Edges.Bottom
 
     // ─── Motion ───────────────────────────────────────────────────────────────
-    property bool reduceMotion: false
+    // reduceMotion + blurAmount are store-backed (WP-02): flip them from the
+    // unified settings.json and every animation / surface honours it live.
+    property bool reduceMotion: SettingsBus.get("motion.reduce", false)
     property int durationFast: 120
     property int durationSlow: 200
+    property real blurAmount: SettingsBus.get("bar.blurAmount", 0)
 
     // ─── Workspaces ───────────────────────────────────────────────────────────
     property int workspacePillSize: 22

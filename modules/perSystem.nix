@@ -38,24 +38,6 @@
         '';
       };
 
-      packages.pibble = let
-        src = pkgs.fetchgit {
-          url = "https://github.com/kianblakley/pibble";
-          rev = "a42dfb68a054edef3c8da214caaed6090a529ef1";
-          hash = "sha256-LF/shphWEYDZj8JhChG76CCZ5fksqkBx/MHsE3qC2Xg=";
-        };
-        qmlPath = pkgs.lib.makeSearchPath "lib/qt-6/qml" (with pkgs.qt6; [qtmultimedia qtdeclarative qtwayland qt5compat] ++ [pkgs.quickshell]);
-      in pkgs.runCommand "pibble" {} ''
-        mkdir -p $out/bin
-        cp -r ${src}/* $out/
-        chmod +x $out/pibble
-        echo '#!${pkgs.bash}/bin/bash' > $out/bin/pibble
-        echo 'export QML2_IMPORT_PATH="${qmlPath}"' >> $out/bin/pibble
-        echo 'export PIBBLE_DIR="${src}"' >> $out/bin/pibble
-        echo 'exec "$PIBBLE_DIR/pibble" "$@"' >> $out/bin/pibble
-        chmod +x $out/bin/pibble
-      '';
-
       packages.skeuos-gtk = let
         src = pkgs.fetchFromGitHub {
           owner = "daniruiz";

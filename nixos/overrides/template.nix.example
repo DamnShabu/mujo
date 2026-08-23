@@ -1,0 +1,8 @@
+# Local override module. Copy to <name>.nix (or use `mujo overrides add <name>`).
+# This is a plain NixOS module: it receives { config, lib, pkgs, ... } and sets
+# whatever options you want. It is imported into the host as-is.
+{ config, lib, pkgs, ... }:
+{
+  # environment.systemPackages = [ pkgs.cowsay ];
+  # services.foo.enable = true;
+}

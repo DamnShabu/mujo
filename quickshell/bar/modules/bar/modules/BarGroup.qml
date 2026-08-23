@@ -13,7 +13,8 @@ Rectangle {
     implicitHeight: Theme.barHeight
     implicitWidth: row.implicitWidth + Theme.groupPadding * 2 + 2
     radius: Theme.groupRadius
-    color: Theme.surface
+    // WP-17: bar.opacity scales the group-background alpha (content/border stay).
+    color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, Theme.surface.a * Theme.barGroupOpacity)
     border.color: Theme.border
 
     RowLayout {

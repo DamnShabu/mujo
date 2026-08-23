@@ -100,7 +100,19 @@ QtObject {
             // (Rare; loses the dedicated-scope guarantee but still launches.)
             entry.execute()
         }
+        launch.recordRecent(entry)
         notify(name, entry.icon || "", screen, ids)
+    }
+
+    // WP-06: maintain apps.recent[] (most-recent-first, deduped, cap 10) so the
+    // launcher grid can surface a recents row.
+    function recordRecent(entry) {
+        var id = entry && entry.id ? entry.id : (entry ? entry.name : "")
+        if (!id) return
+        var r = (SettingsBus.get("apps.recent", [])).filter(function (x) { return x !== id })
+        r.unshift(id)
+        if (r.length > 10) r = r.slice(0, 10)
+        SettingsBus.set("apps.recent", r)
     }
 
     // Launch an arbitrary argv in its own scope (desktop menu, integrations…).
