@@ -1,5 +1,8 @@
 {
   "enabledPlugins": {
     "ponytail@ponytail": true
+  },
+  "env": {
+    "MCP_TIMEOUT": "180000"
   }
 }
