@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sandbox": {
+      "command": "nix",
+      "args": ["run", ".#sandbox"]
+    }
+  }
+}
