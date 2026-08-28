@@ -9,6 +9,7 @@
 #include <linux/input.h>
 #include <errno.h>
 #include <dirent.h>
+#include <time.h>
 
 #define MAX_DEVS 32
 
@@ -61,6 +62,7 @@ int main(int argc, char *argv[]) {
 
     int device_error = 0;
     int ticks = 0;
+    static long long last_emit_us = 0;
     while (!device_error) {
       int ret = poll(fds, nfds, 500);
       if (ret < 0) {
@@ -92,15 +94,30 @@ int main(int argc, char *argv[]) {
         }
         if (device_error) break;
       }
+      // Emit at most once per ~16ms. A gaming mouse reports at up to 1000Hz and
+      // every line here becomes a JSON.parse on quickshell's main thread (see
+      // Wallpaper.qml); a parallax effect cannot show more than one update per
+      // frame regardless.
       if (moved) {
-        if (cx < 0.0) cx = 0.0; if (cx > 1.0) cx = 1.0;
-        if (cy < 0.0) cy = 0.0; if (cy > 1.0) cy = 1.0;
-        printf("{\"x\":%.4f,\"y\":%.4f}\n", cx, cy);
-        fflush(stdout);
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        long long now_us = (long long)now.tv_sec * 1000000 + now.tv_nsec / 1000;
+        if (now_us - last_emit_us >= 16000) {
+          last_emit_us = now_us;
+          if (cx < 0.0) cx = 0.0; if (cx > 1.0) cx = 1.0;
+          if (cy < 0.0) cy = 0.0; if (cy > 1.0) cy = 1.0;
+          printf("{\"x\":%.4f,\"y\":%.4f}\n", cx, cy);
+          fflush(stdout);
+        }
       }
-      if (++ticks > 10) {
+      // Rescan for newly connected devices roughly every 5s. This counts only
+      // poll() *timeouts*: counting every return meant that while the mouse was
+      // moving, ret>0 fired constantly and the 10-tick budget was spent in a
+      // fraction of a second, re-opendir-ing /dev/input and reopening every
+      // event device ~100x a second.
+      if (ret == 0 && ++ticks > 10) {
         ticks = 0;
-        break; // Periodically rescan for newly connected devices
+        break;
       }
     }
 

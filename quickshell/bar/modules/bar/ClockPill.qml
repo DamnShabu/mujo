@@ -18,7 +18,20 @@ Pill {
     readonly property bool calendarOpen: PopupCoordinator.activeId === root.popupId
 
     property date now: new Date()
-    Timer { interval: 1000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.now = new Date() }
+    // Sleep to the next minute boundary unless seconds are actually on screen:
+    // ticking at 1Hz to re-render "HH:mm" re-ran formatDateTime and relaid out
+    // the Text 59 times a minute for an identical string, on every bar, on
+    // every monitor. Reassigning `interval` restarts the timer, so each tick
+    // re-aims at the next boundary and drift corrects itself.
+    Timer {
+        interval: Theme.clockShowSeconds
+                  ? 1000
+                  : Math.max(1000, 60000 - (root.now.getSeconds() * 1000 + root.now.getMilliseconds()))
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.now = new Date()
+    }
 
     readonly property string timeFormat: {
         var f = Theme.clock24h ? "HH:mm" : "hh:mm"

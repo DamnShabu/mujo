@@ -127,21 +127,20 @@ Item {
                 wpType === "scene" || wpType === "web" || wpType === "application"
             readonly property bool usesVideo: vidSrc !== "" && !usesEngine
 
-            // Cursor position (normalised 0–1), lerp-smoothed for zoom.
+            // Cursor position (normalised 0–1), smoothed for the zoom/pan.
             property real cursorX: 0.5
             property real cursorY: 0.5
-            property real smoothX: 0.5
-            property real smoothY: 0.5
 
-            Timer {
-                interval: 16          // ~60 fps
-                running: wallpaper.motionEnabled
-                repeat: true
-                onTriggered: {
-                    wpScreen.smoothX += (wpScreen.cursorX - wpScreen.smoothX) * 0.15
-                    wpScreen.smoothY += (wpScreen.cursorY - wpScreen.smoothY) * 0.15
-                }
-            }
+            // These used to be chased by a 16ms repeating Timer running a lerp
+            // in JavaScript — a hand-rolled 60fps loop on the QML main thread,
+            // per screen. SmoothedAnimation is the built-in for "follow a
+            // moving target with a soft lag" and interpolates on the render
+            // thread instead, with the same ~100ms time constant the 0.15
+            // per-frame lerp had.
+            property real smoothX: wpScreen.cursorX
+            property real smoothY: wpScreen.cursorY
+            Behavior on smoothX { SmoothedAnimation { velocity: -1; duration: 120 } }
+            Behavior on smoothY { SmoothedAnimation { velocity: -1; duration: 120 } }
 
             PanelWindow {
                 id: wpWin
@@ -169,6 +168,12 @@ Item {
                         visible: wpScreen.imgSrc !== ""
                         source: wpScreen.imgSrc !== "" ? "file://" + wpScreen.imgSrc : ""
                         mipmap: false
+                        // Without sourceSize a 4K JPEG decodes at native
+                        // resolution — ~33 MB of RGBA held in the pixmap cache,
+                        // per screen — to fill a 1080p surface. The 1.1x parallax
+                        // scale below is why this is 1.15x and not 1.0x.
+                        sourceSize.width: Math.round(wpWin.width * 1.15)
+                        sourceSize.height: Math.round(wpWin.height * 1.15)
                     }
 
                     VideoOutput {
@@ -293,6 +298,14 @@ Item {
                     visible: false          // drawn only through the MultiEffect blur below
                     source: bdWin.imgSrc !== "" ? "file://" + bdWin.imgSrc : ""
                     mipmap: false
+                    // This copy exists only to be blurred to blurMax 64, so it
+                    // has no use for full resolution: decoding it at half size
+                    // is invisible through that blur and quarters the memory.
+                    // sourceSize is decode resolution only — the item is still
+                    // laid out at window size, so the blur radius in screen
+                    // pixels is unchanged.
+                    sourceSize.width: Math.round(bdWin.width / 2)
+                    sourceSize.height: Math.round(bdWin.height / 2)
                 }
 
                 MultiEffect {
