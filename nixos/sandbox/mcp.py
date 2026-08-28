@@ -4,11 +4,14 @@ Runs as the NixOS test driver's test script, so the whole Machine API
 (`machines`) is already in scope — this file is only the JSON-RPC shim.
 """
 
+import atexit
 import base64
 import json
 import os
 import shlex
+import signal
 import sys
+import threading
 import time
 
 # The driver logs to fd 1. Move fd 1 onto stderr so stdout stays a clean
@@ -27,6 +30,73 @@ UID = 1000
 GUEST_SHOT = "/tmp/mujo-sandbox-shot.png"
 _size = []
 _user = []
+
+# ── VM lifetime ───────────────────────────────────────────────────────────
+# The VM holds 4 GiB (virtualisation.memorySize) for as long as it is booted,
+# and nothing here used to ever take it down: the loop below only ends on stdin
+# EOF, so an MCP client that stays alive but stops calling — an agent session
+# left open in another terminal — pinned that memory indefinitely. One was found
+# resident for 1h41m holding 1.4 GB.
+#
+# Two guards. An idle watchdog powers the VM off after IDLE_SHUTDOWN_SEC with no
+# tool call, and atexit/signal handlers take it down when this process ends by
+# any route. Neither loses anything: ensure_up() boots on demand, so an idle
+# teardown costs the next caller the same ~45s cold start the first call always
+# paid, and the guest keeps no state worth saving (diskImage = null, tmpfs root,
+# and the only host mount is read-only).
+IDLE_SHUTDOWN_SEC = int(os.environ.get("MUJO_SANDBOX_IDLE_SEC", "600"))
+
+# Guards every use of `vm`, so the watchdog can never pull the VM out from under
+# an in-flight tool call. Reentrant: teardown() runs on the calling thread.
+_vm_lock = threading.RLock()
+_last_use = time.time()
+
+
+def teardown(reason):
+    """Power the VM off. Safe to call repeatedly and when already down."""
+    with _vm_lock:
+        if not vm.booted:
+            return
+        print(f"sandbox: {reason}; powering the VM off", file=sys.stderr)
+        try:
+            # crash() is one QMP/monitor 'quit' rather than a guest `poweroff`
+            # that waits on the backdoor shell. An abandoned sandbox is exactly
+            # the case where that shell may be wedged, and there is nothing to
+            # flush, so the abrupt route is the reliable one here.
+            vm.crash()
+        except Exception as e:
+            print(f"sandbox: teardown failed: {e}", file=sys.stderr)
+
+
+# Poll often enough to be responsive without busy-waiting: 30s in the default
+# 600s configuration, and proportionally tighter when the timeout is shortened.
+_WATCH_TICK = min(30, max(1, IDLE_SHUTDOWN_SEC // 4))
+
+
+def _idle_watchdog():
+    while True:
+        time.sleep(_WATCH_TICK)
+        with _vm_lock:
+            idle = time.time() - _last_use
+            if vm.booted and idle > IDLE_SHUTDOWN_SEC:
+                teardown(f"idle for {int(idle)}s")
+
+
+threading.Thread(target=_idle_watchdog, daemon=True).start()
+atexit.register(lambda: teardown("server exiting"))
+# Raising SystemExit rather than tearing down inside the handler keeps the work
+# on the main thread and lets atexit do it exactly once.
+#
+# Best-effort: signal.signal() raises ValueError unless it is called on the main
+# thread, and the test driver decides where this script runs. A failure here
+# must not take the server down with it -- atexit still covers every exit that
+# unwinds, and the idle watchdog still covers the rest.
+try:
+    for _sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(_sig, lambda *_: sys.exit(0))
+except (ValueError, OSError) as e:
+    print(f"sandbox: signal handlers unavailable ({e})", file=sys.stderr)
+
 
 
 def user_name():
@@ -213,6 +283,19 @@ def text(s):
 
 
 def call(name, a):
+    """Serialise every VM touch and mark the server as active."""
+    global _last_use
+    with _vm_lock:
+        _last_use = time.time()
+        try:
+            return _dispatch(name, a)
+        finally:
+            # Also stamp on the way out, so a call longer than the idle window
+            # is not immediately followed by a teardown.
+            _last_use = time.time()
+
+
+def _dispatch(name, a):
     if name == "screenshot":
         png = screenshot()
         w, h = _size

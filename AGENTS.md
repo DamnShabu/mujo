@@ -86,6 +86,7 @@ Also `secrets.vaultwarden.sshKeys.*` and `secrets.vaultwarden.gpgKeys.*`.
 - Values behind `SettingsBus.get(…)` come from the guest's `~/.config/qsshell/settings.json`, so editing their *defaults* in `Theme.qml` will not change the render — edit plain literals, or set the value with `mujo settings`.
 - It needs the host's render node (`/dev/dri/renderD128`): niri refuses software EGL, so the guest gets virgl via `-device virtio-gpu-gl-pci -display egl-headless`. Nothing is drawn on the real session.
 - **The first tool call costs ~45s** (VM boot + the ~20s quickshell load); later ones are fast.
+- **The VM powers itself off after 10 minutes idle** and boots again on the next tool call, so an agent session left open in another terminal cannot pin its 4 GiB indefinitely (one was found resident for 1h41m holding 1.4 GB). Tune with `MUJO_SANDBOX_IDLE_SEC`; the only cost of a teardown is that the next call pays the ~45s cold start again. `python3 nixos/sandbox/test-lifetime.py` is the self-check — it runs mcp.py against a fake Machine, needs no QEMU, and covers both directions: the VM comes down when idle or disconnected, and never while a client is still calling.
 - **`MCP_TIMEOUT` must be raised** (`.claude/settings.json` sets it to 180000). A warm `nix run .#sandbox` answers `initialize` in ~0.5s, but a cold flake eval — which is what happens right after any source edit — exceeds the client's 30s default and the server never connects.
 
 ## AI ASSISTANTS
