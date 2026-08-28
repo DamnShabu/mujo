@@ -366,24 +366,220 @@ Item {
                 }
             }
 
-            // ── Process Sentinel & Top Tasks ──
+            // ── Problematic Processes ──
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 10
                 RowLayout {
                     Layout.fillWidth: true; spacing: 8
-                    SectionLabel { text: "Active Processes & Sentinel Monitor" }
+                    SectionLabel { text: "Problematic Processes" }
+                    Rectangle {
+                        visible: SentinelService.problematicProcesses.length > 0
+                        implicitHeight: 20
+                        implicitWidth: countText.implicitWidth + 12
+                        radius: 10
+                        color: Theme.withAlpha(Theme.error, 0.16)
+                        border.color: Theme.error
+                        border.width: 1
+
+                        Text {
+                            id: countText
+                            anchors.centerIn: parent
+                            text: String(SentinelService.problematicProcesses.length)
+                            color: Theme.error
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeLabel
+                            font.bold: true
+                        }
+                    }
                     Item { Layout.fillWidth: true }
                     DialogButton {
                         text: "Reap Zombies (" + SentinelService.zombieCount + ")"
                         visible: SentinelService.zombieCount > 0
                         onClicked: SentinelService.reap()
                     }
+                    DialogButton {
+                        text: "Clear History"
+                        visible: SentinelService.terminatedHistory.length > 0
+                        onClicked: SentinelService.clearTerminatedHistory()
+                    }
+                    DialogButton {
+                        text: "Scan"
+                        enabled: !root.runningOp
+                        onClicked: SentinelService.refresh()
+                    }
                 }
+
+                // Empty State
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 64
+                    radius: Theme.radiusMd
+                    color: Theme.surface
+                    border.color: Theme.border
+                    visible: SentinelService.problematicProcesses.length === 0
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 16
+                        spacing: 12
+
+                        MaterialIcon {
+                            iconName: "check_circle"
+                            pixelSize: 24
+                            color: Theme.success
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true; spacing: 2
+                            Text {
+                                text: "No problematic processes detected"
+                                color: Theme.text
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeBody
+                                font.bold: true
+                            }
+                            Text {
+                                text: "Process Sentinel is monitoring background tasks. All active processes are running normally."
+                                color: Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                            }
+                        }
+                    }
+                }
+
+                // Problematic Process Table
+                ListView {
+                    Layout.fillWidth: true
+                    implicitHeight: Math.min(360, count * 56)
+                    clip: true
+                    visible: SentinelService.problematicProcesses.length > 0
+                    model: SentinelService.problematicProcesses
+                    spacing: 6
+                    boundsBehavior: Flickable.StopAtBounds
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: ListView.view.width
+                        implicitHeight: 50
+                        radius: Theme.radiusMd
+                        color: modelData.status === "terminated" ? Theme.withAlpha(Theme.borderStrong, 0.3)
+                             : (modelData.warning || modelData.type === "cpu_runaway" ? Theme.withAlpha(Theme.error, 0.12)
+                             : (modelData.type === "mem_hog" ? Theme.withAlpha(Theme.warning, 0.12) : Theme.surface))
+                        border.color: modelData.status === "terminated" ? Theme.border
+                                    : (modelData.warning || modelData.type === "cpu_runaway" ? Theme.error
+                                    : (modelData.type === "mem_hog" ? Theme.warning : Theme.border))
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 10
+                            spacing: 10
+
+                            MaterialIcon {
+                                iconName: modelData.status === "terminated" ? "cancel"
+                                        : (modelData.type === "zombie" ? "pest_control"
+                                        : (modelData.type === "cpu_runaway" ? "speed"
+                                        : (modelData.type === "mem_hog" ? "memory"
+                                        : (modelData.type === "orphaned_process" ? "link_off" : "warning"))))
+                                pixelSize: 20
+                                color: modelData.status === "terminated" ? Theme.textDim
+                                     : (modelData.warning || modelData.type === "cpu_runaway" ? Theme.error
+                                     : (modelData.type === "mem_hog" ? Theme.warning : Theme.accent))
+                            }
+
+                            Text {
+                                text: String(modelData.pid)
+                                color: Theme.textDim
+                                font.family: Theme.fontMono
+                                font.pixelSize: Theme.fontSizeSmall
+                                Layout.preferredWidth: 60
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                RowLayout {
+                                    spacing: 8
+                                    Text {
+                                        text: modelData.comm || "task"
+                                        color: Theme.text
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.bold: true
+                                        elide: Text.ElideRight
+                                    }
+                                    Rectangle {
+                                        implicitHeight: 18
+                                        implicitWidth: badgeText.implicitWidth + 10
+                                        radius: 4
+                                        color: modelData.status === "terminated" ? Theme.withAlpha(Theme.textDim, 0.2)
+                                             : (modelData.warning || modelData.type === "cpu_runaway" ? Theme.withAlpha(Theme.error, 0.2)
+                                             : (modelData.type === "mem_hog" ? Theme.withAlpha(Theme.warning, 0.2) : Theme.withAlpha(Theme.accent, 0.2)))
+                                        Text {
+                                            id: badgeText
+                                            anchors.centerIn: parent
+                                            text: modelData.label || "Anomaly"
+                                            color: modelData.status === "terminated" ? Theme.textSecondary
+                                                 : (modelData.warning || modelData.type === "cpu_runaway" ? Theme.error
+                                                 : (modelData.type === "mem_hog" ? Theme.warning : Theme.accent))
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fontSizeLabel
+                                            font.bold: true
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    text: modelData.details || ""
+                                    color: Theme.textSecondary
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeLabel
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            // Actions
+                            RowLayout {
+                                spacing: 6
+                                visible: modelData.status === "active"
+
+                                DialogButton {
+                                    text: "Freeze"
+                                    visible: modelData.type !== "zombie"
+                                    onClicked: SentinelService.stop(modelData.pid)
+                                }
+                                DialogButton {
+                                    text: "Kill"
+                                    visible: modelData.type !== "zombie"
+                                    onClicked: SentinelService.kill(modelData.pid)
+                                }
+                                DialogButton {
+                                    text: "Reap"
+                                    visible: modelData.type === "zombie"
+                                    onClicked: SentinelService.reap()
+                                }
+                            }
+
+                            DialogButton {
+                                text: "Dismiss"
+                                visible: modelData.status === "terminated"
+                                onClicked: SentinelService.dismissTerminated(modelData.pid)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Top Active Processes ──
+            ColumnLayout {
+                Layout.fillWidth: true; spacing: 10
+                SectionLabel { text: "Top Active Processes" }
 
                 // Process Table
                 ListView {
                     Layout.fillWidth: true
-                    implicitHeight: Math.min(320, count * 42)
+                    implicitHeight: Math.min(260, count * 42)
                     clip: true
                     model: SentinelService.topCpu
                     spacing: 4

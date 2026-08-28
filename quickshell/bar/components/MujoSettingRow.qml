@@ -19,13 +19,24 @@ Rectangle {
 
     Layout.fillWidth: true
     implicitHeight: Math.max(42, rowLayout.implicitHeight + 12)
-    radius: Theme.radiusMd
-    color: (rowHh.hovered && !root.disabled) ? Theme.surfaceHover : "transparent"
+    color: "transparent"
     opacity: root.disabled ? 0.45 : 1.0
-    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
     Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast) } }
 
     HoverHandler { id: rowHh }
+
+    // The row content sits flush with the card's content column so icons and
+    // controls line up with the card header and its divider. The hover
+    // highlight is a separate rectangle that bleeds outwards into the card's
+    // padding, so it still reads as a padded pill without indenting the row.
+    Rectangle {
+        anchors.fill: parent
+        anchors.leftMargin: -10
+        anchors.rightMargin: -10
+        radius: Theme.radiusMd
+        color: (rowHh.hovered && !root.disabled) ? Theme.surfaceHover : "transparent"
+        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+    }
 
     RowLayout {
         id: rowLayout
@@ -33,8 +44,6 @@ Rectangle {
             left: parent.left
             right: parent.right
             verticalCenter: parent.verticalCenter
-            leftMargin: 10
-            rightMargin: 10
         }
         spacing: 12
 

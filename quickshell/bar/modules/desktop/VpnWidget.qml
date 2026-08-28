@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import "../../theme"
 import "../../components"
+import "../../services"
 
 // Mullvad VPN status + one-tap connect. Same runtime-CLI approach the network
 // settings page uses (NetworkPanel.qml): `mullvad` is a system package, the
@@ -12,6 +13,11 @@ BaseWidget {
     id: root
 
     property var wcfg: ({})
+    readonly property string vpnStyle: wcfg.style !== undefined ? wcfg.style : SettingsBus.get("desktop.vpn.style", "standard")
+    readonly property bool showLocation: wcfg.showLocation !== undefined ? !!wcfg.showLocation : SettingsBus.get("desktop.vpn.showLocation", true)
+    readonly property string cardStyle: wcfg.cardStyle !== undefined ? wcfg.cardStyle : "glass"
+
+    chromeless: cardStyle === "chromeless"
     property string statusLine: ""
     readonly property bool connected: statusLine.indexOf("Connected") === 0
     readonly property bool connecting: statusLine.indexOf("Connecting") === 0

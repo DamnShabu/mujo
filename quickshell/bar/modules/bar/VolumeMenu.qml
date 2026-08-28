@@ -16,12 +16,15 @@ Item {
     implicitWidth: trigger.width
     implicitHeight: trigger.height
 
+    readonly property bool showPercent: SettingsBus.get("bar.volume.showPercent", false)
+    readonly property real stepFrac: (SettingsBus.get("bar.volume.step", 5)) / 100
+
     // Scroll over the pill to adjust volume (WP-17 scroll actions).
     WheelHandler {
         enabled: SettingsBus.get("bar.scrollActions", true)
         onWheel: function (e) {
             if (!root.sink || !root.sink.audio) return
-            var step = e.angleDelta.y > 0 ? 0.05 : -0.05
+            var step = e.angleDelta.y > 0 ? root.stepFrac : -root.stepFrac
             root.sink.audio.volume = Math.max(0, Math.min(1.5, root.sink.audio.volume + step))
         }
     }
@@ -66,13 +69,45 @@ Item {
         })
     }
 
-    IconButton {
+    Rectangle {
         id: trigger
-        iconName: root.sinkMuted || root.sinkVolume <= 0 ? "volume_off" : (root.sinkVolume < 0.5 ? "volume_down" : "volume_up")
-        active: root.menuOpen
-        onClicked: {
-            PopupCoordinator.toggle(root.popupId)
+        implicitHeight: Theme.barHeight - 6
+        implicitWidth: root.showPercent ? (triggerRow.implicitWidth + 14) : 28
+        radius: Theme.radiusSm
+        color: root.menuOpen ? Theme.accentDim : (trigHh.hovered ? Theme.surfaceHover : "transparent")
+        border.color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.borderStrong : "transparent")
+        border.width: 1
+
+        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+        RowLayout {
+            id: triggerRow
+            anchors.centerIn: parent
+            spacing: 4
+
+            MaterialIcon {
+                iconName: root.sinkMuted || root.sinkVolume <= 0 ? "volume_off" : (root.sinkVolume < 0.5 ? "volume_down" : "volume_up")
+                pixelSize: 16
+                color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : Theme.textSecondary)
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+            }
+
+            Text {
+                visible: root.showPercent
+                text: root.sinkMuted ? "Mute" : (Math.round(root.sinkVolume * 100) + "%")
+                color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : Theme.textSecondary)
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
+                font.bold: true
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+            }
         }
+
+        HoverHandler { id: trigHh; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: PopupCoordinator.toggle(root.popupId) }
     }
 
     PopupWindow {

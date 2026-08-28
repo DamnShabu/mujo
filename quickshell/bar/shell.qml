@@ -87,7 +87,10 @@ ShellRoot {
         ignoreUnknownSignals: true
         function onLayoutChanged() { root.updateNotifContext() }
     }
-    Component.onCompleted: updateNotifContext()
+    Component.onCompleted: {
+        updateNotifContext()
+        Quickshell.execDetached(["sh", "-c", "[ -d /tmp/shared ] && echo 1 >> /tmp/shared/qs_ready || true"])
+    }
 
     // Crash detection + assistance (WP-09) — one live instance.
     CrashWatcher {}

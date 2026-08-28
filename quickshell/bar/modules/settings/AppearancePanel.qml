@@ -13,12 +13,15 @@ Item {
 
     // Fixed accent suggestions
     readonly property var accentSwatches: [
-        "#5cc2ff", "#7aa2f7", "#89b4fa", "#61afef", "#88c0d0", "#7e9cd8", "#58a6ff", "#268bd2",
-        "#03edf9", "#3ddbd9", "#a6e3a1", "#a7c080", "#b8bb26", "#f9e2af", "#ffd866", "#ffb454",
-        "#fe8019", "#f38ba8", "#eb6f92", "#bd93f9", "#c4a7e7", "#c792ea"
+        "#ff385c", "#e63946", "#ff2a4b", "#e95678", "#ee6d85", "#f07178", "#f38ba8", "#eb6f92",
+        "#5cc2ff", "#7aa2f7", "#89b4fa", "#61afef", "#82aaff", "#88c0d0", "#7e9cd8", "#58a6ff", "#268bd2",
+        "#03edf9", "#3ddbd9", "#5de4c7", "#a6e3a1", "#a7c080", "#b8bb26", "#00ff9f",
+        "#ffe600", "#ffd866", "#f9e2af", "#ffb454", "#fe8019",
+        "#bd93f9", "#c4a7e7", "#c792ea", "#e879f9", "#ffffff"
     ]
 
     property real pendingTransparency: Theme.transparency
+    property string selectedBarWidget: "workspaces"
 
     function runTheme(args) { Quickshell.execDetached(["mujo", "theme"].concat(args)) }
 
@@ -69,11 +72,16 @@ Item {
                 iconName: "palette"
                 badgeText: Theme.presetLabels[Theme.presetName] || Theme.presetName
 
-                // Flow, not a fixed 4-column Grid: the cards are a fixed 154px,
-                // so a Grid left most of the card empty on a wide window.
+                // Flow with stretched cards: a fixed 154px card left a ragged
+                // ~100px gutter down the right of the section, so the column
+                // count comes from 154px as a *minimum* and the cards then
+                // share the row evenly.
                 Flow {
+                    id: presetFlow
                     Layout.fillWidth: true
                     spacing: 10
+                    readonly property int cols: Math.max(1, Math.floor((width + spacing) / (154 + spacing)))
+                    readonly property real cardW: Math.floor((width - (cols - 1) * spacing) / cols)
 
                     Repeater {
                         model: Theme.presetOrder
@@ -82,7 +90,7 @@ Item {
                             required property var modelData
                             readonly property var pal: Theme.presets[modelData]
                             readonly property bool selected: Theme.presetName === modelData
-                            width: 154
+                            width: presetFlow.cardW
                             height: 88
                             radius: Theme.radiusMd
                             color: pal.surface
@@ -430,6 +438,527 @@ Item {
                                 visible: root.barModules.indexOf(modelData) < 0
                                 label: "+ " + modelData
                                 onClicked: root.barAdd(modelData)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Top Bar Widget Styles & Customization Card ────────────────────
+            MujoCard {
+                title: "Top Bar Widget Styles & Customization"
+                iconName: "tune"
+                badgeText: root.selectedBarWidget.toUpperCase()
+
+                // Widget Selector Chips
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Repeater {
+                        model: [
+                            { k: "workspaces", l: "Workspaces", i: "view_carousel" },
+                            { k: "clock", l: "Clock Pill", i: "schedule" },
+                            { k: "launcher", l: "Launcher Pill", i: "search" },
+                            { k: "activeWindow", l: "Active Window", i: "tab" },
+                            { k: "volume", l: "Volume", i: "volume_up" },
+                            { k: "battery", l: "Battery", i: "battery_charging_full" },
+                            { k: "connectivity", l: "Network & Bluetooth", i: "wifi" },
+                            { k: "notifications", l: "Notifications & AI", i: "notifications" }
+                        ]
+                        delegate: Rectangle {
+                            required property var modelData
+                            readonly property bool sel: root.selectedBarWidget === modelData.k
+                            implicitWidth: bwRow.implicitWidth + 18
+                            implicitHeight: 32
+                            radius: Theme.radiusSm
+                            color: sel ? Theme.accentDim : (bwhh.hovered ? Theme.surfaceHover : Theme.surfaceActive)
+                            border.color: sel ? Theme.accent : Theme.border
+                            border.width: sel ? 1.5 : 1
+
+                            RowLayout {
+                                id: bwRow
+                                anchors.centerIn: parent
+                                spacing: 6
+                                MaterialIcon {
+                                    iconName: parent.parent.modelData.i
+                                    pixelSize: 15
+                                    color: parent.parent.sel ? Theme.accent : Theme.textSecondary
+                                }
+                                Text {
+                                    text: parent.parent.modelData.l
+                                    color: parent.parent.sel ? Theme.text : Theme.textSecondary
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    font.bold: parent.parent.sel
+                                }
+                            }
+                            HoverHandler { id: bwhh; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: root.selectedBarWidget = modelData.k }
+                        }
+                    }
+                }
+
+                // ── 1. Workspaces Style Settings ──────────────────────────────
+                ColumnLayout {
+                    visible: root.selectedBarWidget === "workspaces"
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    MujoSettingRow {
+                        iconName: "format_list_numbered"
+                        title: "Workspace Numeral Style"
+                        description: "Format used to label workspace items in the pill."
+                        RowLayout {
+                            spacing: 6
+                            Repeater {
+                                model: [
+                                    { k: "numbers", l: "1 2 3" },
+                                    { k: "dots", l: "Dots (•)" },
+                                    { k: "roman", l: "Roman (I II III)" }
+                                ]
+                                delegate: DisplayChip {
+                                    required property var modelData
+                                    label: modelData.l
+                                    selected: SettingsBus.get("bar.workspaces.style", "numbers") === modelData.k
+                                    onClicked: SettingsBus.set("bar.workspaces.style", modelData.k)
+                                }
+                            }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "animation"
+                        title: "Glider Focus Indicator"
+                        description: "Visual animation style behind the currently active workspace."
+                        RowLayout {
+                            spacing: 6
+                            Repeater {
+                                model: [
+                                    { k: "morphic", l: "Morphic Glider" },
+                                    { k: "pill", l: "Pill" },
+                                    { k: "underline", l: "Underline" },
+                                    { k: "outline", l: "Outline" },
+                                    { k: "none", l: "None" }
+                                ]
+                                delegate: DisplayChip {
+                                    required property var modelData
+                                    label: modelData.l
+                                    selected: SettingsBus.get("bar.workspaces.gliderStyle", "morphic") === modelData.k
+                                    onClicked: SettingsBus.set("bar.workspaces.gliderStyle", modelData.k)
+                                }
+                            }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "lens"
+                        title: "Show Window Presence Dots"
+                        description: "Display subtle micro-dot on workspaces containing open windows."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.workspaces.showWindowDots", true)
+                            onToggled: function(c) { SettingsBus.set("bar.workspaces.showWindowDots", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "visibility_off"
+                        title: "Hide Empty Workspaces"
+                        description: "Only show workspaces that contain open windows or are currently focused."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.workspaces.hideEmpty", false)
+                            onToggled: function(c) { SettingsBus.set("bar.workspaces.hideEmpty", c) }
+                        }
+                    }
+                }
+
+                // ── 2. Clock Pill Settings ────────────────────────────────────
+                ColumnLayout {
+                    visible: root.selectedBarWidget === "clock"
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    MujoSettingRow {
+                        iconName: "schedule"
+                        title: "24-Hour Time Format"
+                        description: "Display time as 24-hour clock (14:30) instead of 12-hour AM/PM (2:30 PM)."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.clock.format24", Theme.clock24h)
+                            onToggled: function(c) { SettingsBus.set("bar.clock.format24", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "timer"
+                        title: "Show Live Seconds"
+                        description: "Render live seconds in the top bar clock pill."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.clock.showSeconds", Theme.clockShowSeconds)
+                            onToggled: function(c) { SettingsBus.set("bar.clock.showSeconds", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "calendar_today"
+                        title: "Show Date in Bar"
+                        description: "Display date alongside clock numerals."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.clock.showDate", Theme.clockShowDate)
+                            onToggled: function(c) { SettingsBus.set("bar.clock.showDate", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "short_text"
+                        title: "Date Format Pattern"
+                        description: "Date string representation in the pill."
+                        RowLayout {
+                            spacing: 6
+                            Repeater {
+                                model: [
+                                    { k: "short", l: "Thu, Aug 28" },
+                                    { k: "compact", l: "8/28" },
+                                    { k: "full", l: "Thursday, Aug 28" },
+                                    { k: "iso", l: "2026-08-28" }
+                                ]
+                                delegate: DisplayChip {
+                                    required property var modelData
+                                    label: modelData.l
+                                    selected: SettingsBus.get("bar.clock.dateFormat", "short") === modelData.k
+                                    onClicked: SettingsBus.set("bar.clock.dateFormat", modelData.k)
+                                }
+                            }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "code"
+                        title: "Monospace Typography"
+                        description: "Use fixed-width numerals to prevent pill jitter during second ticks."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.clock.fontMono", true)
+                            onToggled: function(c) { SettingsBus.set("bar.clock.fontMono", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "format_bold"
+                        title: "Bold Numerals"
+                        description: "Emphasize clock text with heavier font weight."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.clock.bold", false)
+                            onToggled: function(c) { SettingsBus.set("bar.clock.bold", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "schedule"
+                        title: "Show Clock Icon"
+                        description: "Prepend a clock glyph inside the pill."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.clock.showIcon", false)
+                            onToggled: function(c) { SettingsBus.set("bar.clock.showIcon", c) }
+                        }
+                    }
+                }
+
+                // ── 3. Launcher Trigger Settings ──────────────────────────────
+                ColumnLayout {
+                    visible: root.selectedBarWidget === "launcher"
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    MujoSettingRow {
+                        iconName: "category"
+                        title: "Launcher Icon Style"
+                        description: "Visual emblem used for the main menu and launcher trigger button."
+                        RowLayout {
+                            spacing: 6
+                            Repeater {
+                                model: [
+                                    { k: "search", l: "Search Glass" },
+                                    { k: "mujo", l: "Mujō Logo" },
+                                    { k: "apps", l: "App Grid" },
+                                    { k: "menu", l: "Hamburger" },
+                                    { k: "dots", l: "Dots" }
+                                ]
+                                delegate: DisplayChip {
+                                    required property var modelData
+                                    label: modelData.l
+                                    selected: SettingsBus.get("bar.launcher.icon", "search") === modelData.k
+                                    onClicked: SettingsBus.set("bar.launcher.icon", modelData.k)
+                                }
+                            }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "label"
+                        title: "Show Text Label"
+                        description: "Display an explicit text label next to the launcher icon."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.launcher.showLabel", false)
+                            onToggled: function(c) { SettingsBus.set("bar.launcher.showLabel", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        visible: SettingsBus.get("bar.launcher.showLabel", false)
+                        iconName: "edit"
+                        title: "Label Text"
+                        description: "Text shown inside launcher pill."
+                        RowLayout {
+                            spacing: 6
+                            Repeater {
+                                model: ["Apps", "Menu", "Mujō", "Search", "Start"]
+                                delegate: DisplayChip {
+                                    required property var modelData
+                                    label: modelData
+                                    selected: SettingsBus.get("bar.launcher.label", "Apps") === modelData
+                                    onClicked: SettingsBus.set("bar.launcher.label", modelData)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── 4. Active Window Pill Settings ────────────────────────────
+                ColumnLayout {
+                    visible: root.selectedBarWidget === "activeWindow"
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    MujoSettingRow {
+                        iconName: "image"
+                        title: "Show Application Icon"
+                        description: "Render high-DPI desktop app icon in active window pill."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.activeWindow.showIcon", true)
+                            onToggled: function(c) { SettingsBus.set("bar.activeWindow.showIcon", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "title"
+                        title: "Show Window Title"
+                        description: "Render active window title string."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.activeWindow.showTitle", true)
+                            onToggled: function(c) { SettingsBus.set("bar.activeWindow.showTitle", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "view_headline"
+                        title: "Maximum Title Width"
+                        description: "Title elision threshold to preserve bar layout space."
+                        RowLayout {
+                            spacing: 12
+                            Slider {
+                                Layout.preferredWidth: 160
+                                from: 100; to: 360
+                                value: SettingsBus.get("bar.activeWindow.maxWidth", 190)
+                                valueText: Math.round(SettingsBus.get("bar.activeWindow.maxWidth", 190)) + "px"
+                                onMoved: function (v) { SettingsBus.set("bar.activeWindow.maxWidth", Math.round(v)) }
+                            }
+                            Text {
+                                Layout.preferredWidth: 42
+                                horizontalAlignment: Text.AlignRight
+                                text: Math.round(SettingsBus.get("bar.activeWindow.maxWidth", 190)) + "px"
+                                color: Theme.text
+                                font.family: Theme.fontMono
+                                font.pixelSize: Theme.fontSizeSmall
+                            }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "style"
+                        title: "Pill Visual Mode"
+                        description: "Pill surface styling."
+                        RowLayout {
+                            spacing: 6
+                            Repeater {
+                                model: [
+                                    { k: "pill", l: "Standard Pill" },
+                                    { k: "badge", l: "Accent Badge" }
+                                ]
+                                delegate: DisplayChip {
+                                    required property var modelData
+                                    label: modelData.l
+                                    selected: SettingsBus.get("bar.activeWindow.style", "pill") === modelData.k
+                                    onClicked: SettingsBus.set("bar.activeWindow.style", modelData.k)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── 5. Volume Settings ────────────────────────────────────────
+                ColumnLayout {
+                    visible: root.selectedBarWidget === "volume"
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    MujoSettingRow {
+                        iconName: "percent"
+                        title: "Show Volume Percentage"
+                        description: "Display numerical audio volume percentage directly in the bar pill."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.volume.showPercent", false)
+                            onToggled: function(c) { SettingsBus.set("bar.volume.showPercent", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "swap_vert"
+                        title: "Volume Scroll Step"
+                        description: "Percentage volume change per scroll tick over the pill."
+                        RowLayout {
+                            spacing: 6
+                            Repeater {
+                                model: [
+                                    { k: 1, l: "1%" },
+                                    { k: 2, l: "2%" },
+                                    { k: 5, l: "5%" },
+                                    { k: 10, l: "10%" }
+                                ]
+                                delegate: DisplayChip {
+                                    required property var modelData
+                                    label: modelData.l
+                                    selected: SettingsBus.get("bar.volume.step", 5) === modelData.k
+                                    onClicked: SettingsBus.set("bar.volume.step", modelData.k)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── 6. Battery Settings ───────────────────────────────────────
+                ColumnLayout {
+                    visible: root.selectedBarWidget === "battery"
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    MujoSettingRow {
+                        iconName: "battery_charging_full"
+                        title: "Battery Percentage Mode"
+                        description: "When to display battery percentage numeral in the bar pill."
+                        RowLayout {
+                            spacing: 6
+                            Repeater {
+                                model: [
+                                    { k: "always", l: "Always" },
+                                    { k: "charging", l: "Charging" },
+                                    { k: "low", l: "When Low" },
+                                    { k: "never", l: "Never" }
+                                ]
+                                delegate: DisplayChip {
+                                    required property var modelData
+                                    label: modelData.l
+                                    selected: SettingsBus.get("bar.battery.showPercent", "charging") === modelData.k
+                                    onClicked: SettingsBus.set("bar.battery.showPercent", modelData.k)
+                                }
+                            }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "battery_alert"
+                        title: "Low Battery Warning Threshold"
+                        description: "Battery level triggering amber warning state and low alert."
+                        RowLayout {
+                            spacing: 6
+                            Repeater {
+                                model: [
+                                    { k: 10, l: "10%" },
+                                    { k: 15, l: "15%" },
+                                    { k: 20, l: "20%" },
+                                    { k: 25, l: "25%" },
+                                    { k: 30, l: "30%" }
+                                ]
+                                delegate: DisplayChip {
+                                    required property var modelData
+                                    label: modelData.l
+                                    selected: SettingsBus.get("bar.battery.lowThreshold", 20) === modelData.k
+                                    onClicked: SettingsBus.set("bar.battery.lowThreshold", modelData.k)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── 7. Network & Bluetooth Settings ───────────────────────────
+                ColumnLayout {
+                    visible: root.selectedBarWidget === "connectivity"
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    MujoSettingRow {
+                        iconName: "wifi"
+                        title: "Show Wi-Fi Network Name (SSID)"
+                        description: "Display current Wi-Fi network name directly in the bar pill."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.network.showSsid", false)
+                            onToggled: function(c) { SettingsBus.set("bar.network.showSsid", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "bluetooth"
+                        title: "Show Connected Bluetooth Device"
+                        description: "Display name of primary connected Bluetooth device in the bar pill."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.bluetooth.showDevice", false)
+                            onToggled: function(c) { SettingsBus.set("bar.bluetooth.showDevice", c) }
+                        }
+                    }
+                }
+
+                // ── 8. Notifications & AI LLM Settings ────────────────────────
+                ColumnLayout {
+                    visible: root.selectedBarWidget === "notifications"
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    MujoSettingRow {
+                        iconName: "mark_chat_unread"
+                        title: "Show Unread Notification Count Badge"
+                        description: "Display living accent badge with unread notification tally over the bell."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.notifications.showCount", true)
+                            onToggled: function(c) { SettingsBus.set("bar.notifications.showCount", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "neurology"
+                        title: "Show AI Daily Token Count in Bar"
+                        description: "Display daily token count next to AI assistant icon in the bar."
+                        ToggleSwitch {
+                            checked: SettingsBus.get("bar.llm.showTokens", false)
+                            onToggled: function(c) { SettingsBus.set("bar.llm.showTokens", c) }
+                        }
+                    }
+
+                    MujoSettingRow {
+                        iconName: "power_settings_new"
+                        title: "Session Button Icon"
+                        description: "Icon glyph used for power and session trigger."
+                        RowLayout {
+                            spacing: 6
+                            Repeater {
+                                model: [
+                                    { k: "power", l: "Power" },
+                                    { k: "user", l: "User" },
+                                    { k: "logo", l: "Fingerprint" }
+                                ]
+                                delegate: DisplayChip {
+                                    required property var modelData
+                                    label: modelData.l
+                                    selected: SettingsBus.get("bar.session.iconStyle", "power") === modelData.k
+                                    onClicked: SettingsBus.set("bar.session.iconStyle", modelData.k)
+                                }
                             }
                         }
                     }

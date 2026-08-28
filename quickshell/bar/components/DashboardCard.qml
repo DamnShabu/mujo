@@ -23,6 +23,13 @@ Rectangle {
     property bool hideable: true
     signal hideRequested()
 
+    // Declared intent to be on screen, for cards that hide themselves (Battery
+    // on a desktop). A container cannot read `visible` for this: an item
+    // reports its parent's effective visibility, so a parent that keys its own
+    // visibility off it would latch off and never recover.
+    property bool shown: true
+
+
     property alias badge: badgeHolder.data
     property alias actions: actionHolder.data
     default property alias content: contentHolder.data
@@ -30,6 +37,7 @@ Rectangle {
     readonly property bool showBody: expanded && !disabled
 
     Layout.fillWidth: true
+    visible: card.shown
     radius: Theme.radiusLg
     color: Theme.surface
     border.color: (hh.hovered || card.activeFocus) ? Theme.borderStrong : Theme.border

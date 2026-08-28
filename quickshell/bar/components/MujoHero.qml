@@ -2,8 +2,8 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 
-// MujoHero: Atmospheric, signature panel hero banner for Mujo (無常).
-// Blends layered glassmorphism, living page-specific vector & canvas artwork, and clean typography.
+// MujoHero: Sleek, high-readability section header for settings panels.
+// Provides clean typography, brand iconography, category metadata, and an action slot.
 Rectangle {
     id: root
 
@@ -13,14 +13,14 @@ Rectangle {
     property string badgeText: ""
     property color badgeColor: Theme.accent
     property bool isNixos: false
-    property bool showFlow: true
+    property bool showFlow: false
     property string kanji: ""
     property bool activeState: false
     property real stateValue: 0.0
     default property alias actions: actionsHolder.children
 
     Layout.fillWidth: true
-    implicitHeight: Math.max(92, contentRow.implicitHeight + 28)
+    implicitHeight: Math.max(56, contentRow.implicitHeight + 20)
     radius: Theme.radiusLg
     color: Theme.surface
     border.color: Theme.border
@@ -32,58 +32,43 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: parent.top
         height: 1
-        color: Theme.withAlpha("#ffffff", 0.05)
-    }
-
-    // Page-specific vector & canvas artwork backdrop
-    MujoPageHeroArt {
-        id: heroArt
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        width: Math.min(420, parent.width * 0.52)
-        visible: root.showFlow
-        opacity: 0.16
-        brand: root.brand
-        accentColor: root.badgeColor
-        isNixos: root.isNixos
-        activeState: root.activeState
-        stateValue: root.stateValue
-        flowSpeed: 0.6
-        intensity: 0.7
+        color: Theme.withAlpha("#ffffff", 0.04)
     }
 
     RowLayout {
         id: contentRow
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 16
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        anchors.topMargin: 10
+        anchors.bottomMargin: 10
+        spacing: 14
 
-        // Brand Icon with radiant aura
+        // Brand Icon Container
         Item {
-            implicitWidth: 48
-            implicitHeight: 48
+            implicitWidth: 36
+            implicitHeight: 36
             Layout.alignment: Qt.AlignVCenter
 
             Rectangle {
                 anchors.fill: parent
                 radius: Theme.radiusMd
-                color: Theme.withAlpha(root.badgeColor, 0.14)
-                border.color: Theme.withAlpha(root.badgeColor, 0.30)
+                color: Theme.withAlpha(root.badgeColor, 0.12)
+                border.color: Theme.withAlpha(root.badgeColor, 0.25)
                 border.width: 1
 
                 BrandIcon {
                     anchors.centerIn: parent
                     brand: root.brand
-                    size: 32
+                    size: 22
                 }
             }
         }
 
-        // Title + Subtitle + Kanji mark + Badges
+        // Title + Subtitle + Badges
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 4
+            spacing: 2
             Layout.alignment: Qt.AlignVCenter
 
             RowLayout {
@@ -93,38 +78,18 @@ Rectangle {
                     text: root.title
                     color: Theme.text
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeTitle + 5
+                    font.pixelSize: Theme.fontSizeHeading
                     font.bold: true
-                }
-
-                // Optional Kanji Mark Stamp
-                Rectangle {
-                    visible: root.kanji !== ""
-                    implicitWidth: kjTxt.implicitWidth + 8
-                    implicitHeight: 18
-                    radius: Theme.radiusSm
-                    color: Theme.withAlpha(root.badgeColor, 0.12)
-                    border.color: Theme.withAlpha(root.badgeColor, 0.35)
-
-                    Text {
-                        id: kjTxt
-                        anchors.centerIn: parent
-                        text: root.kanji
-                        color: root.badgeColor
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeLabel - 1
-                        font.bold: true
-                    }
                 }
 
                 // NixOS configuration badge
                 Rectangle {
                     visible: root.isNixos
-                    implicitWidth: nixTxt.implicitWidth + 12
+                    implicitWidth: nixTxt.implicitWidth + 10
                     implicitHeight: 18
                     radius: Theme.radiusSm
-                    color: Theme.withAlpha(Theme.accent, 0.16)
-                    border.color: Theme.accent
+                    color: Theme.withAlpha(Theme.accent, 0.14)
+                    border.color: Theme.withAlpha(Theme.accent, 0.4)
 
                     Text {
                         id: nixTxt
@@ -140,11 +105,11 @@ Rectangle {
                 // Custom badge (e.g. LIVE, STATUS, MODIFIED)
                 Rectangle {
                     visible: root.badgeText !== "" && !root.isNixos
-                    implicitWidth: bgTxt.implicitWidth + 12
+                    implicitWidth: bgTxt.implicitWidth + 10
                     implicitHeight: 18
                     radius: Theme.radiusSm
-                    color: Theme.withAlpha(root.badgeColor, 0.16)
-                    border.color: root.badgeColor
+                    color: Theme.withAlpha(root.badgeColor, 0.14)
+                    border.color: Theme.withAlpha(root.badgeColor, 0.4)
 
                     Text {
                         id: bgTxt
@@ -163,7 +128,7 @@ Rectangle {
                 text: root.subtitle
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSmall + 1
+                font.pixelSize: Theme.fontSizeSmall
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }

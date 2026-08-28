@@ -1,17 +1,16 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 import "../../theme"
 import "../../components"
 import "../../services"
 
-// Stacked toasts (WP-04). One transparent, click-through layer-shell overlay per
-// screen (instantiated in shell.qml); input is masked to the toast column so the
-// rest of the screen passes clicks through to apps below. Renders
-// Notifications.popups at the configured corner; each toast auto-dismisses on its
-// timeout (paused while hovered), animates in via Anim, and offers close +
-// actions. Supports swipe dismissal, rich media, progress bars, and inline reply.
+// Stacked notification toasts (WP-04). One transparent layer-shell overlay per
+// screen (instantiated in shell.qml). Input is masked to the toast column during idle,
+// and dynamically expands during swipe-to-dismiss gestures so dragging across
+// the screen never loses pointer capture.
 PanelWindow {
     id: win
     required property var modelData     // screen (from Variants)
@@ -26,10 +25,23 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
 
     anchors { top: true; bottom: true; left: true; right: true }
-    mask: Region { item: toastCol }     // only the toasts capture input
 
     readonly property bool atBottom: Notifications.corner.indexOf("bottom") === 0
     readonly property bool atRight: Notifications.corner.indexOf("right") >= 0
+
+    // Set when any toast card is actively being dragged
+    property bool anyDragging: false
+
+    // Input mask: tight to toastCol when idle; full interactive lane across screen when dragging
+    mask: Region { item: win.anyDragging ? dragLane : toastCol }
+
+    Item {
+        id: dragLane
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: toastCol.top
+        anchors.bottom: toastCol.bottom
+    }
 
     Column {
         id: toastCol
@@ -45,6 +57,7 @@ PanelWindow {
         anchors.bottomMargin: win.atBottom ? 14 : 0
 
         Repeater {
+            id: toastRepeater
             model: Notifications.popups
 
             delegate: Item {
@@ -55,14 +68,28 @@ PanelWindow {
                 height: toastCard.height
 
                 // Swipe-to-dismiss displacement
-                property real dragOffset: 0
+                property real dragX: 0
+                property bool isDragging: false
                 property bool swipedOut: false
+
+                onIsDraggingChanged: {
+                    var dragging = false
+                    for (var i = 0; i < toastRepeater.count; i++) {
+                        var it = toastRepeater.itemAt(i)
+                        if (it && it.isDragging) {
+                            dragging = true
+                            break
+                        }
+                    }
+                    win.anyDragging = dragging
+                }
 
                 // Entrance animation
                 Component.onCompleted: {
                     if (delegateRoot.rec.id === Notifications.lastPushedId)
                         enterAnim.start()
                 }
+
                 ParallelAnimation {
                     id: enterAnim
                     NumberAnimation {
@@ -73,32 +100,67 @@ PanelWindow {
                         easing.type: Anim.easeEnter
                     }
                     NumberAnimation {
-                        target: toastCard
-                        property: "x"
-                        from: win.atRight ? 50 : -50; to: 0
+                        target: delegateRoot
+                        property: "dragX"
+                        from: win.atRight ? 80 : -80; to: 0
                         duration: Anim.d(Anim.enter)
                         easing.type: Anim.easeEnter
                     }
                 }
 
-                // Dismiss animation when swiped out
+                // Dismiss animation when swiped out or expired
                 ParallelAnimation {
                     id: dismissAnim
+                    property real targetX: 0
+                    NumberAnimation {
+                        target: delegateRoot
+                        property: "dragX"
+                        to: dismissAnim.targetX
+                        duration: Anim.d(Anim.fast)
+                        easing.type: Easing.OutQuad
+                    }
                     NumberAnimation {
                         target: toastCard
                         property: "opacity"
                         to: 0
-                        duration: Anim.d(Anim.exit)
-                        easing.type: Anim.easeExit
-                    }
-                    NumberAnimation {
-                        target: toastCard
-                        property: "x"
-                        to: delegateRoot.dragOffset > 0 ? toastCol.width : -toastCol.width
-                        duration: Anim.d(Anim.exit)
-                        easing.type: Anim.easeExit
+                        duration: Anim.d(Anim.fast)
+                        easing.type: Easing.OutQuad
                     }
                     onFinished: Notifications.dismissPopup(delegateRoot.rec.id)
+                }
+
+                // Return spring animation when released below threshold
+                NumberAnimation {
+                    id: returnAnim
+                    target: delegateRoot
+                    property: "dragX"
+                    to: 0
+                    duration: Anim.d(Anim.standard)
+                    easing.type: Anim.easeStandard
+                }
+
+                // MultiEffect elevation drop shadow
+                Rectangle {
+                    id: shadowSrc
+                    anchors.fill: toastCard
+                    radius: toastCard.radius
+                    color: "#000000"
+                    visible: false
+                    layer.enabled: true
+                }
+
+                MultiEffect {
+                    anchors.fill: shadowSrc
+                    source: shadowSrc
+                    autoPaddingEnabled: true
+                    shadowEnabled: true
+                    shadowColor: "#000000"
+                    shadowBlur: 0.7
+                    shadowVerticalOffset: 4
+                    shadowOpacity: 0.5
+                    opacity: toastCard.opacity
+                    x: toastCard.x
+                    rotation: toastCard.rotation
                 }
 
                 Rectangle {
@@ -107,52 +169,28 @@ PanelWindow {
                     height: cardLayout.implicitHeight + 24
                     radius: Theme.radiusLg
                     color: Theme.bg
-                    x: delegateRoot.dragOffset
-                    opacity: delegateRoot.swipedOut ? 0.0 : Math.max(0.2, 1.0 - Math.abs(delegateRoot.dragOffset) / 250)
+                    x: delegateRoot.dragX
+                    rotation: (delegateRoot.dragX / toastCol.width) * 3
+                    opacity: delegateRoot.swipedOut ? 0.0 : Math.max(0.15, 1.0 - Math.abs(delegateRoot.dragX) / 260)
 
                     border.color: delegateRoot.rec.urgency === "critical"
                                 ? Theme.error
                                 : (toastHover.hovered ? Theme.borderStrong : Theme.border)
                     border.width: delegateRoot.rec.urgency === "critical" ? 1.5 : 1
 
-                    DragHandler {
-                        id: swipeHandler
-                        target: null
-                        xAxis.enabled: true
-                        yAxis.enabled: false
-                        onActiveChanged: {
-                            if (!active) {
-                                if (Math.abs(delegateRoot.dragOffset) > 85) {
-                                    delegateRoot.swipedOut = true
-                                    dismissAnim.start()
-                                } else {
-                                    delegateRoot.dragOffset = 0
-                                }
-                            }
-                        }
-                        onTranslationChanged: {
-                            if (active) {
-                                delegateRoot.dragOffset = translation.x
-                            }
-                        }
-                    }
-
                     Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                    Behavior on x {
-                        enabled: !swipeHandler.active && !delegateRoot.swipedOut
-                        NumberAnimation { duration: Anim.d(Anim.standard); easing.type: Anim.easeStandard }
-                    }
 
                     // Specular highlight line
                     Rectangle {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
+                        anchors.margins: 1
                         height: 1
                         radius: Theme.radiusLg
                         color: delegateRoot.rec.urgency === "critical"
                              ? Theme.withAlpha(Theme.error, 0.4)
-                             : Theme.withAlpha("#ffffff", 0.06)
+                             : Theme.withAlpha("#ffffff", 0.08)
                     }
 
                     // Critical urgency pulse glow
@@ -165,33 +203,54 @@ PanelWindow {
                         visible: delegateRoot.rec.urgency === "critical" && Anim.ambient
                     }
 
-                    // Auto-dismiss; critical (expire<0) is sticky. Ticks down a
-                    // remaining budget rather than gating a one-shot Timer on
-                    // `running`: a Qt Timer restarts from zero when running goes
-                    // true again, so hovering used to hand the toast a whole
-                    // fresh timeout instead of pausing it.
+                    // Swipe gesture handler
+                    DragHandler {
+                        id: swipeHandler
+                        target: null
+                        xAxis.enabled: true
+                        yAxis.enabled: false
+                        grabPermissions: PointerHandler.CanTakeOverFromAnything
+
+                        onActiveChanged: {
+                            delegateRoot.isDragging = active
+                            if (!active) {
+                                if (Math.abs(delegateRoot.dragX) > 85) {
+                                    delegateRoot.swipedOut = true
+                                    dismissAnim.targetX = delegateRoot.dragX > 0 ? (toastCol.width + 120) : -(toastCol.width + 120)
+                                    dismissAnim.start()
+                                } else {
+                                    returnAnim.start()
+                                }
+                            } else {
+                                returnAnim.stop()
+                            }
+                        }
+                        onTranslationChanged: {
+                            if (active) {
+                                delegateRoot.dragX = translation.x
+                            }
+                        }
+                    }
+
+                    // Auto-dismiss Timer
                     Timer {
                         id: expiry
                         property real remaining: Math.max(1, delegateRoot.modelData.expire) * 1000
                         interval: 100
                         repeat: true
-                        running: delegateRoot.modelData.expire > 0
+                        running: delegateRoot.modelData.expire > 0 && !delegateRoot.swipedOut
                         onTriggered: {
-                            if (toastHover.hovered || swipeHandler.active) return
+                            if (toastHover.hovered || delegateRoot.isDragging) return
                             expiry.remaining -= expiry.interval
-                            if (expiry.remaining <= 0) Notifications.dismissPopup(delegateRoot.rec.id)
+                            if (expiry.remaining <= 0) {
+                                running = false
+                                delegateRoot.swipedOut = true
+                                dismissAnim.targetX = win.atRight ? (toastCol.width + 120) : -(toastCol.width + 120)
+                                dismissAnim.start()
+                            }
                         }
                     }
                     HoverHandler { id: toastHover }
-
-                    // ReleaseWithinBounds takes an exclusive grab. With the
-                    // default DragThreshold policy this handler also fired for
-                    // every control nested inside the card — closing a toast
-                    // invoked the notification's default action as well.
-                    TapHandler {
-                        gesturePolicy: TapHandler.ReleaseWithinBounds
-                        onTapped: Notifications.invokeDefault(delegateRoot.rec.id)
-                    }
 
                     ColumnLayout {
                         id: cardLayout
@@ -210,8 +269,8 @@ PanelWindow {
 
                             // App Icon
                             Item {
-                                implicitWidth: 20
-                                implicitHeight: 20
+                                implicitWidth: 22
+                                implicitHeight: 22
                                 Layout.alignment: Qt.AlignVCenter
 
                                 readonly property string iconSrc: Notifications.resolveIcon(delegateRoot.rec)
@@ -222,9 +281,10 @@ PanelWindow {
                                     anchors.fill: parent
                                     source: parent.iconSrc
                                     fillMode: Image.PreserveAspectFit
-                                    sourceSize.width: 40
-                                    sourceSize.height: 40
+                                    sourceSize.width: 44
+                                    sourceSize.height: 44
                                     smooth: true
+                                    asynchronous: true
                                     visible: parent.iconSrc !== "" && status === Image.Ready
                                 }
 
@@ -260,14 +320,14 @@ PanelWindow {
                                 font.bold: true
                                 Layout.alignment: Qt.AlignVCenter
                                 elide: Text.ElideRight
-                                Layout.maximumWidth: 160
+                                Layout.maximumWidth: 150
                             }
 
                             // Critical Badge
                             Rectangle {
                                 visible: delegateRoot.rec.urgency === "critical"
                                 implicitWidth: critLabel.implicitWidth + 8
-                                implicitHeight: 16
+                                implicitHeight: 18
                                 radius: Theme.radiusSm
                                 color: Theme.withAlpha(Theme.error, 0.18)
                                 border.color: Theme.error
@@ -295,11 +355,21 @@ PanelWindow {
                             }
 
                             // Snooze Button
-                            MaterialIcon {
-                                iconName: "schedule"
-                                pixelSize: 15
-                                color: snzHh.hovered ? Theme.accent : Theme.textDim
+                            Rectangle {
+                                implicitWidth: 24
+                                implicitHeight: 24
+                                radius: Theme.radiusSm
+                                color: snzHh.hovered ? Theme.surfaceHover : "transparent"
+                                border.color: snzHh.hovered ? Theme.borderStrong : "transparent"
+                                border.width: 1
                                 Layout.alignment: Qt.AlignVCenter
+
+                                MaterialIcon {
+                                    anchors.centerIn: parent
+                                    iconName: "schedule"
+                                    pixelSize: 14
+                                    color: snzHh.hovered ? Theme.accent : Theme.textDim
+                                }
                                 HoverHandler { id: snzHh; cursorShape: Qt.PointingHandCursor }
                                 TapHandler {
                                     gesturePolicy: TapHandler.ReleaseWithinBounds
@@ -308,11 +378,21 @@ PanelWindow {
                             }
 
                             // Close Button
-                            MaterialIcon {
-                                iconName: "close"
-                                pixelSize: 15
-                                color: clsHh.hovered ? Theme.text : Theme.textDim
+                            Rectangle {
+                                implicitWidth: 24
+                                implicitHeight: 24
+                                radius: Theme.radiusSm
+                                color: clsHh.hovered ? Theme.withAlpha(Theme.error, 0.18) : "transparent"
+                                border.color: clsHh.hovered ? Theme.withAlpha(Theme.error, 0.4) : "transparent"
+                                border.width: 1
                                 Layout.alignment: Qt.AlignVCenter
+
+                                MaterialIcon {
+                                    anchors.centerIn: parent
+                                    iconName: "close"
+                                    pixelSize: 14
+                                    color: clsHh.hovered ? Theme.error : Theme.textDim
+                                }
                                 HoverHandler { id: clsHh; cursorShape: Qt.PointingHandCursor }
                                 TapHandler {
                                     gesturePolicy: TapHandler.ReleaseWithinBounds
@@ -330,7 +410,7 @@ PanelWindow {
                                 id: textContentCol
                                 anchors.left: parent.left
                                 anchors.right: parent.right
-                                spacing: 3
+                                spacing: 4
 
                                 Text {
                                     Layout.fillWidth: true
@@ -361,6 +441,7 @@ PanelWindow {
                                 }
                             }
 
+                            HoverHandler { id: textHover; cursorShape: Qt.PointingHandCursor }
                             TapHandler {
                                 gesturePolicy: TapHandler.ReleaseWithinBounds
                                 onTapped: Notifications.invokeDefault(delegateRoot.rec.id)
@@ -371,24 +452,40 @@ PanelWindow {
                         Item {
                             id: richImgContainer
                             Layout.fillWidth: true
-                            readonly property bool isPath: delegateRoot.rec.image !== "" &&
-                                (delegateRoot.rec.image.indexOf("/") === 0 || delegateRoot.rec.image.indexOf("file://") === 0)
-                            visible: isPath && richImg.status === Image.Ready
-                            implicitHeight: visible ? Math.min(160, richImg.implicitHeight > 0 ? richImg.implicitHeight : 120) : 0
+                            readonly property string resolvedImg: Notifications.resolveImage(delegateRoot.rec.image)
+                            visible: resolvedImg !== "" && richImg.status !== Image.Error
+                            implicitHeight: visible ? (richImg.status === Image.Ready ? Math.min(160, Math.max(80, richImg.implicitHeight > 0 ? (richImg.implicitHeight * (toastCol.width - 24) / Math.max(1, richImg.implicitWidth)) : 120)) : 110) : 0
+
+                            Behavior on implicitHeight {
+                                NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Easing.OutCubic }
+                            }
 
                             Rectangle {
                                 anchors.fill: parent
                                 radius: Theme.radiusMd
                                 color: Theme.surface
+                                border.color: Theme.border
+                                border.width: 1
                                 clip: true
 
                                 Image {
                                     id: richImg
                                     anchors.fill: parent
-                                    source: delegateRoot.rec.image || ""
+                                    source: richImgContainer.resolvedImg
                                     fillMode: Image.PreserveAspectCrop
                                     smooth: true
+                                    asynchronous: true
+                                    opacity: status === Image.Ready ? 1 : 0
+                                    Behavior on opacity {
+                                        NumberAnimation { duration: Anim.d(Anim.fast) }
+                                    }
                                 }
+                            }
+
+                            HoverHandler { id: imgHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler {
+                                gesturePolicy: TapHandler.ReleaseWithinBounds
+                                onTapped: Notifications.invokeDefault(delegateRoot.rec.id)
                             }
                         }
 
@@ -455,6 +552,7 @@ PanelWindow {
                                 radius: Theme.radiusSm
                                 color: replyBtnHh.hovered ? Theme.accent : Theme.accentDim
                                 border.color: Theme.accent
+                                border.width: 1
                                 Layout.alignment: Qt.AlignVCenter
 
                                 MaterialIcon {
@@ -487,11 +585,15 @@ PanelWindow {
                                 delegate: Rectangle {
                                     id: actBtn
                                     required property var modelData
-                                    implicitWidth: actRow.implicitWidth + 18
+                                    implicitWidth: actRow.implicitWidth + 20
                                     implicitHeight: 28
                                     radius: Theme.radiusSm
-                                    color: actHh.hovered ? Theme.surfaceHover : Theme.surface
+                                    color: actHh.hovered ? (actHh.pressed ? Theme.surfaceActive : Theme.surfaceHover) : Theme.surface
                                     border.color: actHh.hovered ? Theme.borderInteractive : Theme.borderStrong
+                                    border.width: 1
+
+                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                    Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
                                     RowLayout {
                                         id: actRow

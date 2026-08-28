@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import "../../theme"
 import "../../components"
+import "../../services"
 
 // Chromeless photo frame. Lists a folder through `mujo photos <dir>` - QML never
 // calls bare CLIs, only the mujo wrapper has a guaranteed PATH - and either
@@ -15,12 +16,14 @@ BaseWidget {
                                   ? String(wcfg.dir)
                                   : (Quickshell.env("HOME") || "") + "/Pictures"
     // Seconds between images; 0 keeps a single still.
-    readonly property int interval: wcfg.interval !== undefined ? Number(wcfg.interval) : 0
+    readonly property int interval: wcfg.interval !== undefined ? Number(wcfg.interval) : SettingsBus.get("desktop.photo.interval", 0)
+    readonly property string fitMode: wcfg.fitMode !== undefined ? wcfg.fitMode : SettingsBus.get("desktop.photo.fitMode", "crop")
+    readonly property string cardStyle: wcfg.cardStyle !== undefined ? wcfg.cardStyle : "chromeless"
 
     property var files: []
     property int index: 0
 
-    chromeless: true
+    chromeless: cardStyle === "chromeless"
     title: ""
     iconName: ""
     loading: files.length === 0 && error === ""
@@ -59,15 +62,16 @@ BaseWidget {
     // static image, so the extra layer buys nothing.
     Rectangle {
         anchors.fill: parent
+        anchors.margins: root.chromeless ? 0 : 6
         visible: root.files.length > 0
-        radius: Theme.radiusLg
+        radius: root.radius
         color: "transparent"
         clip: true
 
         Image {
             anchors.fill: parent
             source: root.files.length > 0 ? "file://" + root.files[root.index] : ""
-            fillMode: Image.PreserveAspectCrop
+            fillMode: root.fitMode === "fit" ? Image.PreserveAspectFit : Image.PreserveAspectCrop
             asynchronous: true
             cache: false
         }

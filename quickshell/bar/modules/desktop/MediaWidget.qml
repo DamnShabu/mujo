@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell.Services.Mpris
 import "../../theme"
 import "../../components"
+import "../../services"
 
 // Now-playing widget. Picks the active player the same way the island does:
 // prefer whatever is actually playing, else the first player that exists.
@@ -10,6 +11,12 @@ BaseWidget {
     id: root
 
     property var wcfg: ({})
+    readonly property string mediaStyle: wcfg.style !== undefined ? wcfg.style : SettingsBus.get("desktop.media.style", "standard")
+    readonly property bool showControls: wcfg.showControls !== undefined ? !!wcfg.showControls : SettingsBus.get("desktop.media.showControls", true)
+    readonly property bool showArtist: wcfg.showArtist !== undefined ? !!wcfg.showArtist : SettingsBus.get("desktop.media.showArtist", true)
+    readonly property string cardStyle: wcfg.cardStyle !== undefined ? wcfg.cardStyle : "glass"
+
+    chromeless: cardStyle === "chromeless"
 
     readonly property var player: {
         var ps = Mpris.players ? Mpris.players.values : []
@@ -18,7 +25,7 @@ BaseWidget {
         return ps.length > 0 ? ps[0] : null
     }
     readonly property bool playing: player && player.playbackState === MprisPlaybackState.Playing
-    readonly property bool compact: width < 260
+    readonly property bool compact: mediaStyle === "compact" || width < 260
 
     title: ""
     iconName: ""
@@ -36,14 +43,16 @@ BaseWidget {
 
     RowLayout {
         anchors.fill: parent
+        anchors.margins: root.chromeless ? 0 : 8
         spacing: 12
         visible: root.player !== null
 
+        // Album Art / Vinyl Disc
         Rectangle {
             Layout.alignment: Qt.AlignVCenter
             Layout.preferredWidth: Math.max(40, Math.min(96, root.height - 20))
             Layout.preferredHeight: Layout.preferredWidth
-            radius: Theme.radiusMd
+            radius: root.mediaStyle === "vinyl" ? Layout.preferredWidth / 2 : Theme.radiusMd
             color: Theme.surfaceActive
             clip: true
 
@@ -62,6 +71,24 @@ BaseWidget {
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 cache: true
+            }
+
+            // Vinyl center hole
+            Rectangle {
+                visible: root.mediaStyle === "vinyl"
+                anchors.centerIn: parent
+                width: 14; height: 14; radius: 7
+                color: Theme.bg
+                border.color: Theme.border
+            }
+
+            // Spin animation for vinyl mode
+            RotationAnimation on rotation {
+                running: root.mediaStyle === "vinyl" && root.playing
+                loops: Animation.Infinite
+                from: 0
+                to: 360
+                duration: 6000
             }
         }
 
@@ -82,7 +109,7 @@ BaseWidget {
 
             Text {
                 Layout.fillWidth: true
-                visible: !root.compact
+                visible: !root.compact && root.showArtist
                 text: root.player ? (root.player.trackArtist || "") : ""
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily
@@ -91,6 +118,7 @@ BaseWidget {
             }
 
             RowLayout {
+                visible: root.showControls
                 spacing: 6
                 Layout.topMargin: 4
 

@@ -4,7 +4,7 @@
   lib,
   ...
 }: {
-  hardware.cpu.amd.updateMicrocode = true;
+  hardware.cpu.intel.updateMicrocode = true;
 
   services = {
     flatpak.enable = true;
@@ -14,11 +14,13 @@
     power-profiles-daemon.enable = true;
   };
 
-  virtualisation.docker.enable = true;
-
-  # Docker stays installed and fully functional; it just doesn't hold ~157 MB
-  # resident from boot. The socket starts it on first use.
-  virtualisation.docker.enableOnBoot = false;
+  # Daemonless container engine: 0 MB idle memory overhead, rootless by default,
+  # crun + conmon C-based runtime, with transparent `docker` CLI compatibility.
+  virtualisation.podman = {
+    enable = true;
+    dockerCompat = true;
+    defaultNetwork.settings.dns_enabled = true;
+  };
 
   # The journal had grown to 3.6 GB: the default cap is 10% of the filesystem,
   # and /var/log lives on a 3.7 TB volume.
@@ -27,6 +29,20 @@
   # 5.3s of every boot, spent blocking network-online.target for a desktop that
   # has nothing ordered after it.
   systemd.services.NetworkManager-wait-online.enable = false;
+
+  # Monitor user session slices for runaway memory pressure and kill runaway
+  # cgroups before the machine locks up or thrashes swap.
+  systemd.oomd = {
+    enable = true;
+    enableUserSlices = true;
+  };
+
+  systemd.user.slices."app.slice" = {
+    sliceConfig = {
+      ManagedOOMMemoryPressure = "kill";
+      ManagedOOMMemoryPressureLimit = "50%";
+    };
+  };
 
   environment.localBinInPath = true;
 

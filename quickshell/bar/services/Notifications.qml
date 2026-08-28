@@ -76,16 +76,27 @@ QtObject {
     // Resolve system icon path for a notification record
     function resolveIcon(rec) {
         if (!rec) return ""
+        var icon = rec.icon || ""
         // 1. Direct path / URI in icon or image
-        if (rec.icon && (rec.icon.indexOf("/") === 0 || rec.icon.indexOf("file://") === 0))
-            return rec.icon
+        if (icon && (icon.indexOf("/") === 0 || icon.indexOf("file://") === 0 || icon.indexOf("image://") === 0 || icon.indexOf("http://") === 0 || icon.indexOf("https://") === 0))
+            return icon
         // 2. Themed freedesktop icon lookup
-        var candidates = [rec.icon, rec.desktopEntry, (rec.appName || "").toLowerCase(), (rec.appName || "")]
+        var candidates = [icon, rec.desktopEntry, (rec.appName || "").toLowerCase(), (rec.appName || "")]
         for (var i = 0; i < candidates.length; i++) {
             var c = candidates[i]
             if (c && typeof c === "string" && Quickshell.hasThemeIcon(c))
                 return Quickshell.iconPath(c)
         }
+        return ""
+    }
+
+    // Resolve rich banner image path or URI
+    function resolveImage(img) {
+        if (!img || typeof img !== "string" || img === "") return ""
+        if (img.indexOf("/") === 0 || img.indexOf("file://") === 0 || img.indexOf("image://") === 0 || img.indexOf("http://") === 0 || img.indexOf("https://") === 0)
+            return img
+        if (Quickshell.hasThemeIcon(img))
+            return Quickshell.iconPath(img)
         return ""
     }
 
@@ -151,6 +162,8 @@ QtObject {
         var app = n.appName || "Notification"
         var urgencyStr = mgr.urgencyName(n.urgency)
         var acts = mgr._separateActions(n.actions)
+        var imgHint = (n.hints && (n.hints["image-path"] || n.hints["image_path"] || n.hints["image-data"] || n.hints["image_data"])) || ""
+        var iconHint = (n.hints && (n.hints["icon_data"] || n.hints["app-icon"])) || ""
 
         var rec = {
             id: mgr._seq++,
@@ -158,8 +171,8 @@ QtObject {
             appName: app,
             summary: n.summary || "",
             body: n.body || "",
-            image: n.image || "",
-            icon: n.appIcon || "",
+            image: n.image || imgHint,
+            icon: n.appIcon || iconHint,
             desktopEntry: n.desktopEntry || "",
             urgency: urgencyStr,
             time: Date.now(),
@@ -171,9 +184,10 @@ QtObject {
 
         // Connect live property changes on tracked notification
         var updateCallback = function () {
+            var liveImgHint = (n.hints && (n.hints["image-path"] || n.hints["image_path"] || n.hints["image-data"] || n.hints["image_data"])) || ""
             rec.summary = n.summary || ""
             rec.body = n.body || ""
-            rec.image = n.image || ""
+            rec.image = n.image || liveImgHint
             rec.icon = n.appIcon || ""
             rec.progress = mgr._progress(n)
             mgr._updateLiveRecord(rec)

@@ -10,15 +10,14 @@ import "./services"
 import "./modules/settings"
 import "./modules/bar"
 
-// Mujo (無常) Living Control Sanctuary.
-// A redesigned, animated settings experience embodying impermanence, continuous flow, and transformation.
-// Features 5 atmospheric Zen Domains (Sanctuary, Environment, Intelligence, Vessels, Sovereign),
-// generative living canvas waveforms, omni-search command palette, and full live settings fidelity.
+// mujō (無常) — Desktop Settings.
+// Clean, high-readability split-view architecture with fluid animations,
+// categorized sidebar navigation, omni-search, and direct live settings fidelity.
 ShellRoot {
     FloatingWindow {
         id: win
-        title: "mujō — 無常"
-        implicitWidth: 1100
+        title: "mujō — Settings"
+        implicitWidth: 1120
         implicitHeight: 740
         color: Theme.bg
 
@@ -29,149 +28,136 @@ ShellRoot {
             else if (_shown) Qt.quit()
         }
 
-        // ── Zen Domains Architecture ─────────────────────────────────────────
-        readonly property var domains: [
+        // ── Categorized Navigation Architecture ──────────────────────────────
+        readonly property var sections: [
             {
-                id: "sanctuary",
-                label: "Sanctuary",
-                kanji: "透",
-                icon: "dashboard",
-                color: "#38BDF8",
-                defaultSub: "overview",
-                subSections: [
-                    { key: "overview", label: "Overview Pulse", icon: "dashboard", brand: "overview" }
+                category: "SYSTEM",
+                items: [
+                    { key: "overview",     label: "Overview",            icon: "dashboard",           brand: "overview" },
+                    { key: "system",       label: "NixOS & Rebuild",     icon: "terminal",            brand: "system" },
+                    { key: "health",       label: "Health & Sentinel",   icon: "health_and_safety",   brand: "health" },
+                    { key: "general",      label: "General Preferences", icon: "tune",                brand: "general" }
                 ]
             },
             {
-                id: "environment",
-                label: "Environment",
-                kanji: "景",
-                icon: "palette",
-                color: "#E879C7",
-                defaultSub: "appearance",
-                subSections: [
-                    { key: "appearance", label: "Appearance & Theme", icon: "palette", brand: "appearance" },
-                    { key: "animations", label: "Animations & Motion", icon: "motion_photos_on", brand: "animations" },
-                    { key: "wallpaper",  label: "Wallpaper & Parallax", icon: "wallpaper", brand: "wallpaper" },
-                    { key: "desktop",    label: "Desktop & Cava",     icon: "widgets", brand: "desktop" },
-                    { key: "island",     label: "Dynamic Island",     icon: "blur_on", brand: "island" }
+                category: "PERSONALIZATION",
+                items: [
+                    { key: "appearance",   label: "Appearance & Theme",  icon: "palette",             brand: "appearance" },
+                    { key: "animations",   label: "Animations & Motion", icon: "motion_photos_on",    brand: "animations" },
+                    { key: "wallpaper",    label: "Wallpaper & Parallax",icon: "wallpaper",           brand: "wallpaper" },
+                    { key: "desktop",      label: "Desktop & Cava",      icon: "widgets",             brand: "desktop" },
+                    { key: "island",       label: "Dynamic Island",      icon: "blur_on",             brand: "island" }
                 ]
             },
             {
-                id: "intelligence",
-                label: "Intelligence",
-                kanji: "流",
-                icon: "psychology",
-                color: "#8B5CF6",
-                defaultSub: "ai",
-                subSections: [
-                    { key: "ai",            label: "AI & Neural Assistant", icon: "psychology", brand: "ai" },
-                    { key: "notifications", label: "Notifications & Focus", icon: "notifications", brand: "notifications" },
-                    { key: "weather",       label: "Weather & Climate",     icon: "partly_cloudy_day", brand: "weather" }
+                category: "INTELLIGENCE & NETWORK",
+                items: [
+                    { key: "ai",            label: "AI Assistant",        icon: "psychology",          brand: "ai" },
+                    { key: "notifications", label: "Notifications & Focus",icon: "notifications",      brand: "notifications" },
+                    { key: "weather",       label: "Weather & Climate",   icon: "partly_cloudy_day",   brand: "weather" },
+                    { key: "network",       label: "Network & VPN",       icon: "vpn_lock",            brand: "network" }
                 ]
             },
             {
-                id: "vessels",
-                label: "Vessels",
-                kanji: "器",
-                icon: "monitor",
-                color: "#22D3EE",
-                defaultSub: "display",
-                subSections: [
-                    { key: "display", label: "Displays & Power",    icon: "monitor", brand: "display" },
-                    { key: "devices", label: "Keyboard & Pointer",  icon: "keyboard", brand: "devices" }
+                category: "HARDWARE",
+                items: [
+                    { key: "display",      label: "Displays & Power",    icon: "monitor",             brand: "display" },
+                    { key: "devices",      label: "Keyboard & Pointer",  icon: "keyboard",            brand: "devices" },
+                    { key: "shortcuts",    label: "Keyboard Shortcuts",  icon: "keyboard_command_key",brand: "shortcuts" },
+                    { key: "vm",           label: "Virtual Machines",    icon: "terminal",            brand: "vm" }
                 ]
             },
             {
-                id: "sovereign",
-                label: "Sovereign",
-                kanji: "核",
-                icon: "terminal",
-                color: "#5277C3",
-                defaultSub: "system",
-                subSections: [
-                    { key: "health",       label: "Health & Care",         icon: "health_and_safety", brand: "health" },
-                    { key: "system",       label: "NixOS & Rebuild",       icon: "terminal", brand: "system" },
-                    { key: "general",      label: "General & Defaults",    icon: "tune", brand: "general" },
-                    { key: "network",      label: "Network & Mullvad VPN", icon: "vpn_lock", brand: "network" },
-                    { key: "keyring",      label: "Keyring Vault",         icon: "key", brand: "keyring" },
-                    { key: "persistence",  label: "Persistence Map",       icon: "hard_drive", brand: "persistence" },
-                    { key: "shortcuts",    label: "Keyboard Matrix",       icon: "keyboard_command_key", brand: "shortcuts" },
-                    { key: "applications", label: "Integrations & Apps",   icon: "apps", brand: "applications" }
+                category: "STORAGE & SECURITY",
+                items: [
+                    { key: "keyring",      label: "Keyring Vault",       icon: "key",                 brand: "keyring" },
+                    { key: "persistence",  label: "Persistence Map",     icon: "hard_drive",          brand: "persistence" },
+                    { key: "applications", label: "Applications",        icon: "apps",                brand: "applications" }
                 ]
             }
         ]
 
-        // ── Active Navigation State ──────────────────────────────────────────
-        property string activeDomainId: "sanctuary"
-        property string currentPanel: "overview"
-
-        readonly property var activeDomain: {
-            for (var d = 0; d < domains.length; d++) {
-                if (domains[d].id === activeDomainId) return domains[d]
+        // Flat lookup list
+        readonly property var allItems: {
+            var list = []
+            for (var s = 0; s < sections.length; s++) {
+                for (var i = 0; i < sections[s].items.length; i++) {
+                    var it = sections[s].items[i]
+                    list.push({
+                        key: it.key,
+                        label: it.label,
+                        icon: it.icon,
+                        brand: it.brand,
+                        category: sections[s].category
+                    })
+                }
             }
-            return domains[0]
+            return list
         }
 
-        function selectDomain(dId) {
-            for (var d = 0; d < domains.length; d++) {
-                if (domains[d].id === dId) {
-                    activeDomainId = dId
-                    var subs = domains[d].subSections
-                    var hasCurrent = false
-                    for (var s = 0; s < subs.length; s++) {
-                        if (subs[s].key === currentPanel) { hasCurrent = true; break }
-                    }
-                    if (!hasCurrent) {
-                        currentPanel = domains[d].defaultSub || subs[0].key
-                    }
+        // Active Navigation State
+        property string currentPanel: "overview"
+
+        readonly property var currentItem: {
+            for (var i = 0; i < allItems.length; i++) {
+                if (allItems[i].key === currentPanel) return allItems[i]
+            }
+            return allItems[0]
+        }
+
+        function selectPanel(panelKey) {
+            for (var i = 0; i < allItems.length; i++) {
+                if (allItems[i].key === panelKey) {
+                    currentPanel = panelKey
                     return
                 }
             }
         }
 
-        function selectPanel(panelKey) {
-            for (var d = 0; d < domains.length; d++) {
-                var subs = domains[d].subSections
-                for (var s = 0; s < subs.length; s++) {
-                    if (subs[s].key === panelKey) {
-                        activeDomainId = domains[d].id
-                        currentPanel = panelKey
-                        return
-                    }
-                }
-            }
-        }
-
-        // ── Search Index (Comprehensive mapping) ─────────────────────────────
+        // ── Omni-Search Index ────────────────────────────────────────────────
         readonly property var searchIndex: [
-            // Sanctuary / Overview
-            { title: "System status overview", desc: "Live vitals, system metrics, hardware telemetry", cat: "Sanctuary", key: "overview" },
-            { title: "Quick controls",      desc: "Live toggles for Wi-Fi, Bluetooth, DND, VPN", cat: "Sanctuary", key: "overview" },
-            { title: "Active media playback",desc: "Currently playing track and MPRIS controls", cat: "Sanctuary", key: "overview" },
+            // System
+            { title: "System status overview", desc: "Live vitals, system metrics, hardware telemetry", cat: "System", key: "overview" },
+            { title: "Quick controls",      desc: "Live toggles for Wi-Fi, Bluetooth, DND, VPN", cat: "System", key: "overview" },
+            { title: "Active media playback",desc: "Currently playing track and MPRIS controls", cat: "System", key: "overview" },
+            { title: "NixOS rebuild switch",desc: "Apply and switch host configuration with pkexec escalation", cat: "System", key: "system" },
+            { title: "Generation history",  desc: "Inspect current and past bootable system generations", cat: "System", key: "system" },
+            { title: "System overrides",    desc: "Local module drop-in overrides and flake inspect", cat: "System", key: "system" },
+            { title: "System health & optimizer", desc: "Live process sentinel, runaway killer, storage cleaner", cat: "System", key: "health" },
+            { title: "Problematic processes", desc: "View and manage runaway tasks, memory hogs, zombies, and terminated processes", cat: "System", key: "health" },
+            { title: "Process sentinel & killer", desc: "Freeze, renice, or terminate runaway CPU/RAM tasks and zombies", cat: "System", key: "health" },
+            { title: "Storage & cache cleaner", desc: "Vacuum journal logs, clean Nix store, purge thumbnails and trash", cat: "System", key: "health" },
+            { title: "General preferences", desc: "Hostname, timezone, locale, store hardlinking", cat: "System", key: "general" },
+            { title: "Default applications",desc: "MIME handlers for browser, editor, terminal, file manager", cat: "System", key: "general" },
+            { title: "Clipboard history",   desc: "Max clipboard clips, sensitive filter, image cache", cat: "System", key: "general" },
 
-            // Environment
-            { title: "Theme preset",        desc: "Catppuccin, Ayu, Dracula, Nord, Gruvbox…", cat: "Environment", key: "appearance" },
-            { title: "Accent color override",desc: "Custom hex or curated palette accent color", cat: "Environment", key: "appearance" },
-            { title: "Animation intensity", desc: "Minimal, Balanced, or Expressive motion profile", cat: "Environment", key: "animations" },
-            { title: "Ambient motion & breathing", desc: "Living background flow, Ensō breathing, particle fields", cat: "Environment", key: "animations" },
-            { title: "Live motion preview", desc: "Interactive canvas showcase demonstrating Mujo physics and spring loops", cat: "Environment", key: "animations" },
-            { title: "Page & domain transitions", desc: "Kinematic spatial transitions when switching between Zen domains", cat: "Environment", key: "animations" },
-            { title: "Reduced motion override", desc: "Accessibility preference eliminating spatial and continuous motion", cat: "Environment", key: "animations" },
-            { title: "Performance mode", desc: "Reduce GPU/rendering load on low-power hardware", cat: "Environment", key: "animations" },
-            { title: "Surface opacity",     desc: "Translucent glass alpha and blur controls", cat: "Environment", key: "appearance" },
-            { title: "Bar layout & modules",desc: "Bar position, height, margin, and right cluster ordering", cat: "Environment", key: "appearance" },
-            { title: "Wallpaper library",   desc: "Apply from local curated wallpaper collection", cat: "Environment", key: "wallpaper" },
-            { title: "Wallhaven browser",   desc: "Search, preview, and download wallpapers online", cat: "Environment", key: "wallpaper" },
-            { title: "Wallpaper Engine browser", desc: "Browse Steam Workshop Wallpaper Engine (431960) and installed live projects", cat: "Environment", key: "wallpaper" },
-            { title: "Wallpaper Engine performance", desc: "Live wallpaper FPS limit, audio automute, and sound volume", cat: "Environment", key: "wallpaper" },
-            { title: "Cursor parallax",     desc: "Dynamic wallpaper pan and depth motion on mouse move", cat: "Environment", key: "wallpaper" },
-            { title: "Desktop widgets",     desc: "Clock, system telemetry, and weather desktop overlays", cat: "Environment", key: "desktop" },
-            { title: "Audio visualizer",    desc: "Cava spectrum visualizer style, color, and responsiveness", cat: "Environment", key: "desktop" },
-            { title: "Shelf drop zone",     desc: "Staging drawer for files and dragging items", cat: "Environment", key: "desktop" },
-            { title: "Dynamic Island",      desc: "Status notch: modules, geometry, animations, and auto-expand", cat: "Environment", key: "island" },
+            // Personalization
+            { title: "Theme preset",        desc: "Crimson, Blood Moon, Catppuccin, Ayu, Dracula, Nord, Gruvbox…", cat: "Personalization", key: "appearance" },
+            { title: "Accent color override",desc: "Custom hex or curated palette accent color", cat: "Personalization", key: "appearance" },
+            { title: "Surface opacity",     desc: "Translucent glass alpha and blur controls", cat: "Personalization", key: "appearance" },
+            { title: "Bar layout & modules",desc: "Bar position, height, margin, and right cluster ordering", cat: "Personalization", key: "appearance" },
+            { title: "Bar widget styles",   desc: "Workspaces numerals, gliders, clock format, volume percent, battery modes", cat: "Personalization", key: "appearance" },
+            { title: "Workspaces glider & numerals", desc: "Morphic glider, roman numerals, dots, window presence dots", cat: "Personalization", key: "appearance" },
+            { title: "Animation intensity", desc: "Minimal, Balanced, or Expressive motion profile", cat: "Personalization", key: "animations" },
+            { title: "Ambient motion & breathing", desc: "Living background flow, breathing, particle fields", cat: "Personalization", key: "animations" },
+            { title: "Live motion preview", desc: "Interactive showcase demonstrating physics and spring curves", cat: "Personalization", key: "animations" },
+            { title: "Page transitions",    desc: "Fluid crossfade and spatial transitions between pages", cat: "Personalization", key: "animations" },
+            { title: "Reduced motion override", desc: "Accessibility preference eliminating spatial and continuous motion", cat: "Personalization", key: "animations" },
+            { title: "Performance mode",    desc: "Reduce GPU/rendering load on low-power hardware", cat: "Personalization", key: "animations" },
+            { title: "Wallpaper library",   desc: "Apply from local curated wallpaper collection", cat: "Personalization", key: "wallpaper" },
+            { title: "Wallhaven browser",   desc: "Search, preview, and download wallpapers online", cat: "Personalization", key: "wallpaper" },
+            { title: "Wallpaper Engine browser", desc: "Browse Steam Workshop Wallpaper Engine (431960) and installed live projects", cat: "Personalization", key: "wallpaper" },
+            { title: "Wallpaper Engine performance", desc: "Live wallpaper FPS limit, audio automute, and sound volume", cat: "Personalization", key: "wallpaper" },
+            { title: "Cursor parallax",     desc: "Dynamic wallpaper pan and depth motion on mouse move", cat: "Personalization", key: "wallpaper" },
+            { title: "Desktop widgets",     desc: "Clock, system telemetry, weather, notes, photo, media desktop overlays", cat: "Personalization", key: "desktop" },
+            { title: "Widget styles & glassmorphism", desc: "Glass opacity, corner radius, drop shadows, border glow", cat: "Personalization", key: "desktop" },
+            { title: "Sticky notes colors", desc: "Slate, yellow, rose, emerald, dark color themes and font sizes", cat: "Personalization", key: "desktop" },
+            { title: "Now playing vinyl style", desc: "Rotating vinyl record player, album art, playback controls", cat: "Personalization", key: "desktop" },
+            { title: "Audio visualizer",    desc: "Cava spectrum visualizer style, color, and responsiveness", cat: "Personalization", key: "desktop" },
+            { title: "Shelf drop zone",     desc: "Staging drawer for files and dragging items", cat: "Personalization", key: "desktop" },
+            { title: "Dynamic Island",      desc: "Status notch: modules, geometry, animations, and auto-expand", cat: "Personalization", key: "island" },
 
-            // Intelligence
+            // Intelligence & Network
             { title: "AI provider & model", desc: "Ollama local, OpenAI, Claude, model name and base URL", cat: "Intelligence", key: "ai" },
             { title: "AI API credentials",  desc: "Keyring token storage and endpoint authentication", cat: "Intelligence", key: "ai" },
             { title: "AI privacy guards",   desc: "Context sharing, crash data opt-in, action confirmation", cat: "Intelligence", key: "ai" },
@@ -179,30 +165,26 @@ ShellRoot {
             { title: "Notification position",desc: "Screen corner gravity and toast timeout", cat: "Intelligence", key: "notifications" },
             { title: "Per-app notification muting", desc: "Selectively mute applications", cat: "Intelligence", key: "notifications" },
             { title: "Weather location",    desc: "City auto-detect, temperature units (°C/°F), refresh rate", cat: "Intelligence", key: "weather" },
+            { title: "Mullvad VPN",         desc: "WireGuard connection, relay location, and boot auto-connect", cat: "Intelligence", key: "network" },
+            { title: "Network interfaces",  desc: "Wi-Fi, Ethernet, IP address, gateway telemetry", cat: "Intelligence", key: "network" },
 
-            // Vessels (Hardware)
-            { title: "Display resolution & Hz", desc: "Resolution, refresh rate, and HiDPI scaling per screen", cat: "Vessels", key: "display" },
-            { title: "Visual monitor layout", desc: "Arrangement, orientation, and primary screen setup", cat: "Vessels", key: "display" },
-            { title: "Idle & power timers", desc: "Dim screen, display turn-off, lock screen, and suspend", cat: "Vessels", key: "display" },
-            { title: "Keyboard repeat & delay", desc: "Key repeat rate and initial delay sensitivity", cat: "Vessels", key: "devices" },
-            { title: "Keyboard layout",     desc: "XKB keymap layout and language variants", cat: "Vessels", key: "devices" },
-            { title: "Pointer & Touchpad",  desc: "Mouse acceleration profile, natural scrolling, tap-to-click", cat: "Vessels", key: "devices" },
+            // Hardware
+            { title: "Display resolution & Hz", desc: "Resolution, refresh rate, and HiDPI scaling per screen", cat: "Hardware", key: "display" },
+            { title: "Visual monitor layout", desc: "Arrangement, orientation, and primary screen setup", cat: "Hardware", key: "display" },
+            { title: "Idle & power timers", desc: "Dim screen, display turn-off, lock screen, and suspend", cat: "Hardware", key: "display" },
+            { title: "Keyboard repeat & delay", desc: "Key repeat rate and initial delay sensitivity", cat: "Hardware", key: "devices" },
+            { title: "Keyboard layout",     desc: "XKB keymap layout and language variants", cat: "Hardware", key: "devices" },
+            { title: "Pointer & Touchpad",  desc: "Mouse acceleration profile, natural scrolling, tap-to-click", cat: "Hardware", key: "devices" },
+            { title: "Keyboard shortcuts",  desc: "Interactive searchable matrix of Niri window bindings", cat: "Hardware", key: "shortcuts" },
+            { title: "Virtual machines & lab", desc: "Launch Windows, Ubuntu, Fedora, Arch in KVM with SPICE visual display", cat: "Hardware", key: "vm" },
+            { title: "Deploy operating system", desc: "One-click download and launch Windows 11, macOS, Alpine, Debian", cat: "Hardware", key: "vm" },
+            { title: "SPICE visual server", desc: "Zero-latency remote-viewer display with shared clipboard and auto-resizing", cat: "Hardware", key: "vm" },
+            { title: "Custom ISO virtual machine", desc: "Create accelerated QEMU virtual machine from local ISO file", cat: "Hardware", key: "vm" },
 
-            // Sovereign (System)
-            { title: "System health & optimizer", desc: "Live process sentinel, runaway killer, storage cleaner, ZRAM compaction", cat: "Sovereign", key: "health" },
-            { title: "Process sentinel & killer", desc: "Freeze, renice, or terminate runaway CPU/RAM tasks and zombies", cat: "Sovereign", key: "health" },
-            { title: "Storage & cache cleaner", desc: "Vacuum journal logs, clean Nix store, purge thumbnails and trash", cat: "Sovereign", key: "health" },
-            { title: "NixOS rebuild switch",desc: "Apply and switch host configuration with pkexec escalation", cat: "Sovereign", key: "system" },
-            { title: "Generation history",  desc: "Inspect current and past bootable system generations", cat: "Sovereign", key: "system" },
-            { title: "System overrides",    desc: "Local module drop-in overrides and flake inspect", cat: "Sovereign", key: "system" },
-            { title: "General preferences", desc: "Hostname, timezone, locale, store hardlinking", cat: "Sovereign", key: "general" },
-            { title: "Default applications",desc: "MIME handlers for browser, editor, terminal, file manager", cat: "Sovereign", key: "general" },
-            { title: "Clipboard history",   desc: "Max clipboard clips, sensitive filter, image cache", cat: "Sovereign", key: "general" },
-            { title: "Mullvad VPN",         desc: "WireGuard connection, relay location, and boot auto-connect", cat: "Sovereign", key: "network" },
-            { title: "Keyring vault",       desc: "Secure credentials, secret specs, and reveal tokens", cat: "Sovereign", key: "keyring" },
-            { title: "Impermanence storage",desc: "Persistent directories and files surviving btrfs boot wipe", cat: "Sovereign", key: "persistence" },
-            { title: "Keyboard shortcuts",  desc: "Interactive searchable matrix of Niri window bindings", cat: "Sovereign", key: "shortcuts" },
-            { title: "Integrations & Apps", desc: "Discord, Obsidian, Claude, Steam, Flatpaks, sandboxing", cat: "Sovereign", key: "applications" }
+            // Storage & Security
+            { title: "Keyring vault",       desc: "Secure credentials, secret specs, and reveal tokens", cat: "Security", key: "keyring" },
+            { title: "Impermanence storage",desc: "Persistent directories and files surviving btrfs boot wipe", cat: "Security", key: "persistence" },
+            { title: "Integrations & Apps", desc: "Discord, Obsidian, Claude, Steam, Flatpaks, sandboxing", cat: "Security", key: "applications" }
         ]
 
         property string query: ""
@@ -256,6 +238,7 @@ ShellRoot {
         Component { id: shortcutsComp;     ShortcutsPanel {} }
         Component { id: healthComp;        HealthPanel {} }
         Component { id: systemComp;        SystemPanel {} }
+        Component { id: vmComp;            VmPanel {} }
         Component { id: applicationsComp;  ApplicationsPanel {} }
 
         function componentFor(key) {
@@ -277,6 +260,7 @@ ShellRoot {
                  : key === "shortcuts"    ? shortcutsComp
                  : key === "health"       ? healthComp
                  : key === "system"       ? systemComp
+                 : key === "vm"           ? vmComp
                  : applicationsComp
         }
 
@@ -294,61 +278,347 @@ ShellRoot {
             function onNavigate(key) { win.selectPanel(key) }
         }
 
-        // ── Main UI Layout ───────────────────────────────────────────────────
-        Item {
-            id: mainContainer
+        // ── Main UI Split-View Layout ────────────────────────────────────────
+        RowLayout {
             anchors.fill: parent
+            spacing: 0
 
-            // Ambient background glow from living canvas
-            MujoLivingCanvas {
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.rightMargin: -60
-                anchors.topMargin: -40
-                width: 480
-                height: 300
-                opacity: 0.08
-                accentColor: win.activeDomain.color || Theme.accent
-                flowSpeed: 0.4
-                showEnso: true
-                showWaves: true
-                showParticles: false
-            }
+            // ═════════════════════════════════════════════════════════════════
+            // LEFT SIDEBAR (260px)
+            // ═════════════════════════════════════════════════════════════════
+            Rectangle {
+                Layout.preferredWidth: 260
+                Layout.fillHeight: true
+                color: Theme.surface
+                border.color: "transparent"
 
-            ColumnLayout {
-                anchors.fill: parent
-                spacing: 0
-
-                // ── 1. Top Zen Header: Brand · Kanji Seal · Omni-Search · Status ─────
+                // Subtle right divider line
                 Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 64
-                    color: Theme.surface
-                    border.color: "transparent"
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: 1
+                    color: Theme.border
+                }
 
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 12
+
+                    // 1. Sidebar Brand Header
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 2
+                        Layout.bottomMargin: 2
+                        spacing: 10
+
+                        BrandIcon {
+                            brand: "mujo"
+                            size: 28
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        Text {
+                            text: "Settings"
+                            color: Theme.text
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeTitle + 3
+                            font.bold: true
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Rectangle {
+                            implicitWidth: mujoBadge.implicitWidth + 8
+                            implicitHeight: 18
+                            radius: Theme.radiusSm
+                            color: Theme.accentDim
+                            border.color: Theme.withAlpha(Theme.accent, 0.35)
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Text {
+                                id: mujoBadge
+                                anchors.centerIn: parent
+                                text: "mujō"
+                                color: Theme.accent
+                                font.family: Theme.fontMono
+                                font.pixelSize: Theme.fontSizeLabel
+                                font.bold: true
+                            }
+                        }
+                    }
+
+                    // 2. Omni-Search Input Field
                     Rectangle {
-                        anchors.bottom: parent.bottom
-                        width: parent.width
+                        id: searchBox
+                        Layout.fillWidth: true
+                        implicitHeight: 36
+                        radius: Theme.radiusMd
+                        color: Theme.withAlpha(Theme.bg, 0.85)
+                        border.color: searchField.activeFocus ? Theme.accent : Theme.border
+                        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+                        Shortcut {
+                            sequence: "/"
+                            onActivated: searchField.forceActiveFocus()
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.IBeamCursor
+                            onClicked: searchField.forceActiveFocus()
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 8
+                            spacing: 8
+
+                            MaterialIcon {
+                                iconName: "search"
+                                pixelSize: 17
+                                color: searchField.activeFocus ? Theme.accent : Theme.textSecondary
+                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                            }
+
+                            TextInput {
+                                id: searchField
+                                Layout.fillWidth: true
+                                color: Theme.text
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeBody
+                                verticalAlignment: TextInput.AlignVCenter
+                                clip: true
+                                selectByMouse: true
+                                activeFocusOnTab: true
+                                cursorVisible: activeFocus
+                                onTextChanged: { win.query = text; win.searchSel = 0 }
+                                Keys.onDownPressed: if (win.searching) win.searchSel = Math.min(win.searchSel + 1, win.results.length - 1)
+                                Keys.onUpPressed: if (win.searching) win.searchSel = Math.max(win.searchSel - 1, 0)
+                                Keys.onReturnPressed: win.activateResult(win.searchSel)
+                                Keys.onEscapePressed: { if (text === "") Qt.quit(); else { text = ""; win.query = "" } }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: searchField.text === ""
+                                    text: "Search settings…"
+                                    color: Theme.textDim
+                                    font: searchField.font
+                                }
+                            }
+
+                            Rectangle {
+                                visible: searchField.text === ""
+                                implicitWidth: slashTxt.implicitWidth + 8
+                                implicitHeight: 18
+                                radius: Theme.radiusSm
+                                color: Theme.withAlpha(Theme.surfaceActive, 0.7)
+                                border.color: Theme.border
+
+                                Text {
+                                    id: slashTxt
+                                    anchors.centerIn: parent
+                                    text: "/"
+                                    color: Theme.textDim
+                                    font.family: Theme.fontMono
+                                    font.pixelSize: Theme.fontSizeLabel - 1
+                                }
+                            }
+
+                            Rectangle {
+                                visible: searchField.text !== ""
+                                implicitWidth: 32; implicitHeight: 18
+                                radius: Theme.radiusSm
+                                color: Theme.surface
+                                border.color: Theme.border
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "esc"
+                                    color: Theme.textDim
+                                    font.family: Theme.fontMono
+                                    font.pixelSize: Theme.fontSizeLabel - 1
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: { searchField.text = ""; win.query = "" }
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Scrollable Categorized Navigation List
+                    Flickable {
+                        id: navFlick
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        contentHeight: navCol.implicitHeight + 10
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+
+                        ColumnLayout {
+                            id: navCol
+                            width: navFlick.width
+                            spacing: 14
+
+                            Repeater {
+                                model: win.sections
+                                delegate: ColumnLayout {
+                                    id: secCol
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    spacing: 3
+
+                                    // Section Category Header
+                                    Text {
+                                        text: secCol.modelData.category
+                                        color: Theme.textDim
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        font.bold: true
+                                        font.letterSpacing: Theme.labelSpacing
+                                        Layout.leftMargin: 8
+                                        Layout.bottomMargin: 2
+                                    }
+
+                                    // Items within Category
+                                    Repeater {
+                                        model: secCol.modelData.items
+                                        delegate: Rectangle {
+                                            id: navItem
+                                            required property var modelData
+                                            readonly property bool isSelected: win.currentPanel === modelData.key && !win.searching
+                                            Layout.fillWidth: true
+                                            implicitHeight: 34
+                                            radius: Theme.radiusMd
+                                            color: isSelected ? Theme.accentDim : (navItemHh.hovered ? Theme.surfaceHover : "transparent")
+                                            border.color: isSelected ? Theme.withAlpha(Theme.accent, 0.45) : "transparent"
+                                            border.width: 1
+                                            Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                            Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 10
+                                                anchors.rightMargin: 10
+                                                spacing: 10
+
+                                                MaterialIcon {
+                                                    iconName: navItem.modelData.icon
+                                                    pixelSize: 16
+                                                    color: navItem.isSelected ? Theme.accent : (navItemHh.hovered ? Theme.text : Theme.textSecondary)
+                                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                                }
+
+                                                Text {
+                                                    text: navItem.modelData.label
+                                                    color: navItem.isSelected ? Theme.text : (navItemHh.hovered ? Theme.text : Theme.textSecondary)
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fontSizeBody
+                                                    font.bold: navItem.isSelected
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                                }
+                                            }
+
+                                            HoverHandler { id: navItemHh; cursorShape: Qt.PointingHandCursor }
+                                            TapHandler {
+                                                onTapped: {
+                                                    win.query = ""
+                                                    searchField.text = ""
+                                                    win.selectPanel(navItem.modelData.key)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Sidebar Footer (Theme Indicator & Close)
+                    Rectangle {
+                        Layout.fillWidth: true
                         height: 1
                         color: Theme.border
                     }
 
                     RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 20
-                        anchors.rightMargin: 18
-                        spacing: 16
+                        Layout.fillWidth: true
+                        spacing: 8
 
-                        // Brand Capsule: Icon + "mujō" + living "無常" kanji seal
-                        RowLayout {
-                            spacing: 12
-                            Layout.alignment: Qt.AlignVCenter
+                        // Active Theme Pill
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 30
+                            radius: Theme.radiusSm
+                            color: Theme.withAlpha(Theme.accent, 0.1)
+                            border.color: thHh.hovered ? Theme.accent : Theme.withAlpha(Theme.accent, 0.3)
+                            Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
-                            BrandIcon {
-                                brand: "mujo"
-                                size: 34
-                                Layout.alignment: Qt.AlignVCenter
+                            RowLayout {
+                                anchors.centerIn: parent
+                                spacing: 6
+                                Rectangle {
+                                    width: 8; height: 8; radius: 4
+                                    color: Theme.accent
+                                }
+                                Text {
+                                    text: Theme.presetLabels[Theme.presetName] || Theme.presetName
+                                    color: Theme.text
+                                    font.family: Theme.fontMono
+                                    font.pixelSize: Theme.fontSizeLabel
+                                    font.bold: true
+                                }
                             }
+                            HoverHandler { id: thHh; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: win.selectPanel("appearance") }
+                        }
+
+                        // Close Window Button
+                        IconButton {
+                            iconName: "close"
+                            onClicked: Qt.quit()
+                        }
+                    }
+                }
+            }
+
+            // ═════════════════════════════════════════════════════════════════
+            // RIGHT MAIN CONTENT VIEWPORT (860px)
+            // ═════════════════════════════════════════════════════════════════
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: Theme.bg
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 0
+
+                    // 1. Top Header Bar
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 52
+                        color: Theme.surface
+                        border.color: "transparent"
+
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            width: parent.width
+                            height: 1
+                            color: Theme.border
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 24
+                            anchors.rightMargin: 24
+                            spacing: 12
 
                             ColumnLayout {
                                 spacing: 1
@@ -357,468 +627,222 @@ ShellRoot {
                                 RowLayout {
                                     spacing: 6
                                     Text {
-                                        text: "mujō"
+                                        visible: !win.searching
+                                        text: win.currentItem.category
+                                        color: Theme.accent
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        font.bold: true
+                                        font.letterSpacing: Theme.labelSpacing
+                                    }
+                                    Text {
+                                        visible: !win.searching
+                                        text: "•"
+                                        color: Theme.textDim
+                                        font.pixelSize: Theme.fontSizeLabel
+                                    }
+                                    Text {
+                                        text: win.searching ? "Search Results" : win.currentItem.label
                                         color: Theme.text
                                         font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeTitle + 3
+                                        font.pixelSize: Theme.fontSizeTitle + 1
                                         font.bold: true
                                     }
-
-                                    // Living Kanji Seal
-                                    Rectangle {
-                                        implicitWidth: kSeal.implicitWidth + 8
-                                        implicitHeight: 18
-                                        radius: Theme.radiusSm
-                                        color: Theme.withAlpha(win.activeDomain.color || Theme.accent, 0.14)
-                                        border.color: Theme.withAlpha(win.activeDomain.color || Theme.accent, 0.4)
-                                        Behavior on color { ColorAnimation { duration: Anim.d(Anim.standard) } }
-                                        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.standard) } }
-
-                                        Text {
-                                            id: kSeal
-                                            anchors.centerIn: parent
-                                            text: "無常"
-                                            color: win.activeDomain.color || Theme.accent
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeLabel - 1
-                                            font.bold: true
-                                            Behavior on color { ColorAnimation { duration: Anim.d(Anim.standard) } }
-                                        }
-                                    }
-                                }
-
-                                Text {
-                                    text: "Living Sanctuary"
-                                    color: Theme.textDim
-                                    font.family: Theme.fontMono
-                                    font.pixelSize: Theme.fontSizeLabel - 1
                                 }
                             }
-                        }
 
-                        // Omni-Search Input Field
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.maximumWidth: 460
-                            Layout.alignment: Qt.AlignHCenter
-                            implicitHeight: 38
-                            radius: Theme.radiusMd
-                            color: Theme.withAlpha(Theme.bg, 0.85)
-                            border.color: searchField.activeFocus ? Theme.accent : Theme.border
-                            Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                            Item { Layout.fillWidth: true }
 
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 10
-                                spacing: 8
-
-                                MaterialIcon {
-                                    iconName: "search"
-                                    pixelSize: 18
-                                    color: searchField.activeFocus ? Theme.accent : Theme.textSecondary
-                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                }
-
-                                TextInput {
-                                    id: searchField
-                                    Layout.fillWidth: true
-                                    color: Theme.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeBody
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    clip: true
-                                    selectByMouse: true
-                                    onTextChanged: { win.query = text; win.searchSel = 0 }
-                                    Keys.onDownPressed: if (win.searching) win.searchSel = Math.min(win.searchSel + 1, win.results.length - 1)
-                                    Keys.onUpPressed: if (win.searching) win.searchSel = Math.max(win.searchSel - 1, 0)
-                                    Keys.onReturnPressed: win.activateResult(win.searchSel)
-                                    Keys.onEscapePressed: { if (text === "") Qt.quit(); else { text = ""; win.query = "" } }
-
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        visible: searchField.text === ""
-                                        text: "Omni-search settings, preferences, controls…"
-                                        color: Theme.textDim
-                                        font: searchField.font
-                                    }
-                                }
-
-                                Rectangle {
-                                    visible: searchField.text === ""
-                                    implicitWidth: slashTxt.implicitWidth + 8
-                                    implicitHeight: 18
-                                    radius: Theme.radiusSm
-                                    color: Theme.withAlpha(Theme.surfaceActive, 0.7)
-                                    border.color: Theme.border
-
-                                    Text {
-                                        id: slashTxt
-                                        anchors.centerIn: parent
-                                        text: "/"
-                                        color: Theme.textDim
-                                        font.family: Theme.fontMono
-                                        font.pixelSize: Theme.fontSizeLabel - 1
-                                    }
-                                }
-
-                                Rectangle {
-                                    visible: searchField.text !== ""
-                                    implicitWidth: 34; implicitHeight: 18
-                                    radius: Theme.radiusSm
-                                    color: Theme.surface
-                                    border.color: Theme.border
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "esc"
-                                        color: Theme.textDim
-                                        font.family: Theme.fontMono
-                                        font.pixelSize: Theme.fontSizeLabel - 1
-                                    }
-                                }
-                            }
-                        }
-
-                        // Right Glance Capsules
-                        RowLayout {
-                            spacing: 8
-                            Layout.alignment: Qt.AlignVCenter
-
-                            // Active Theme Pill
+                            // Quick Navigation Pill Indicator
                             Rectangle {
-                                implicitWidth: themeLbl.implicitWidth + 16
-                                implicitHeight: 28
+                                visible: !win.searching
+                                implicitWidth: curBrandRow.implicitWidth + 14
+                                implicitHeight: 24
                                 radius: Theme.radiusSm
-                                color: Theme.withAlpha(Theme.accent, 0.1)
+                                color: Theme.withAlpha(Theme.accent, 0.12)
                                 border.color: Theme.withAlpha(Theme.accent, 0.3)
 
                                 RowLayout {
+                                    id: curBrandRow
                                     anchors.centerIn: parent
                                     spacing: 5
-                                    Rectangle {
-                                        width: 8; height: 8; radius: 4
+                                    MaterialIcon {
+                                        iconName: win.currentItem.icon
+                                        pixelSize: 14
                                         color: Theme.accent
                                     }
                                     Text {
-                                        id: themeLbl
-                                        text: Theme.presetLabels[Theme.presetName] || Theme.presetName
-                                        color: Theme.text
+                                        text: win.currentItem.key
+                                        color: Theme.accent
                                         font.family: Theme.fontMono
                                         font.pixelSize: Theme.fontSizeLabel
                                         font.bold: true
                                     }
                                 }
-                                HoverHandler { id: thHh; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: win.selectPanel("appearance") }
-                            }
-
-                            // Close Window Button
-                            IconButton {
-                                iconName: "close"
-                                onClicked: Qt.quit()
                             }
                         }
                     }
-                }
 
-                // ── 2. Zen Domain Navigation Ribbon ──────────────────────────────────
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 52
-                    color: Theme.surface
-                    border.color: "transparent"
+                    // 2. Content Viewport / Search Overlay Host
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
 
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 1
-                        color: Theme.border
-                    }
+                        // Panel Host (when not searching)
+                        Item {
+                            id: panelHost
+                            anchors.fill: parent
+                            visible: !win.searching
+                            opacity: 1
+                            clip: true
+                            transform: Translate { id: panelShift; y: 0 }
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 20
-                        anchors.rightMargin: 20
-                        spacing: 8
+                            Loader {
+                                anchors.fill: parent
+                                sourceComponent: win.componentFor(win.currentPanel)
+                            }
 
-                        Repeater {
-                            model: win.domains
-                            delegate: Rectangle {
-                                id: dTab
-                                required property var modelData
-                                readonly property bool isSelected: win.activeDomainId === modelData.id && !win.searching
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 38
-                                radius: Theme.radiusMd
-                                color: isSelected ? Theme.withAlpha(modelData.color, 0.14) : (dTabHh.hovered ? Theme.surfaceHover : "transparent")
-                                border.color: isSelected ? Theme.withAlpha(modelData.color, 0.45) : "transparent"
-                                border.width: 1
-                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                            Connections {
+                                target: win
+                                function onCurrentPanelChanged() {
+                                    if (Anim.pageTransitions) panelIn.restart()
+                                }
+                            }
+
+                            ParallelAnimation {
+                                id: panelIn
+                                NumberAnimation {
+                                    target: panelHost
+                                    property: "opacity"
+                                    from: 0; to: 1
+                                    duration: Anim.d(Anim.enter)
+                                    easing.type: Anim.easeEnter
+                                }
+                                NumberAnimation {
+                                    target: panelShift
+                                    property: "y"
+                                    from: 8; to: 0
+                                    duration: Anim.d(Anim.enter)
+                                    easing.type: Anim.easeStandard
+                                }
+                            }
+                        }
+
+                        // Omni-Search Results Overlay (when searching)
+                        Flickable {
+                            anchors.fill: parent
+                            anchors.margins: 24
+                            visible: win.searching
+                            contentHeight: resCol.implicitHeight + 30
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            ColumnLayout {
+                                id: resCol
+                                width: parent.width
+                                spacing: 10
 
                                 RowLayout {
-                                    anchors.centerIn: parent
                                     spacing: 8
+                                    Layout.bottomMargin: 4
 
-                                    // Kanji seal stamp
                                     Text {
-                                        text: dTab.modelData.kanji
-                                        color: dTab.isSelected ? dTab.modelData.color : Theme.textDim
+                                        text: win.results.length + (win.results.length === 1 ? " setting found" : " settings found")
+                                        color: Theme.textSecondary
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.fontSizeSmall
-                                        font.bold: true
-                                        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                    }
-
-                                    MaterialIcon {
-                                        iconName: dTab.modelData.icon
-                                        pixelSize: 17
-                                        color: dTab.isSelected ? dTab.modelData.color : (dTabHh.hovered ? Theme.text : Theme.textSecondary)
-                                        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
                                     }
 
                                     Text {
-                                        text: dTab.modelData.label
-                                        color: dTab.isSelected ? Theme.text : (dTabHh.hovered ? Theme.text : Theme.textSecondary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeBody
-                                        font.bold: dTab.isSelected
+                                        text: "• Use ↑↓ arrows to navigate, Enter to select"
+                                        color: Theme.textDim
+                                        font.family: Theme.fontMono
+                                        font.pixelSize: Theme.fontSizeLabel
+                                    }
+                                }
+
+                                Repeater {
+                                    model: win.results
+                                    delegate: Rectangle {
+                                        id: resCard
+                                        required property var modelData
+                                        required property int index
+                                        readonly property bool sel: index === win.searchSel
+                                        Layout.fillWidth: true
+                                        implicitHeight: 56
+                                        radius: Theme.radiusMd
+                                        color: sel ? Theme.accentDim : (resHh.hovered ? Theme.surfaceHover : Theme.surface)
+                                        border.color: sel ? Theme.accent : Theme.border
+                                        border.width: sel ? 1.5 : 1
                                         Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                    }
-                                }
+                                        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
-                                HoverHandler { id: dTabHh; cursorShape: Qt.PointingHandCursor }
-                                TapHandler {
-                                    onTapped: {
-                                        win.query = ""
-                                        searchField.text = ""
-                                        win.selectDomain(dTab.modelData.id)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 14
+                                            anchors.rightMargin: 16
+                                            spacing: 14
 
-                // ── 3. Contextual Sub-Navigation Ribbon (if domain has >1 sub) ───────
-                Rectangle {
-                    visible: win.activeDomain.subSections.length > 1 && !win.searching
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 40
-                    color: Theme.withAlpha(Theme.surface, 0.6)
-                    border.color: "transparent"
-
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 1
-                        color: Theme.border
-                    }
-
-                    Flickable {
-                        anchors.fill: parent
-                        anchors.leftMargin: 20
-                        anchors.rightMargin: 20
-                        contentWidth: subRow.implicitWidth + 20
-                        clip: true
-                        boundsBehavior: Flickable.StopAtBounds
-
-                        RowLayout {
-                            id: subRow
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 6
-
-                            Repeater {
-                                model: win.activeDomain.subSections
-                                delegate: Rectangle {
-                                    id: subTab
-                                    required property var modelData
-                                    readonly property bool isSubSelected: win.currentPanel === modelData.key
-                                    implicitHeight: 28
-                                    implicitWidth: subTabContent.implicitWidth + 20
-                                    radius: Theme.radiusSm
-                                    color: isSubSelected ? Theme.accentDim : (subHh.hovered ? Theme.surfaceHover : "transparent")
-                                    border.color: isSubSelected ? Theme.withAlpha(Theme.accent, 0.4) : "transparent"
-                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-
-                                    RowLayout {
-                                        id: subTabContent
-                                        anchors.centerIn: parent
-                                        spacing: 6
-
-                                        MaterialIcon {
-                                            iconName: subTab.modelData.icon
-                                            pixelSize: 15
-                                            color: subTab.isSubSelected ? Theme.accent : (subHh.hovered ? Theme.text : Theme.textSecondary)
-                                            Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                        }
-
-                                        Text {
-                                            text: subTab.modelData.label
-                                            color: subTab.isSubSelected ? Theme.text : (subHh.hovered ? Theme.text : Theme.textSecondary)
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeSmall
-                                            font.bold: subTab.isSubSelected
-                                            Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                        }
-                                    }
-
-                                    HoverHandler { id: subHh; cursorShape: Qt.PointingHandCursor }
-                                    TapHandler {
-                                        onTapped: {
-                                            win.currentPanel = subTab.modelData.key
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ── 4. Main Living Content / Search Results Host ─────────────────────
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-
-                    // Panel Host
-                    Item {
-                        id: panelHost
-                        anchors.fill: parent
-                        visible: !win.searching
-                        opacity: 1
-                        clip: true
-                        transform: Translate { id: panelShift; y: 0 }
-
-                        Loader {
-                            anchors.fill: parent
-                            sourceComponent: win.componentFor(win.currentPanel)
-                        }
-
-                        Connections {
-                            target: win
-                            function onCurrentPanelChanged() { if (Anim.pageTransitions) panelIn.restart() }
-                            function onActiveDomainIdChanged() { if (Anim.pageTransitions) panelIn.restart() }
-                        }
-
-                        ParallelAnimation {
-                            id: panelIn
-                            NumberAnimation { target: panelHost; property: "opacity"; from: 0; to: 1; duration: Anim.d(Anim.enter); easing.type: Anim.easeEnter }
-                            NumberAnimation { target: panelShift; property: "y"; from: 10; to: 0; duration: Anim.d(Anim.enter); easing.type: Anim.easeStandard }
-                        }
-                    }
-
-                    // Omni-Search Results Overlay
-                    Flickable {
-                        anchors.fill: parent
-                        anchors.margins: 28
-                        visible: win.searching
-                        contentHeight: resCol.implicitHeight + 30
-                        clip: true
-                        boundsBehavior: Flickable.StopAtBounds
-
-                        ColumnLayout {
-                            id: resCol
-                            width: parent.width
-                            spacing: 10
-
-                            RowLayout {
-                                spacing: 8
-                                Layout.bottomMargin: 4
-
-                                Text {
-                                    text: win.results.length + (win.results.length === 1 ? " setting discovered" : " settings discovered")
-                                    color: Theme.textSecondary
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                }
-
-                                Text {
-                                    text: "• Use ↑↓ arrows to navigate, Enter to select"
-                                    color: Theme.textDim
-                                    font.family: Theme.fontMono
-                                    font.pixelSize: Theme.fontSizeLabel
-                                }
-                            }
-
-                            Repeater {
-                                model: win.results
-                                delegate: Rectangle {
-                                    id: resCard
-                                    required property var modelData
-                                    required property int index
-                                    readonly property bool sel: index === win.searchSel
-                                    Layout.fillWidth: true
-                                    implicitHeight: 60
-                                    radius: Theme.radiusMd
-                                    color: sel ? Theme.accentDim : (resHh.hovered ? Theme.surfaceHover : Theme.surface)
-                                    border.color: sel ? Theme.accent : Theme.border
-                                    border.width: sel ? 1.5 : 1
-
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 14
-                                        anchors.rightMargin: 16
-                                        spacing: 14
-
-                                        BrandIcon {
-                                            brand: resCard.modelData.key
-                                            size: 34
-                                        }
-
-                                        ColumnLayout {
-                                            Layout.fillWidth: true
-                                            spacing: 2
-
-                                            Text {
-                                                text: resCard.modelData.title
-                                                color: Theme.text
-                                                font.family: Theme.fontFamily
-                                                font.pixelSize: Theme.fontSizeBody + 1
-                                                font.bold: true
+                                            BrandIcon {
+                                                brand: resCard.modelData.key
+                                                size: 30
                                             }
 
-                                            Text {
-                                                text: resCard.modelData.desc
-                                                color: Theme.textSecondary
-                                                font.family: Theme.fontFamily
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                elide: Text.ElideRight
+                                            ColumnLayout {
                                                 Layout.fillWidth: true
+                                                spacing: 2
+
+                                                Text {
+                                                    text: resCard.modelData.title
+                                                    color: Theme.text
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fontSizeBody
+                                                    font.bold: true
+                                                }
+
+                                                Text {
+                                                    text: resCard.modelData.desc
+                                                    color: Theme.textSecondary
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fontSizeSmall
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                implicitWidth: catBadge.implicitWidth + 14
+                                                implicitHeight: 22
+                                                radius: Theme.radiusSm
+                                                color: Theme.bg
+                                                border.color: Theme.border
+
+                                                Text {
+                                                    id: catBadge
+                                                    anchors.centerIn: parent
+                                                    text: resCard.modelData.cat
+                                                    color: Theme.accent
+                                                    font.family: Theme.fontMono
+                                                    font.pixelSize: Theme.fontSizeLabel
+                                                    font.bold: true
+                                                }
                                             }
                                         }
 
-                                        Rectangle {
-                                            implicitWidth: catBadge.implicitWidth + 14
-                                            implicitHeight: 22
-                                            radius: Theme.radiusSm
-                                            color: Theme.bg
-                                            border.color: Theme.border
-
-                                            Text {
-                                                id: catBadge
-                                                anchors.centerIn: parent
-                                                text: resCard.modelData.cat
-                                                color: Theme.accent
-                                                font.family: Theme.fontMono
-                                                font.pixelSize: Theme.fontSizeLabel
-                                                font.bold: true
-                                            }
-                                        }
+                                        HoverHandler { id: resHh; cursorShape: Qt.PointingHandCursor }
+                                        TapHandler { onTapped: win.activateResult(index) }
                                     }
-
-                                    HoverHandler { id: resHh; cursorShape: Qt.PointingHandCursor }
-                                    TapHandler { onTapped: win.activateResult(index) }
                                 }
-                            }
 
-                            Text {
-                                visible: win.results.length === 0
-                                text: "No settings match “" + win.query + "”. Try searching for display, theme, nixos, or ai."
-                                color: Theme.textDim
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeBody
-                                Layout.topMargin: 24
+                                Text {
+                                    visible: win.results.length === 0
+                                    text: "No settings match “" + win.query + "”. Try searching for display, theme, nixos, or ai."
+                                    color: Theme.textDim
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeBody
+                                    Layout.topMargin: 24
+                                }
                             }
                         }
                     }
@@ -827,3 +851,4 @@ ShellRoot {
         }
     }
 }
+

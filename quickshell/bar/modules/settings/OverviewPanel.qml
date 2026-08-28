@@ -98,6 +98,11 @@ Item {
              : id === "ai" ? aiCard : null
     }
 
+    // Width of the System card's reading column. Fixed so every row's value is
+    // right-aligned on the same edge and the sparklines all end together; sized
+    // for the longest reading ("100% · 31.2/31.4G").
+    readonly property int metricValueW: 116
+
     // ── Shared inline components (must be declared at file-root level) ────────
     component CountPill: Rectangle {
         property string label: ""
@@ -116,6 +121,10 @@ Item {
         property real maxVal: 100
         implicitHeight: 18
         onSeriesChanged: requestPaint()
+        // A resize clears the backing store, so the line vanished whenever the
+        // grid relaid out (e.g. on "Show more") until the next 2s poll.
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
         onPaint: {
             var ctx = getContext("2d"); ctx.clearRect(0, 0, width, height)
             var n = series.length; if (n < 2) return
@@ -142,7 +151,7 @@ Item {
         Text { text: mrow.label; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; Layout.preferredWidth: 42 }
         Spark { visible: mrow.available; series: mrow.series; stroke: mrow.tint; maxVal: mrow.maxVal; Layout.fillWidth: true; Layout.preferredHeight: 18 }
         Text { visible: !mrow.available; text: mrow.naReason; color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel; Layout.fillWidth: true }
-        Text { text: mrow.value; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall; horizontalAlignment: Text.AlignRight; Layout.preferredWidth: 84 }
+        Text { text: mrow.value; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight; Layout.preferredWidth: root.metricValueW; Layout.minimumWidth: root.metricValueW; Layout.maximumWidth: root.metricValueW }
     }
     component ToggleRow: RowLayout {
         id: trow
@@ -201,20 +210,31 @@ Item {
                 badgeColor: Theme.accent
             }
 
-            Grid {
+            // GridLayout, not Grid: it sizes each row to the tallest card in
+            // that row and `fillHeight` stretches the rest of the row to match,
+            // so card bottoms line up. Grid leaves every card at its own
+            // implicit height, which left ragged rows.
+            GridLayout {
                 id: grid
                 Layout.fillWidth: true
                 columns: Math.max(1, Math.floor(width / 330))
                 columnSpacing: 14
                 rowSpacing: 14
-                property real cellW: (width - (columns - 1) * 14) / columns
 
                 Repeater {
                     model: root.shownIds
                     delegate: Loader {
+                        id: cell
                         required property var modelData
-                        width: grid.cellW
-                        height: (item && item.visible) ? item.implicitHeight : 0
+                        // A card that hides itself (Battery on a desktop) drops
+                        // out of the layout entirely rather than leaving a hole
+                        // in the grid. `shown` is the card's declared intent —
+                        // reading `visible` here would latch the cell off, since
+                        // an item reports its parent's effective visibility.
+                        visible: !item || item.shown
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.preferredHeight: item ? item.implicitHeight : 0
                         sourceComponent: root.compFor(modelData)
                     }
                 }
@@ -383,7 +403,7 @@ Item {
                     Layout.fillWidth: true; implicitHeight: 8; radius: 4; color: Theme.surfaceActive
                     Rectangle { width: parent.width * (parent.parent.has ? sysc.d.diskPct / 100 : 0); height: parent.height; radius: parent.radius; color: (parent.parent.has && sysc.d.diskPct > 90) ? Theme.error : Theme.success }
                 }
-                Text { text: parent.has ? (sysc.d.diskPct + "% · " + sysc.d.diskUsedGb.toFixed(0) + "/" + sysc.d.diskTotalGb.toFixed(0) + "G") : "…"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall; horizontalAlignment: Text.AlignRight; Layout.preferredWidth: 84 }
+                Text { text: parent.has ? (sysc.d.diskPct + "% · " + sysc.d.diskUsedGb.toFixed(0) + "/" + sysc.d.diskTotalGb.toFixed(0) + "G") : "…"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight; Layout.preferredWidth: root.metricValueW; Layout.minimumWidth: root.metricValueW; Layout.maximumWidth: root.metricValueW }
             }
         }
     }
@@ -396,7 +416,7 @@ Item {
             id: batc
             width: parent ? parent.width : implicitWidth
             title: "Battery"; icon: "battery_full"
-            visible: batc.present
+            shown: batc.present
             expanded: root.isExpanded("battery"); onExpandedChanged: root.setExpanded("battery", expanded)
             onHideRequested: root.setVisible("battery", false)
 
@@ -619,13 +639,16 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true; spacing: 10
-                Rectangle { Layout.alignment: Qt.AlignVCenter; width: 9; height: 9; radius: 4.5; color: togc.vpnConnected ? Theme.success : (togc.vpnBusy ? Theme.warning : Theme.textDim) }
                 ColumnLayout {
                     spacing: 0
                     Text { text: "Mullvad VPN"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
                     Text { text: togc.vpnState; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel }
                 }
                 Item { Layout.fillWidth: true }
+                // The status dot rides with the action rather than leading the
+                // label: a leading dot pushed this row's text 19px right of the
+                // toggle rows above it.
+                Rectangle { Layout.alignment: Qt.AlignVCenter; width: 9; height: 9; radius: 4.5; color: togc.vpnConnected ? Theme.success : (togc.vpnBusy ? Theme.warning : Theme.textDim) }
                 DialogButton { enabled: togc.vpnAvailable; text: togc.vpnConnected ? "Disconnect" : "Connect"; primary: !togc.vpnConnected; onClicked: { Quickshell.execDetached(["mullvad", togc.vpnConnected ? "disconnect" : "connect"]); vpnRepoll.restart() } }
             }
         }
@@ -693,18 +716,21 @@ Item {
 
             Process { id: libvirtProc; command: ["systemctl", "is-active", "libvirtd"]
                 stdout: StdioCollector { onStreamFinished: { mac.libvirt = this.text.trim() || "unknown"; if (mac.libvirt === "active") virshProc.running = true } } }
-            Process { id: dockerProc; command: ["systemctl", "is-active", "docker"]
-                stdout: StdioCollector { onStreamFinished: mac.docker = this.text.trim() || "unknown" } }
+            Process { id: dockerProc; command: ["podman", "--version"]
+                stdout: StdioCollector { onStreamFinished: mac.docker = this.text.split("\n")[0].trim() || "unknown" } }
             Process { id: virshProc; command: ["virsh", "-c", "qemu:///system", "list", "--all"]
                 stdout: StdioCollector { onStreamFinished: mac.vms = this.text.trim() }
                 onExited: function (code) { if (code !== 0) mac.virshMissing = true } }
 
             StatusRow { label: "libvirtd"; status: mac.libvirt; ok: mac.libvirt === "active" }
-            StatusRow { label: "docker"; status: mac.docker; ok: mac.docker === "active" }
-            // VM list — only meaningful when libvirtd is up and virsh exists.
+            StatusRow { label: "podman"; status: mac.docker; ok: mac.docker.toLowerCase().indexOf("podman") >= 0 || mac.docker === "active" }
+            // VM list & quick access to Virtual Machines panel
             Text { visible: mac.libvirt === "active" && !mac.virshMissing && mac.vms !== ""; text: mac.vms; color: Theme.textSecondary; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-            Text { visible: mac.virshMissing; text: "virsh not installed — VM list unavailable."; color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-            Text { visible: mac.libvirt !== "active" && mac.libvirt !== "…"; text: "libvirtd inactive — no VMs to list."; color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+            DialogButton {
+                text: "Open Virtual Machines & Lab"
+                Layout.topMargin: 4
+                onClicked: SettingsBus.go("vm")
+            }
         }
     }
 
@@ -806,7 +832,7 @@ Item {
                         font.bold: true
                     }
                     Text {
-                        text: (SentinelService.anomalies.length > 0 ? (SentinelService.anomalies.length + " anomaly · ") : "") +
+                        text: (SentinelService.problematicProcesses.length > 0 ? (SentinelService.problematicProcesses.length + (SentinelService.problematicProcesses.length === 1 ? " problematic process · " : " problematic processes · ")) : "") +
                               (SentinelService.zombieCount > 0 ? (SentinelService.zombieCount + " zombie · ") : "") +
                               "Sentinel active"
                         color: Theme.textSecondary

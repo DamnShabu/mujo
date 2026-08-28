@@ -48,14 +48,50 @@ Item {
 
     // True while we've asked for a scan but nothing has come back yet.
     readonly property bool searching: root.device && root.device.scannerEnabled && root.networkCount === 0
+    readonly property bool showSsid: SettingsBus.get("bar.network.showSsid", false)
+    readonly property string activeSsid: root.device && root.device.connectedNetwork ? (root.device.connectedNetwork.ssid || "Wi-Fi") : ""
 
-    IconButton {
+    Rectangle {
         id: trigger
-        iconName: !Networking.wifiHardwareEnabled ? "signal_wifi_off" : (root.connected ? "wifi" : "wifi_off")
-        active: root.menuOpen
-        onClicked: {
-            PopupCoordinator.toggle(root.popupId)
+        implicitHeight: Theme.barHeight - 6
+        implicitWidth: (root.showSsid && root.connected && root.activeSsid !== "") ? (trigRow.implicitWidth + 14) : 28
+        radius: Theme.radiusSm
+        color: root.menuOpen ? Theme.accentDim : (trigHh.hovered ? Theme.surfaceHover : "transparent")
+        border.color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.borderStrong : "transparent")
+        border.width: 1
+
+        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+        RowLayout {
+            id: trigRow
+            anchors.centerIn: parent
+            spacing: 4
+
+            MaterialIcon {
+                iconName: !Networking.wifiHardwareEnabled ? "signal_wifi_off" : (root.connected ? "wifi" : "wifi_off")
+                pixelSize: 16
+                color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : (root.connected ? Theme.accent : Theme.textSecondary))
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+            }
+
+            Text {
+                visible: root.showSsid && root.connected && root.activeSsid !== ""
+                text: root.activeSsid
+                color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : Theme.textSecondary)
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+                font.bold: true
+                elide: Text.ElideRight
+                Layout.maximumWidth: 120
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+            }
         }
+
+        HoverHandler { id: trigHh; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: PopupCoordinator.toggle(root.popupId) }
     }
 
     onMenuOpenChanged: {

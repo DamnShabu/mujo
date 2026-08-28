@@ -59,7 +59,7 @@ Item {
 
         // Living unread badge
         Rectangle {
-            visible: Notifications.unread > 0 && !root.menuOpen
+            visible: SettingsBus.get("bar.notifications.showCount", true) && Notifications.unread > 0 && !root.menuOpen
             anchors { right: parent.right; top: parent.top; rightMargin: -2; topMargin: -2 }
             implicitWidth: Math.max(14, badge.implicitWidth + 6)
             implicitHeight: 14

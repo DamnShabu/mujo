@@ -59,9 +59,15 @@ Item {
 
     onMenuOpenChanged: if (root.menuOpen) batProc.running = true
 
+    readonly property string percentMode: SettingsBus.get("bar.battery.showPercent", "charging")
+    readonly property int lowThresh: SettingsBus.get("bar.battery.lowThreshold", 20)
+
     readonly property bool isCharging: root.status === "Charging"
-    readonly property bool isLow: root.level <= 20 && !root.isCharging
-    readonly property bool isCritical: root.level <= 10 && !root.isCharging
+    readonly property bool isLow: root.level <= root.lowThresh && !root.isCharging
+    readonly property bool isCritical: root.level <= Math.round(root.lowThresh / 2) && !root.isCharging
+    readonly property bool showPercentText: root.percentMode === "always"
+        || (root.percentMode === "charging" && root.isCharging)
+        || (root.percentMode === "low" && root.isLow)
 
     readonly property string iconGlyph: {
         if (root.isCharging) return "battery_charging_full"
@@ -80,15 +86,46 @@ Item {
         return Theme.text
     }
 
-    IconButton {
+    Rectangle {
         id: trigger
-        iconName: root.iconGlyph
-        iconColor: root.isCritical ? Theme.error
-                 : (root.active ? Theme.accent : root.batteryColor)
-        active: root.menuOpen
-        onClicked: {
-            PopupCoordinator.toggle(root.popupId)
+        implicitHeight: Theme.barHeight - 6
+        implicitWidth: root.showPercentText ? (triggerRow.implicitWidth + 14) : 28
+        radius: Theme.radiusSm
+        color: root.menuOpen ? Theme.accentDim : (trigHh.hovered ? Theme.surfaceHover : "transparent")
+        border.color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.borderStrong : "transparent")
+        border.width: 1
+
+        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+        RowLayout {
+            id: triggerRow
+            anchors.centerIn: parent
+            spacing: 4
+
+            MaterialIcon {
+                iconName: root.iconGlyph
+                color: root.isCritical ? Theme.error
+                     : (root.menuOpen ? Theme.accent : root.batteryColor)
+                pixelSize: 16
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            Text {
+                visible: root.showPercentText
+                text: root.level + "%"
+                color: root.isCritical ? Theme.error
+                     : (root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : root.batteryColor))
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
+                font.bold: true
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+            }
         }
+
+        HoverHandler { id: trigHh; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: PopupCoordinator.toggle(root.popupId) }
     }
 
     PopupWindow {

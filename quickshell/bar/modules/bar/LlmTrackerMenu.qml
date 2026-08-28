@@ -236,14 +236,52 @@ Item {
         color: Theme.border
     }
 
-    IconButton {
+    readonly property bool showTokens: SettingsBus.get("bar.llm.showTokens", false)
+    readonly property real activeTodayTokens: {
+        var p = root.selectedProvider
+        var d = p && p.tokensByDay ? p.tokensByDay : []
+        return d.length > 0 ? (d[d.length - 1].tokens || 0) : root.tokens
+    }
+
+    Rectangle {
         id: trigger
-        iconName: "smart_toy"
-        active: root.menuOpen
-        onClicked: PopupCoordinator.toggle(root.popupId)
+        implicitHeight: Theme.barHeight - 6
+        implicitWidth: (root.showTokens && root.activeTodayTokens > 0) ? (trigRow.implicitWidth + 14) : 28
+        radius: Theme.radiusSm
+        color: root.menuOpen ? Theme.accentDim : (trigHh.hovered ? Theme.surfaceHover : "transparent")
+        border.color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.borderStrong : "transparent")
+        border.width: 1
+
+        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+        RowLayout {
+            id: trigRow
+            anchors.centerIn: parent
+            spacing: 4
+
+            MaterialIcon {
+                iconName: "smart_toy"
+                pixelSize: 16
+                color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : Theme.textSecondary)
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+            }
+
+            Text {
+                visible: root.showTokens && root.activeTodayTokens > 0
+                text: root.formatTokens(root.activeTodayTokens)
+                color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : Theme.textSecondary)
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
+                font.bold: true
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+            }
+        }
 
         Rectangle {
-            visible: root.activeCount > 0
+            visible: !root.showTokens && root.activeCount > 0
             anchors.top: parent.top
             anchors.right: parent.right
             anchors.margins: -2
@@ -256,11 +294,14 @@ Item {
                 anchors.centerIn: parent
                 text: root.activeCount
                 color: Theme.accentText
-                font.family: Theme.fontMono
+                font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeLabel - 1
                 font.bold: true
             }
         }
+
+        HoverHandler { id: trigHh; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: PopupCoordinator.toggle(root.popupId) }
     }
 
     PopupWindow {

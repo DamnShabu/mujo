@@ -167,7 +167,6 @@ Configuration stored in `~/.config/qsshell/screenshot.json`:
 
 1. **Automated Evaluation**:
    - `nix flake check`
-   - `trunk check`
 2. **Manual & Interactive Verification**:
    - Run `qs -p quickshell/screenshot/screenshot.qml` on test images.
    - Trigger `Super+Shift+S` to verify:

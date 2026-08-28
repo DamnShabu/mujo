@@ -345,11 +345,7 @@ git commit -m "feat(screenshot): add drawing annotation canvas and shape tools"
 **Files:**
 - Modify: Any files needing cleanup
 
-- [ ] **Step 1: Format and lint codebase**
-
-Run: `trunk fmt && trunk check`
-
-- [ ] **Step 2: Run Nix evaluation check**
+- [ ] **Step 1: Check Nix flake**
 
 Run: `nix flake check`
 

@@ -1,6 +1,7 @@
 import QtQuick
 import "../../theme"
 import "../../components"
+import "../../services"
 import "../bar"
 
 // Desktop month calendar. Reuses the bar's CalendarMenu verbatim rather than
@@ -10,7 +11,9 @@ BaseWidget {
     id: root
 
     property var wcfg: ({})
+    readonly property string cardStyle: wcfg.cardStyle !== undefined ? wcfg.cardStyle : "glass"
 
+    chromeless: cardStyle === "chromeless"
     title: ""
     iconName: ""
 

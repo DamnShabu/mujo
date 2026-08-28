@@ -17,6 +17,14 @@ Pill {
     readonly property string popupId: root.screenName + ":calendar"
     readonly property bool calendarOpen: PopupCoordinator.activeId === root.popupId
 
+    readonly property bool format24: SettingsBus.get("bar.clock.format24", Theme.clock24h)
+    readonly property bool showSeconds: SettingsBus.get("bar.clock.showSeconds", Theme.clockShowSeconds)
+    readonly property bool showDate: SettingsBus.get("bar.clock.showDate", Theme.clockShowDate)
+    readonly property string dateFormat: SettingsBus.get("bar.clock.dateFormat", "short")
+    readonly property bool fontMono: SettingsBus.get("bar.clock.fontMono", true)
+    readonly property bool fontBold: SettingsBus.get("bar.clock.bold", false)
+    readonly property bool showIcon: SettingsBus.get("bar.clock.showIcon", false)
+
     property date now: new Date()
     // Sleep to the next minute boundary unless seconds are actually on screen:
     // ticking at 1Hz to re-render "HH:mm" re-ran formatDateTime and relaid out
@@ -24,7 +32,7 @@ Pill {
     // every monitor. Reassigning `interval` restarts the timer, so each tick
     // re-aims at the next boundary and drift corrects itself.
     Timer {
-        interval: Theme.clockShowSeconds
+        interval: root.showSeconds
                   ? 1000
                   : Math.max(1000, 60000 - (root.now.getSeconds() * 1000 + root.now.getMilliseconds()))
         running: true
@@ -34,10 +42,17 @@ Pill {
     }
 
     readonly property string timeFormat: {
-        var f = Theme.clock24h ? "HH:mm" : "hh:mm"
-        if (Theme.clockShowSeconds) f += ":ss"
-        if (!Theme.clock24h) f += " AP"
+        var f = root.format24 ? "HH:mm" : "hh:mm"
+        if (root.showSeconds) f += ":ss"
+        if (!root.format24) f += " AP"
         return f
+    }
+
+    readonly property string datePattern: {
+        if (dateFormat === "full") return "dddd, MMMM d"
+        if (dateFormat === "compact") return "M/d"
+        if (dateFormat === "iso") return "yyyy-MM-dd"
+        return "ddd, MMM d"
     }
 
     onClicked: PopupCoordinator.toggle(root.popupId)
@@ -45,19 +60,28 @@ Pill {
     RowLayout {
         id: rowLayout
         anchors.centerIn: parent
-        spacing: 8
+        spacing: 7
+
+        MaterialIcon {
+            visible: root.showIcon
+            iconName: "schedule"
+            pixelSize: 14
+            color: root.active ? Theme.accent : Theme.textSecondary
+            Layout.alignment: Qt.AlignVCenter
+        }
 
         Text {
             text: Qt.formatDateTime(root.now, root.timeFormat)
             color: root.active ? Theme.accent : Theme.text
-            font.family: Theme.fontMono
+            font.family: root.fontMono ? Theme.fontMono : Theme.fontFamily
             font.pixelSize: Theme.clockFontSize
-            font.letterSpacing: 0.5
+            font.bold: root.fontBold
+            font.letterSpacing: root.fontMono ? 0.5 : 0.0
             Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
         }
 
         Rectangle {
-            visible: Theme.clockShowDate
+            visible: root.showDate
             Layout.preferredWidth: 3
             Layout.preferredHeight: 3
             radius: 1.5
@@ -65,8 +89,8 @@ Pill {
         }
 
         Text {
-            visible: Theme.clockShowDate
-            text: Qt.formatDate(root.now, "ddd, MMM d")
+            visible: root.showDate
+            text: Qt.formatDate(root.now, root.datePattern)
             color: Theme.textSecondary
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall
