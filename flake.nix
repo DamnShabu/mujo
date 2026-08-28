@@ -2,10 +2,17 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
+    # Fast-moving packages (claude-code, antigravity); bump alone with
+    # `nix flake lock --update-input unstable`.
+    unstable.url = "github:nixos/nixpkgs/nixos-unstable";
+
     # The framework I use to structure the flake, module imports are automatic via custom function below
     flake-parts.url = "github:hercules-ci/flake-parts";
 
-    impermanence.url = "github:nix-community/impermanence";
+    impermanence = {
+      url = "github:nix-community/impermanence";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     disko = {
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -16,7 +23,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    wrapper-modules.url = "github:BirdeeHub/nix-wrapper-modules";
+    wrapper-modules = {
+      url = "github:BirdeeHub/nix-wrapper-modules";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     hjem = {
       url = "github:feel-co/hjem";
@@ -51,6 +61,10 @@
       flake = false;
     };
 
+    herdr = {
+      url = "github:herdrdev/herdr";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   # Import flake-parts modules from specific directories for clarity and safety
@@ -70,7 +84,7 @@
   in
     mkFlake {
       imports =
-        [ ./modules/theme.nix ./modules/perSystem.nix ]
+        [./modules/flake/theme.nix ./modules/flake/perSystem.nix]
         ++ importTree ./nixos
         ++ importTree ./modules/wrappers;
     };

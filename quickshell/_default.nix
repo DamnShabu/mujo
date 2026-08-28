@@ -17,7 +17,7 @@
   mujo = pkgs.runCommand "mujo" {nativeBuildInputs = [pkgs.makeWrapper];} ''
     install -Dm755 ${./mujo.sh} $out/bin/mujo
     wrapProgram $out/bin/mujo \
-      --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.jq pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.curl pkgs.findutils pkgs.procps pkgs.git pkgs.util-linux pkgs.tmux pkgs.pulseaudio]}
+      --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.jq pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.curl pkgs.findutils pkgs.procps pkgs.git pkgs.util-linux pkgs.tmux pkgs.pulseaudio pkgs.power-profiles-daemon pkgs.cliphist pkgs.wl-clipboard pkgs.xdg-utils]}
   '';
 
   # Keyring CRUD over the Secret Service (gnome-keyring) for the Settings
@@ -26,6 +26,14 @@
     install -Dm755 ${./keyring/mujo-keyring.py} $out/libexec/mujo-keyring.py
     makeWrapper ${pkgs.python3.withPackages (ps: [ps.secretstorage])}/bin/python3 \
       $out/bin/mujo-keyring --add-flags "$out/libexec/mujo-keyring.py"
+  '';
+
+  # Wallpaper Engine backend helper for Steam Workshop search, details,
+  # local project scanning, and process management.
+  mujo-wallpaper-engine = pkgs.runCommand "mujo-wallpaper-engine" {nativeBuildInputs = [pkgs.makeWrapper];} ''
+    install -Dm755 ${./wallpaper-engine/mujo-wallpaper-engine.py} $out/libexec/mujo-wallpaper-engine.py
+    makeWrapper ${pkgs.python3}/bin/python3 \
+      $out/bin/mujo-wallpaper-engine --add-flags "$out/libexec/mujo-wallpaper-engine.py"
   '';
 
   # Small C helper that reads raw mouse input events from /dev/input and

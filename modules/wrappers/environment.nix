@@ -6,7 +6,7 @@
 }: {
   flake.wrappers.environment = {pkgs, ...}: let
     selfpkgs = self.packages."${pkgs.stdenv.hostPlatform.system}";
-    qs = import ../../quickshell/_default.nix { inherit self pkgs; };
+    qs = import ../../quickshell/_default.nix {inherit self pkgs;};
   in {
     imports = [self.wrapperModules.fish];
     binName = "fish";
@@ -32,7 +32,7 @@
       pkgs.zoxide
       pkgs.dust
       pkgs.ripgrep
-      pkgs.fastfetch
+      selfpkgs.cutefetch
       pkgs.tree-sitter
       pkgs.imagemagick
       pkgs.imv
@@ -46,6 +46,7 @@
       pkgs.nh
       pkgs.lf
       pkgs.git
+      selfpkgs.herdr
       selfpkgs.nix-check-bin
       selfpkgs.jprocsall
       selfpkgs.jprocs

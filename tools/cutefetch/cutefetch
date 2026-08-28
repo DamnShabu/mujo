@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+# Cutefetch - Tiny coloured fetch script with cute little animals
+
+readonly VERSION_INFO="v3.3.0"
+
+help_info() {
+    echo "Cutefetch - Tiny coloured fetch script to display sysinfo"
+    echo ""
+    echo "USAGE: $(basename "$0") [-m MODE] [-e EYES] [-r] [-c] [-v] [-h]"
+    echo ""
+    echo "    [MODE]:"
+    echo "        cat, kitty            : show kitty ascii art with sysinfo"
+    echo "        catfull, cat2, kitty2 : show kitty ascii art with sysinfo (full body)"
+    echo "        bunny, rabbit         : show bunny ascii art with sysinfo"
+    echo "        dog, doggo, doggy     : show doggy ascii art with sysinfo"
+    echo "        penguin, pengu, pingu : show penguin ascii art with sysinfo"
+    echo "        minimal, simple       : show sysinfo with no ascii art"
+    echo "        none, noglyph, text   : show sysinfo with text only"
+    echo ""
+    echo "    [EYES]:"
+    echo "        Numbers from 0 to 14 (or custom eye characters)"
+    echo ""
+    echo "    [-r]            : use randomized ascii art"
+    echo "    [-c]            : clear screen before displaying"
+    echo "    [-v]            : print version"
+    echo "    [-h]            : print help"
+}
+
+eyes() {
+    case "$1" in
+    0) echo ". ." ;;
+    1) echo "· ·" ;;
+    2) echo "^ ^" ;;
+    3) echo "- -" ;;
+    4) echo "~ ~" ;;
+    5) echo "* *" ;;
+    6) echo "^.^" ;;
+    7) echo "-.-" ;;
+    8) echo "~.~" ;;
+    9) echo "*.*" ;;
+    10) echo "0.0" ;;
+    11) echo "0 0" ;;
+    12) echo "o o" ;;
+    13) echo "o.o" ;;
+    14) echo "•.•" ;;
+    *) echo "${1:-^.^}" ;;
+    esac
+}
+
+kittyfetch() {
+    echo "             $c1$w$t  $wm"
+    echo "   /\_/\     $c3$k$t  $kern"
+    echo "  ( $(eyes "$1") )    $c2$s$t  $shell"
+    echo "   $c1> $c3^ $c1<     $c5$r$t  $res"
+    echo "             $c4$n$t  $up"
+}
+
+kittyfetch2() {
+    echo "   /'._           $c1$w$t  $wm"
+    echo "  ($(eyes "$1") 7          $c3$k$t  $kern"
+    echo "   |'-'\"~.  .     $c2$s$t  $shell"
+    echo "   Uu^~C_J._.\"    $c5$r$t  $res"
+    echo "                  $c4$n$t  $up"
+}
+
+bunnyfetch() {
+    echo "             $c1$w$t  $wm"
+    echo "   (\ /)     $c3$k$t  $kern"
+    echo "   ( $(eyes "$1"))    $c2$s$t  $shell"
+    echo "   c($c1\"$t)($c1\"$t)   $c5$r$t  $res"
+    echo "             $c4$n$t  $up"
+}
+
+puppyfetch() {
+    echo "            $c1$w$t  $wm"
+    echo "$c3   /^ ^\    $k$t  $kern"
+    echo "$c3  /$t$c7 $(eyes "$1") $c3\   $c2$s$t  $shell"
+    echo "$c3  V\\$t$c0 Y $c3/V   $c5$r$t  $res"
+    echo "    $c1 U$t      $c4$n$t  $up"
+}
+
+pingufetch() {
+    echo "$c3    W     $c1$w$t  $wm"
+    echo "$c0   ($t$c7'$c3>    $k$t  $kern"
+    echo "$c0  /$t$c7/‾\\$c0\\   $c2$s$t  $shell"
+    echo "$c0  ($t$c7\_/$c0)   $c5$r$t  $res"
+    echo "$c3   ~ ~    $c4$n$t  $up"
+}
+
+simplefetch() {
+    echo "  $c1$w$t  $wm"
+    echo "  $c3$k$t  $kern"
+    echo "  $c2$s$t  $shell"
+    echo "  $c5$r$t  $res"
+    echo "  $c4$n$t  $up"
+}
+
+textfetch() {
+    echo "$c1 wm $t : $wm"
+    echo "$c3 krn$t : $kern"
+    echo "$c2 sh $t : $shell"
+    echo "$c5 res$t : $res"
+    echo "$c4 up $t : $up"
+}
+
+get_uptime() {
+    local up
+    up=$(uptime 2>/dev/null || true)
+    up="${up#*up }"
+    up="${up%%,*}"
+    echo "$up" | xargs 2>/dev/null || echo "$up"
+}
+
+get_wm_linux() {
+    local desktop="${XDG_CURRENT_DESKTOP:-${XDG_SESSION_DESKTOP:-$DESKTOP_SESSION}}"
+    desktop="${desktop%%:*}"
+    if [ -n "$desktop" ]; then
+        echo "$desktop"
+    else
+        echo "Wayland"
+    fi
+}
+
+get_res_linux() {
+    if [ -d /sys/class/drm ]; then
+        for mode in /sys/class/drm/*/modes; do
+            if [ -f "$mode" ] && [ -s "$mode" ]; then
+                head -n 1 "$mode"
+                return
+            fi
+        done
+    fi
+    echo "1920x1080"
+}
+
+init() {
+    for i in 0 1 2 3 4 5 6 7; do
+        printf -v "c${i}" '%b' "\e[3${i}m"
+    done
+
+    readonly d=$'\e[1m'
+    readonly t=$'\e[0m'
+    readonly v=$'\e[7m'
+
+    readonly w=""
+    readonly k=""
+    readonly s=""
+    readonly r=""
+    readonly n=""
+
+    readonly wm="$(get_wm_linux)"
+    readonly kern="$(uname -r | cut -f1 -d '-')"
+    readonly shell="$(basename "${SHELL:-fish}")"
+    readonly res="$(get_res_linux)"
+    readonly up="$(get_uptime)"
+}
+
+OPTSTRING=":e:m:hrvc"
+CLEAR_SCREEN=false
+RAND_CHOICE=false
+MODE_CHOICE=""
+EYES_CHOICE=""
+
+while getopts "${OPTSTRING}" opt; do
+  case ${opt} in
+    v)
+        echo "cutefetch v3.3.0"
+        exit 0
+        ;;
+    h)
+        help_info
+        exit 0
+        ;;
+    m)
+        MODE_CHOICE="${OPTARG}"
+        ;;
+    e)
+        EYES_CHOICE="${OPTARG}"
+        ;;
+    r)
+        RAND_CHOICE=true
+        ;;
+    c)
+        CLEAR_SCREEN=true
+        ;;
+    :)
+        echo "Option -${OPTARG} requires an argument."
+        exit 1
+        ;;
+    ?)
+        exit 1
+        ;;
+  esac
+done
+
+if [ "${RAND_CHOICE}" = true ] || [ -z "${MODE_CHOICE}" ]; then
+    MODE_LIST=("cat" "catfull" "bunny" "dog" "penguin")
+    EYES_LIST=("0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11" "12" "13" "14")
+
+    if [ -z "${MODE_CHOICE}" ] && [ "${RAND_CHOICE}" = true ]; then
+        RAND_INDEX=$((RANDOM % ${#MODE_LIST[@]}))
+        MODE_CHOICE="${MODE_LIST[$RAND_INDEX]}"
+    elif [ -z "${MODE_CHOICE}" ]; then
+        MODE_CHOICE="cat"
+    fi
+
+    if [ -z "${EYES_CHOICE}" ] && [ "${RAND_CHOICE}" = true ]; then
+        RAND_EYES_INDEX=$((RANDOM % ${#EYES_LIST[@]}))
+        EYES_CHOICE="${EYES_LIST[$RAND_EYES_INDEX]}"
+    elif [ -z "${EYES_CHOICE}" ]; then
+        EYES_CHOICE="6"
+    fi
+fi
+
+main() {
+    init
+    if [ "${CLEAR_SCREEN}" = true ]; then
+        clear 2>/dev/null || true
+    fi
+    echo ""
+    case "$1" in
+    cat | kitty | "")
+        kittyfetch "$2"
+        ;;
+    catfull | cat2 | kitty2)
+        kittyfetch2 "$2"
+        ;;
+    bunny | rabbit)
+        [ -z "$2" ] && eye="0" || eye="$2"
+        bunnyfetch "$eye"
+        ;;
+    dog | doggo | doggy)
+        [ -z "$2" ] && eye="1" || eye="$2"
+        puppyfetch "$eye"
+        ;;
+    penguin | pengu | pingu)
+        pingufetch
+        ;;
+    minimal | simple)
+        simplefetch
+        ;;
+    none | noglyph | text)
+        textfetch
+        ;;
+    esac
+    echo ""
+}
+
+main "${MODE_CHOICE}" "${EYES_CHOICE}"

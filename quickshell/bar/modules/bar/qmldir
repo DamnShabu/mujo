@@ -1,0 +1,16 @@
+Bar Bar.qml
+LauncherPill LauncherPill.qml
+ActiveWindowPill ActiveWindowPill.qml
+Workspaces Workspaces.qml
+ClockPill ClockPill.qml
+CalendarMenu CalendarMenu.qml
+BatteryMenu BatteryMenu.qml
+BluetoothMenu BluetoothMenu.qml
+NetworkMenu NetworkMenu.qml
+VolumeMenu VolumeMenu.qml
+SystemTray SystemTray.qml
+TrayIconDelegate TrayIconDelegate.qml
+TrayMenu TrayMenu.qml
+LlmTrackerMenu LlmTrackerMenu.qml
+Island Island.qml
+IslandPanel IslandPanel.qml

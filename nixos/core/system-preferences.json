@@ -1,0 +1,19 @@
+{
+  "hostname": "main",
+  "timezone": "Europe/Berlin",
+  "locale": "en_US.UTF-8",
+  "firewall": {
+    "enable": true,
+    "allowedTCPPorts": [
+      11434
+    ]
+  },
+  "ssh": {
+    "enable": false
+  },
+  "autoOptimiseStore": true,
+  "zramSwap": {
+    "enable": true,
+    "memoryPercent": 50
+  }
+}

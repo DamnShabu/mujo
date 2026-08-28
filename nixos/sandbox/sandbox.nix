@@ -128,6 +128,7 @@
     apps.sandbox = {
       type = "app";
       program = "${sandbox.driver}/bin/nixos-test-driver";
+      meta.description = "Disposable VM + MCP server for testing desktop UI";
     };
   };
 }
