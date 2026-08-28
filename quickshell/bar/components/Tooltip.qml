@@ -22,7 +22,7 @@ Item {
         property bool shown: false
         visible: shown && tip.target !== null
         color: "transparent"
-        anchor.window: tip.panelWindow
+        anchor.window: tip.panelWindow || null
         anchor.item: tip.target
         anchor.edges: Theme.popupEdge
         anchor.gravity: Theme.popupGravity

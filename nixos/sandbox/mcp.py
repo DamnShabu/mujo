@@ -177,12 +177,11 @@ def screenshot():
     ensure_up()
     host_png = vm.shared_dir / "shot.png"
     host_png.unlink(missing_ok=True)
-    out = ""
-    for _ in range(20):
-        out = user_run(f"grim {SHARED_SHOT}")
-        if host_png.exists():
+    out = user_run(f"grim {SHARED_SHOT}")
+    for _ in range(50):
+        if host_png.exists() and host_png.stat().st_size > 0:
             break
-        time.sleep(0.2)
+        time.sleep(0.01)
     if not host_png.exists():
         raise RuntimeError(f"grim failed: {out.strip()}")
     png = host_png.read_bytes()
@@ -334,7 +333,7 @@ def _dispatch(name, a):
         )
     if name == "reload":
         loads, restarts = shell_state()
-        user_run("systemctl --user restart qs-bar.service")
+        user_run("cp -a /mnt/nixconf/quickshell/bar/. /run/quickshell-bar/ && systemctl --user restart qs-bar.service")
         if wait_for_shell(loads, restarts):
             # ponytail: fixed settle — the load event fires before the layer
             # surfaces are mapped and painted, so an immediate screenshot
