@@ -2,7 +2,6 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "../../services"
 
 // Process Sentinel & Resource Monitor Singleton.
 // Performs periodic low-overhead scans of CPU, RAM, VRAM/GPU, and zombie tasks.
@@ -137,7 +136,7 @@ QtObject {
         }
     }
 
-    Timer {
+    property Timer _pollTimer: Timer {
         interval: 10000
         running: sentinel.enabled
         repeat: true

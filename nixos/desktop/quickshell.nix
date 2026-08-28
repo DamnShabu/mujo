@@ -83,7 +83,6 @@
     # Settings app (bar/settings.qml, spawned by `mujo settings` / Mod+,) can be
     # reached by path too.
     environment.etc."xdg/quickshell/bar".source = qs.bar;
-    environment.etc."xdg/quickshell/screenshot".source = ../../quickshell/screenshot;
 
     services.udev.extraRules = ''
       KERNEL=="event*", SUBSYSTEM=="input", MODE="0666"

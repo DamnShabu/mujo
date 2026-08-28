@@ -1,0 +1,6 @@
+SelectionArea SelectionArea.qml
+FloatingToolbar FloatingToolbar.qml
+OcrCard OcrCard.qml
+TranslateCard TranslateCard.qml
+AnnotationCanvas AnnotationCanvas.qml
+Loupe Loupe.qml

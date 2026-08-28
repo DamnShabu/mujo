@@ -1,6 +1,7 @@
 {
   self,
   pkgs,
+  inputs ? self.inputs or {},
 }: {
   # The shell UI tree: the bar (workspaces, launcher, tray, wallpaper, …) and
   # the standalone Settings app (bar/settings.qml). Whole tree is copied so QML
@@ -24,12 +25,11 @@
   mujo-screenshot = pkgs.runCommand "mujo-screenshot" {nativeBuildInputs = [pkgs.makeWrapper];} ''
     mkdir -p $out/share/quickshell
     cp -r ${./bar} $out/share/quickshell/bar
-    cp -r ${./screenshot} $out/share/quickshell/screenshot
     install -Dm755 ${./mujo-screenshot.sh} $out/libexec/mujo-screenshot.sh
     makeWrapper $out/libexec/mujo-screenshot.sh $out/bin/mujo-screenshot \
       --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.quickshell pkgs.grim pkgs.imagemagick pkgs.tesseract pkgs.translate-shell pkgs.wl-clipboard pkgs.libnotify pkgs.jq pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.procps pkgs.findutils pkgs.curl pkgs.wtype]} \
-      --set QML2_IMPORT_PATH "${pkgs.lib.makeSearchPath "lib/qt-6/qml" (with pkgs.qt6; [qtmultimedia qtdeclarative qtwayland qt5compat] ++ [pkgs.quickshell])}" \
-      --set MUJO_SCREENSHOT_QML "$out/share/quickshell/screenshot/screenshot.qml"
+      --set QML2_IMPORT_PATH "${pkgs.lib.makeSearchPath "lib/qt-6/qml" (with pkgs.qt6; [qtmultimedia qtdeclarative qtwayland qt5compat] ++ [pkgs.quickshell inputs.qml-niri.packages.${pkgs.stdenv.hostPlatform.system}.default])}" \
+      --set MUJO_SCREENSHOT_QML "$out/share/quickshell/bar/screenshot.qml"
   '';
 
   # Keyring CRUD over the Secret Service (gnome-keyring) for the Settings

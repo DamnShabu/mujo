@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "../../services"
 
 // Multi-Source Crash Watcher & Diagnostic Dispatcher.
 // Follows `mujo crash stream` to detect:

@@ -5,19 +5,15 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import "../bar/theme"
-import "../bar/components"
-import "."
+import "./theme"
+import "./services"
+import "./components"
+import "./modules/screenshot"
 
 ShellRoot {
     id: root
 
     readonly property string rawImagePath: "file:///tmp/mujo-snip-raw.png"
-    readonly property string helperScript: {
-        var envScript = Quickshell.env("MUJO_SCREENSHOT_HELPER") || ""
-        if (envScript !== "") return envScript
-        return "/tmp/mujo-snip-helper.sh"
-    }
 
     // Global state
     property int activeScreenX: 0
@@ -147,20 +143,21 @@ ShellRoot {
         ocrProc.running = true
     }
 
-    function doTranslate(text, lang) {
+    function doTranslate(text, targetLang) {
+        if (!text || text.trim() === "") return
         root.showTranslateCard = true
         root.showOcrCard = false
         root.transBusy = true
         root.transError = ""
-        root.transResultText = ""
         root.transSourceText = text
-        if (lang) root.transTargetLang = lang
-
+        root.transResultText = ""
+        root.transTargetLang = targetLang || root.transTargetLang
         transProc.accumulatedOutput = ""
         transProc.command = ["mujo-screenshot", "translate", root.transTargetLang, text]
         transProc.running = true
     }
 
+    // ─── Multi-Monitor Fullscreen Overlays ───────────────────────────────────
     Variants {
         model: Quickshell.screens
 
@@ -169,12 +166,6 @@ ShellRoot {
             required property var modelData
             screen: modelData
 
-            WlrLayershell.namespace: "mujo-screenshot"
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-            exclusionMode: ExclusionMode.Ignore
-            color: "transparent"
-
             anchors {
                 top: true
                 bottom: true
@@ -182,36 +173,56 @@ ShellRoot {
                 right: true
             }
 
-            // Keyboard Shortcuts
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+            color: "transparent"
+
+            // Global Keyboard Shortcuts
             Item {
                 anchors.fill: parent
                 focus: true
 
-                Keys.onEscapePressed: Qt.quit()
-                Keys.onReturnPressed: root.doCopy()
-                Keys.onEnterPressed: root.doCopy()
-
                 Keys.onPressed: function(event) {
-                    if (event.matches(StandardKey.Copy)) {
-                        root.doCopy()
-                        event.accepted = true
-                    } else if (event.matches(StandardKey.Save)) {
-                        root.doSave()
-                        event.accepted = true
-                    } else if (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_O) {
-                        root.doOcr()
-                        event.accepted = true
-                    } else if (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_T) {
-                        if (root.ocrResultText !== "") {
-                            root.doTranslate(root.ocrResultText, root.transTargetLang)
+                    if (event.key === Qt.Key_Escape) {
+                        if (root.showOcrCard || root.showTranslateCard) {
+                            root.showOcrCard = false
+                            root.showTranslateCard = false
                         } else {
-                            // OCR first then translate
+                            Qt.quit()
+                        }
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        if (root.hasSelection && !root.showOcrCard && !root.showTranslateCard) {
+                            root.doCopy()
+                        }
+                        event.accepted = true
+                    } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_C) {
+                        if (root.hasSelection && !root.showOcrCard && !root.showTranslateCard) {
+                            root.doCopy()
+                        }
+                        event.accepted = true
+                    } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_S) {
+                        if (root.hasSelection) {
+                            root.doSave()
+                        }
+                        event.accepted = true
+                    } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_O) {
+                        if (root.hasSelection) {
+                            root.doOcr()
+                        }
+                        event.accepted = true
+                    } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_T) {
+                        if (root.hasSelection) {
                             root.showTranslateCard = true
+                            root.showOcrCard = false
                             root.transBusy = true
+                            root.transError = ""
+                            root.ocrBusy = true
+                            root.ocrResultText = ""
                             ocrProc.accumulatedOutput = ""
-                            ocrProc.command = ["mujo-screenshot", "ocr", Math.round(root.selX), Math.round(root.selY), Math.round(root.selWidth), Math.round(root.selHeight)]
-                            ocrProc.onExited = function(c) {
-                                if (c === 0 && ocrProc.accumulatedOutput.trim() !== "") {
+                            ocrProc.command = ["mujo-screenshot", "ocr", Math.round(globalSelX), Math.round(globalSelY), Math.round(selWidth), Math.round(selHeight)]
+                            ocrProc.cb = function() {
+                                if (ocrProc.accumulatedOutput.trim() !== "") {
                                     root.doTranslate(ocrProc.accumulatedOutput.trim(), root.transTargetLang)
                                 } else {
                                     root.transBusy = false
@@ -231,8 +242,8 @@ ShellRoot {
             // Frozen background frame
             Image {
                 id: bgImage
-                x: -(screenWindow.modelData.x || 0)
-                y: -(screenWindow.modelData.y || 0)
+                x: -(screenWindow.screen ? screenWindow.screen.x : 0)
+                y: -(screenWindow.screen ? screenWindow.screen.y : 0)
                 source: root.rawImagePath
                 asynchronous: false
                 cache: false
@@ -288,8 +299,8 @@ ShellRoot {
                 property int startY: 0
 
                 onPressed: function(mouse) {
-                    root.activeScreenX = screenWindow.modelData.x || 0
-                    root.activeScreenY = screenWindow.modelData.y || 0
+                    root.activeScreenX = screenWindow.screen ? screenWindow.screen.x : 0
+                    root.activeScreenY = screenWindow.screen ? screenWindow.screen.y : 0
                     startX = mouse.x
                     startY = mouse.y
                     root.selX = mouse.x
@@ -340,7 +351,7 @@ ShellRoot {
                 }
             }
 
-            // ─── Magnifier Loupe ────────────────────────────────────────────────
+            // ─── Pixel Loupe Magnifier ───────────────────────────────────────────
             Loupe {
                 rawSource: root.rawImagePath
                 cursorX: dragArea.mouseX
@@ -357,92 +368,75 @@ ShellRoot {
                 selWidth: root.selWidth
                 selHeight: root.selHeight
                 annotateActive: root.showAnnotations
-                visible: root.hasSelection && !root.isDragging && !root.showOcrCard && !root.showTranslateCard
 
                 onCopyRequested: root.doCopy()
                 onSaveRequested: root.doSave()
                 onOcrRequested: root.doOcr()
                 onTranslateRequested: {
-                    root.showTranslateCard = true
-                    root.showOcrCard = false
-                    root.transBusy = true
-                    ocrProc.accumulatedOutput = ""
-                    ocrProc.command = ["mujo-screenshot", "ocr", Math.round(root.selX), Math.round(root.selY), Math.round(root.selWidth), Math.round(root.selHeight)]
-                    ocrProc.onExited = function(code) {
-                        if (code === 0 && ocrProc.accumulatedOutput.trim() !== "") {
-                            root.doTranslate(ocrProc.accumulatedOutput.trim(), root.transTargetLang)
-                        } else {
-                            root.transBusy = false
-                            root.transError = "No text found in selection."
+                    if (root.hasSelection) {
+                        root.showTranslateCard = true
+                        root.showOcrCard = false
+                        root.transBusy = true
+                        root.transError = ""
+                        ocrProc.accumulatedOutput = ""
+                        ocrProc.command = ["mujo-screenshot", "ocr", Math.round(globalSelX), Math.round(globalSelY), Math.round(selWidth), Math.round(selHeight)]
+                        ocrProc.cb = function() {
+                            if (ocrProc.accumulatedOutput.trim() !== "") {
+                                root.doTranslate(ocrProc.accumulatedOutput.trim(), root.transTargetLang)
+                            } else {
+                                root.transBusy = false
+                                root.transError = "No text detected to translate."
+                            }
                         }
+                        ocrProc.running = true
                     }
-                    ocrProc.running = true
                 }
                 onAnnotateToggled: root.showAnnotations = !root.showAnnotations
-                onPinRequested: {
-                    // Save and copy, then notify
-                    root.doCopy()
-                }
+                onPinRequested: root.doCopy()
                 onCancelRequested: Qt.quit()
             }
 
-            // ─── OCR Card Popover ───────────────────────────────────────────────
+            // ─── OCR Result Card Modal ───────────────────────────────────────────
             OcrCard {
-                anchors.centerIn: parent
                 visible: root.showOcrCard
-                busy: root.ocrBusy
+                anchors.centerIn: parent
                 recognizedText: root.ocrResultText
+                busy: root.ocrBusy
                 errorMessage: root.ocrError
 
+                onCloseRequested: root.showOcrCard = false
                 onCopyRequested: function(text) {
-                    // Copy to clipboard
                     copyProc.command = ["wl-copy", text]
                     copyProc.running = true
-                    root.showOcrCard = false
-                    Qt.quit()
                 }
-
                 onTranslateRequested: function(text) {
                     root.doTranslate(text, root.transTargetLang)
                 }
-
-                onCloseRequested: {
-                    root.showOcrCard = false
-                }
             }
 
-            // ─── Translation Card Popover ───────────────────────────────────────
+            // ─── Translation Card Modal ──────────────────────────────────────────
             TranslateCard {
-                anchors.centerIn: parent
                 visible: root.showTranslateCard
-                busy: root.transBusy
+                anchors.centerIn: parent
                 sourceText: root.transSourceText
                 translatedText: root.transResultText
                 targetLang: root.transTargetLang
+                busy: root.transBusy
                 errorMessage: root.transError
 
-                onLanguageChanged: function(newLang) {
-                    root.transTargetLang = newLang
-                    root.doTranslate(root.transSourceText, newLang)
-                }
-
+                onCloseRequested: root.showTranslateCard = false
                 onCopyRequested: function(text) {
                     copyProc.command = ["wl-copy", text]
                     copyProc.running = true
-                    root.showTranslateCard = false
-                    Qt.quit()
                 }
-
                 onCopyBothRequested: function(orig, trans) {
-                    var both = orig + "\n\n" + trans
-                    copyProc.command = ["wl-copy", both]
+                    var combined = "Original:\n" + orig + "\n\nTranslation:\n" + trans
+                    copyProc.command = ["wl-copy", combined]
                     copyProc.running = true
-                    root.showTranslateCard = false
-                    Qt.quit()
                 }
-
-                onCloseRequested: {
-                    root.showTranslateCard = false
+                onLanguageChanged: function(lang) {
+                    root.transTargetLang = lang
+                    root.doTranslate(root.transSourceText, lang)
                 }
             }
         }
