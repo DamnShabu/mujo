@@ -33,7 +33,6 @@
       self.nixosModules.user-persistence
       self.nixosModules.system-preferences
 
-      self.nixosModules.preload
 
       self.nixosModules.flatpak
 
@@ -71,10 +70,6 @@
     nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 
     secrets.vaultwarden.enable = true;
-    # Vendored package: preload was removed from nixpkgs, see
-    # modules/perSystem.nix (packages.preload).
-    services.preload.enable = true;
-    services.preload.package = self.packages.${pkgs.stdenv.hostPlatform.system}.preload;
     # Wired but inert until secrets are declared. Usage shape:
     #   secrets.vaultwarden.files.myservice = { item = "my-item"; field = "password"; type = "login"; };
     #   secrets.vaultwarden.sshKeys.main = { item = "real-ssh-item"; field = "notes"; };

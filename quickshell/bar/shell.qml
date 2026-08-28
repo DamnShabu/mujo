@@ -12,6 +12,7 @@ import "./modules/launcher"
 import "./modules/notifications"
 import "./modules/desktop"
 import "./modules/system"
+import "./modules/screenshot"
 
 ShellRoot {
     id: root
@@ -134,6 +135,16 @@ ShellRoot {
         function close(): void {
             PopupCoordinator.closeLauncher()
         }
+    }
+
+    // Screenshot overlay (interactive region selection, OCR, translation)
+    ScreenshotOverlay { id: screenshotOverlay }
+
+    IpcHandler {
+        target: "screenshot"
+        function open(): void { screenshotOverlay.open() }
+        function close(): void { screenshotOverlay.close() }
+        function toggle(): void { screenshotOverlay.toggle() }
     }
 
     // Session-wide polkit authentication agent + themed prompt (one instance,

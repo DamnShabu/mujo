@@ -13,5 +13,9 @@
 
     # Limit kernels in /boot to prevent filling the partition
     loader.grub.configurationLimit = 5;
+
+    # The GRUB menu was 5.45s of every boot — the second-largest stage after
+    # firmware. 1s still leaves a window to hit a key and pick a generation.
+    loader.timeout = 1;
   };
 }
