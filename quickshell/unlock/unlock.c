@@ -45,6 +45,6 @@ int main(void) {
   int rc = pam_authenticate(ph, 0);
   if (rc == PAM_SUCCESS) rc = pam_acct_mgmt(ph, 0);
   pam_end(ph, rc);
-  memset(buf, 0, sizeof buf);  // scrub the password
+  explicit_bzero(buf, sizeof buf);  // scrub the password
   return rc == PAM_SUCCESS ? 0 : 1;
 }

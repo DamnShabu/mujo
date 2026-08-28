@@ -41,9 +41,15 @@
       "Bash(HOME=/home/yurii bash quickshell/mujo.sh idle-guard audio)",
       "Bash(echo \"audio_exit=$?\")",
       "Bash(HOME=/home/yurii bash quickshell/mujo.sh idle-guard charging)",
-      "Bash(echo \"charging_exit=$?\")"
+      "Bash(echo \"charging_exit=$?\")",
+      "mcp__sandbox__screenshot",
+      "mcp__sandbox__logs"
     ]
   },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "sandbox"
+  ],
   "skillOverrides": {},
   "outputStyle": "default"
 }

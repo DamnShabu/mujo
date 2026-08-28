@@ -31,13 +31,18 @@
 
       self.nixosModules.impermanence
       self.nixosModules.user-persistence
+      self.nixosModules.system-preferences
 
       self.nixosModules.preload
 
       self.nixosModules.flatpak
-      
+
       self.nixosModules.opencode
       self.nixosModules.claude-code
+      self.nixosModules.antigravity-cli
+      self.nixosModules.antigravity-ide
+      self.nixosModules.cutefetch
+      self.nixosModules.herdr
       self.nixosModules.discord
       self.nixosModules.obsidian
       self.nixosModules.steam
@@ -53,7 +58,7 @@
 
       self.nixosModules.vaultwarden
 
-      self.nixosModules.extra_plymouth
+      self.nixosModules.plymouth
 
       # disko
       inputs.disko.nixosModules.disko
@@ -61,7 +66,6 @@
 
       # flatpak management
       inputs.nix-flatpak.nixosModules.nix-flatpak
-
     ];
 
     nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";

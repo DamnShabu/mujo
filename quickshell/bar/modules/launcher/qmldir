@@ -1,0 +1,13 @@
+Launcher Launcher.qml
+LauncherActionBar LauncherActionBar.qml
+LauncherBody LauncherBody.qml
+LauncherEmptyState LauncherEmptyState.qml
+LauncherFolderCard LauncherFolderCard.qml
+LauncherGrid LauncherGrid.qml
+LauncherGroupHeader LauncherGroupHeader.qml
+LauncherGroupsView LauncherGroupsView.qml
+LauncherResult LauncherResult.qml
+CommandPalette CommandPalette.qml
+ClipboardList ClipboardList.qml
+SessionMenu SessionMenu.qml
+LaunchFeedback LaunchFeedback.qml

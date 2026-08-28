@@ -1,0 +1,18 @@
+singleton SettingsBus SettingsBus.qml
+singleton PopupCoordinator PopupCoordinator.qml
+singleton Launch Launch.qml
+singleton Notifications Notifications.qml
+singleton Weather Weather.qml
+singleton AI AI.qml
+singleton Session Session.qml
+singleton Lock Lock.qml
+singleton Cava Cava.qml
+singleton Shelf Shelf.qml
+singleton Wallhaven Wallhaven.qml
+singleton WallpaperEngine WallpaperEngine.qml
+singleton WallpaperDownloads WallpaperDownloads.qml
+WallpaperDownloadWorker WallpaperDownloadWorker.qml
+CrashWatcher CrashWatcher.qml
+IdleService IdleService.qml
+singleton DesktopGrid DesktopGrid.qml
+singleton DesktopFiles DesktopFiles.qml

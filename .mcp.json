@@ -3,6 +3,10 @@
     "sandbox": {
       "command": "nix",
       "args": ["run", ".#sandbox"]
+    },
+    "nixos": {
+      "command": "mcp-nixos",
+      "args": []
     }
   }
 }

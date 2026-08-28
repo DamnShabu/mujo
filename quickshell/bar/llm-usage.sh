@@ -106,11 +106,10 @@ claude_limits() {
   echo "${parsed}"
 }
 
-# Sum transcript tokens into per-day (last 7 days) and per-model buckets.
-claude_tokens() {
-  local dir="${HOME_DIR}/.claude/projects" midnight days start label i
-  if [[ ! -d "${dir}" ]]; then echo '{"tokensByDay":[],"tokensByModel":[]}'; return 0; fi
-
+# The 7-day bucket window every per-day breakdown is summed into: one
+# {start,end,label} object per day, oldest first, "Today" last.
+day_window() {
+  local midnight days start label i
   midnight="$(date -d 'today 00:00:00' +%s)"
   days='[]'
   for i in 6 5 4 3 2 1 0; do
@@ -119,6 +118,15 @@ claude_tokens() {
     days="$(jq -c --argjson s "${start}" --arg l "${label}" \
       '. + [{start:$s, end:($s+86400), label:$l}]' <<<"${days}")"
   done
+  printf '%s\n' "${days}"
+}
+
+# Sum transcript tokens into per-day (last 7 days) and per-model buckets.
+claude_tokens() {
+  local dir="${HOME_DIR}/.claude/projects" days
+  if [[ ! -d "${dir}" ]]; then echo '{"tokensByDay":[],"tokensByModel":[]}'; return 0; fi
+
+  days="$(day_window)"
 
   # Only touch files modified within the window; slurp lines through one jq.
   find "${dir}" -name '*.jsonl' -mtime -8 -print0 2>/dev/null \
@@ -205,132 +213,196 @@ codex_provider() {
 }
 
 # ---- Google Antigravity ----------------------------------------------------
-# Token totals are derived from two data sources inside
-# ~/.gemini/antigravity:
-#   1. conversations/*.db  — SQLite databases whose `gen_metadata` table holds
-#      protobuf blobs.  Field 19 of each blob is the model name string
-#      (e.g. "gemini-3.7-flash-control", "claude-opus-4-6-thinking").  We hex-
-#      dump the blobs and decode the ASCII model names from the hex stream.
-#   2. brain/<id>/.system_generated/logs/transcript.jsonl — one JSON object per
-#      step.  MODEL-sourced steps carry `created_at` timestamps and `content`
-#      whose character length is a reasonable proxy for output tokens (÷ 4).
+# Antigravity ships as three separate products that each keep their own state
+# tree under ~/.gemini (the IDE, the standalone app, and antigravity-cli). They
+# share one Google account, so the widget reports them as a single provider and
+# scans all three roots. Scanning only ~/.gemini/antigravity — as this used to —
+# reported zero for anyone using the CLI or the IDE build.
 #
-# Because the conversation DBs don't expose token counts as plain integers
-# (they're packed inside protobuf), we estimate output tokens from transcript
-# content length and count each model generation (PLANNER_RESPONSE) as one
-# unit for the per-model breakdown.
+# Two data sources per conversation:
+#   1. conversations/<id>.db — the `gen_metadata` table holds one protobuf blob
+#      per model generation. The blobs are not parsed; the model name is a plain
+#      string inside them, so the blobs are dumped to a temp dir and grepped.
+#      This yields the *model mix* of a conversation, not a per-response label.
+#   2. brain/<id>/.system_generated/logs/transcript.jsonl — one JSON object per
+#      step. MODEL/PLANNER_RESPONSE steps carry `created_at` and the generated
+#      `content`/`thinking`, whose character length is the token proxy (÷ 4).
+#
+# Per-day totals therefore come from the transcript timestamps (exact), while
+# per-model totals split each conversation's tokens across the models it used,
+# weighted by how often each appears in gen_metadata. The UI only ever shows
+# both breakdowns in aggregate, so a weighted split is indistinguishable from
+# per-response attribution while costing one grep instead of a protobuf parser.
+ANTIGRAVITY_ROOTS=(
+  "${HOME_DIR}/.gemini/antigravity"
+  "${HOME_DIR}/.gemini/antigravity-ide"
+  "${HOME_DIR}/.gemini/antigravity-cli"
+)
+
+# Newest mtime across every file the scan reads. Used as a cache key: while it
+# is unchanged there is provably no new usage, so the scan can be skipped
+# entirely — and the moment Antigravity writes a step, it changes and the next
+# poll recomputes. That is what keeps the widget both cheap and live.
+antigravity_stamp() {
+  local root
+  for root in "${ANTIGRAVITY_ROOTS[@]}"; do
+    [[ -d "${root}" ]] || continue
+    find "${root}/conversations" -maxdepth 1 -name '*.db' -printf '%T@\n' 2>/dev/null
+    find "${root}/brain" -maxdepth 4 -name 'transcript.jsonl' -printf '%T@\n' 2>/dev/null
+  done | sort -rn | head -1
+}
+
+# {"<model name>": <occurrences>} for one conversation database.
+# Empty object when sqlite3 is unavailable or the table holds no model strings;
+# the caller then still counts the conversation's tokens, just without a
+# per-model split.
+antigravity_models() {
+  local db="$1" dir
+  dir="$(mktemp -d)" || { echo '{}'; return 0; }
+  sqlite3 "${db}" "SELECT writefile('${dir}/'||idx, data) FROM gen_metadata" >/dev/null 2>&1 || true
+  # The blobs also embed conversation text, so the raw vendor-prefixed matches
+  # include prose and file paths. A real model id has at least two segments
+  # after the vendor, carries a version digit, and never contains a filename
+  # extension — that rejects "claude-code.nix", "claude-code-2.1.238.drv" and
+  # "/tmp/claude-1000" while keeping gemini-3.7-flash-control,
+  # claude-opus-4-6-thinking and gpt-4o-mini.
+  grep -rhoaE '(gemini|claude|gpt)-[0-9A-Za-z._-]*' "${dir}" 2>/dev/null \
+    | sed 's/[._-]*$//' \
+    | grep -E -e '^(gemini|claude|gpt)(-[0-9A-Za-z.]+){2,}$' \
+    | grep -E -e '-[0-9]' \
+    | grep -v -E -e '\.[A-Za-z]' \
+    | sort | uniq -c \
+    | jq -Rn '[inputs | capture("^ *(?<c>[0-9]+) +(?<n>.+)$") | {(.n): (.c | tonumber)}] | add // {}'
+  rm -rf "${dir}"
+}
 
 antigravity_tokens() {
-  local base="${HOME_DIR}/.gemini/antigravity"
-  local convos="${base}/conversations" brains="${base}/brain"
-  if [[ ! -d "${convos}" || ! -d "${brains}" ]]; then
-    echo '{"tokensByDay":[],"tokensByModel":[]}'
-    return 0
+  local cache="${HOME_DIR}/.cache/qsshell/llm-antigravity.json" stamp
+  mkdir -p "$(dirname "${cache}")"
+  # Midnight is part of the key: the day buckets are labelled relative to today,
+  # so a cache written yesterday must not be replayed as today's numbers.
+  stamp="$(antigravity_stamp)|$(date -d 'today 00:00:00' +%s)"
+
+  # Nothing on disk changed since the last scan — replay it.
+  if [[ -n "${stamp}" && -f "${cache}" ]] \
+     && [[ "$(jq -r '.stamp // ""' "${cache}" 2>/dev/null)" == "${stamp}" ]]; then
+    jq -c '.data' "${cache}" 2>/dev/null && return 0
   fi
 
-  # Build the same 7-day window as claude_tokens().
-  local midnight days start label i
-  midnight="$(date -d 'today 00:00:00' +%s)"
-  days='[]'
-  for i in 6 5 4 3 2 1 0; do
-    start=$((midnight - i * 86400))
-    if [[ "${i}" -eq 0 ]]; then label="Today"; else label="$(date -d "@${start}" +%a)"; fi
-    days="$(jq -c --argjson s "${start}" --arg l "${label}" \
-      '. + [{start:$s, end:($s+86400), label:$l}]' <<<"${days}")"
+  local days ndjson root db cid transcript models result
+  days="$(day_window)"
+  ndjson="$(mktemp)"
+
+  for root in "${ANTIGRAVITY_ROOTS[@]}"; do
+    [[ -d "${root}/conversations" ]] || continue
+    for db in "${root}/conversations"/*.db; do
+      [[ -f "${db}" ]] || continue
+      cid="$(basename "${db}" .db)"
+      transcript="${root}/brain/${cid}/.system_generated/logs/transcript.jsonl"
+      [[ -f "${transcript}" ]] || continue
+      # Skip conversations untouched in the last 8 days (outside the window).
+      [[ -n "$(find "${db}" "${transcript}" -mtime -8 -print -quit 2>/dev/null)" ]] || continue
+
+      models="$(antigravity_models "${db}")"
+      [[ -n "${models}" ]] || models='{}'
+      jq -c --argjson m "${models}" '
+        select(.source == "MODEL" and .type == "PLANNER_RESPONSE")
+        | {ts: .created_at,
+           len: (((.content // "") | length) + ((.thinking // "") | length)),
+           models: $m}' "${transcript}" >> "${ndjson}" 2>/dev/null
+    done
   done
 
-  # Collect {model, ts, len} tuples from every conversation, emitted as NDJSON
-  # into a temp file to avoid O(n²) array-append in a loop.
-  local ndjson_file
-  ndjson_file="$(mktemp)"
-
-  local db cid transcript models_file entries_file
-  for db in "${convos}"/*.db; do
-    [[ -f "${db}" ]] || continue
-    cid="$(basename "${db}" .db)"
-    transcript="${brains}/${cid}/.system_generated/logs/transcript.jsonl"
-    [[ -f "${transcript}" ]] || continue
-
-    # Skip conversations not modified in the last 8 days.
-    if [[ "$(find "${db}" -mtime -8 2>/dev/null)" == "" && \
-          "$(find "${transcript}" -mtime -8 2>/dev/null)" == "" ]]; then
-      continue
-    fi
-
-    # a) Extract model names (one per gen_metadata row, ordered by idx).
-    #    hex(data) outputs pure hex; we decode model-name byte sequences.
-    models_file="$(mktemp)"
-    if command -v sqlite3 >/dev/null 2>&1; then
-      sqlite3 "${db}" "SELECT hex(data) FROM gen_metadata ORDER BY idx" 2>/dev/null \
-        | while IFS= read -r hexline; do
-            echo "${hexline}" \
-              | sed 's/../\\x&/g' \
-              | xargs -0 printf '%b' 2>/dev/null \
-              | grep -oaP '(?:gemini|claude|gpt)-[a-z0-9._-]+' \
-              | head -1 || echo ""
-          done > "${models_file}" 2>/dev/null
-    fi
-
-    # b) Extract MODEL-sourced transcript entries (ts + content length).
-    entries_file="$(mktemp)"
-    jq -c 'select(.source == "MODEL" and .type == "PLANNER_RESPONSE")
-           | {ts: .created_at, len: ((.content // "") | length)}' \
-      "${transcript}" > "${entries_file}" 2>/dev/null
-
-    # c) Zip: paste model names alongside transcript entries, emit NDJSON.
-    paste -d$'\t' "${models_file}" "${entries_file}" 2>/dev/null \
-      | while IFS=$'\t' read -r model entry; do
-          [[ -z "${entry}" ]] && continue
-          [[ -z "${model}" ]] && model="unknown"
-          jq -c --arg m "${model}" '. + {model: $m}' <<<"${entry}"
-        done >> "${ndjson_file}"
-
-    rm -f "${models_file}" "${entries_file}"
-  done
-
-  # Aggregate into tokensByDay and tokensByModel (one jq invocation).
-  jq -c -s -n --argjson days "${days}" '
-    # Prettify model names: "gemini-3.7-flash-control" → "Gemini 3.7 Flash"
+  result="$(jq -c -n --argjson days "${days}" '
+    # "gemini-3.7-flash-control" → "Gemini 3.7 Flash"
     # "claude-opus-4-6-thinking" → "Claude Opus 4.6 Thinking"
     def pretty(m):
       (m | gsub("-control$"; "") | gsub("-thinking$"; " Thinking")) as $s
-      | ($s | split("-")) as $p
-      | [$p[] | if test("^[0-9]") then . else
-          (.[0:1] | ascii_upcase) + .[1:] end]
+      | ($s | split("-"))
+      | [ .[] | if test("^[0-9]") then . else (.[0:1] | ascii_upcase) + .[1:] end ]
       | join(" ")
       | gsub(" (?<a>[0-9]+) (?<b>[0-9]+)"; " \(.a).\(.b)");
 
-    # Estimate tokens from content length (chars ÷ 4 ≈ tokens).
-    reduce ([inputs] | .[]) as $e ({day:{}, model:{}};
+    reduce inputs as $e ({day:{}, model:{}};
       (try (($e.ts | sub("\\.[0-9]+"; "") | sub("[+][0-9]{2}:[0-9]{2}$"; "Z"))
             | fromdateiso8601) catch null) as $ts
+      # chars ÷ 4 ≈ tokens; a step that logged no text still cost a generation.
       | (if $e.len > 0 then (($e.len / 4) | floor) else 250 end) as $t
-      | .model[pretty($e.model)] += $t
+      | ([$e.models[]] | add // 0) as $weight
+      | (if $weight > 0
+         then reduce ($e.models | to_entries[]) as $m (.;
+                .model[pretty($m.key)] += (($t * $m.value / $weight) | floor))
+         else . end)
       | if $ts == null then .
-        else reduce range(0; $days|length) as $i (.;
+        else reduce range(0; $days | length) as $i (.;
                if ($ts >= $days[$i].start and $ts < $days[$i].end)
                then .day[$days[$i].label] += $t else . end)
         end
     ) as $acc
-    | { tokensByDay: [ $days[] | {label:.label, tokens: (($acc.day[.label]) // 0)} ],
+    | { tokensByDay: [ $days[] | {label: .label, tokens: (($acc.day[.label]) // 0)} ],
         tokensByModel: [ $acc.model | to_entries | sort_by(-.value)[]
-                         | {name:.key, tokens:.value} ] }
-  ' "${ndjson_file}" 2>/dev/null || echo '{"tokensByDay":[],"tokensByModel":[]}'
+                         | {name: .key, tokens: .value} ] }
+  ' "${ndjson}" 2>/dev/null)"
+  rm -f "${ndjson}"
 
-  rm -f "${ndjson_file}"
+  [[ -n "${result}" ]] || result='{"tokensByDay":[],"tokensByModel":[]}'
+  jq -cn --arg stamp "${stamp}" --argjson data "${result}" '{stamp:$stamp, data:$data}' \
+    > "${cache}.tmp" 2>/dev/null && mv "${cache}.tmp" "${cache}" 2>/dev/null || true
+  printf '%s\n' "${result}"
+}
+
+# Antigravity keeps no account email on disk (~/.gemini/google_accounts.json,
+# which this used to read, is never written). The only local identity is the
+# Google OAuth token in the login keyring under service=gemini,
+# username=antigravity, so the address has to be resolved through the userinfo
+# endpoint — the same call Antigravity itself makes, visible as the
+# googleapis.com/oauth2/v2/userinfo line in ~/.gemini/antigravity-cli/log/*.log.
+#
+# Cached for a day: the address only changes when the user signs in as someone
+# else, and every failure path (no secret-tool, locked keyring, expired token,
+# offline) falls back to the cached value and then to "", which is exactly the
+# blank header the widget already renders.
+EMAIL_TTL=86400
+antigravity_email() {
+  local cache="${HOME_DIR}/.cache/qsshell/llm-antigravity-email.json"
+  mkdir -p "$(dirname "${cache}")"
+
+  local cached="" cached_ts=0 now
+  if [[ -f "${cache}" ]]; then
+    cached="$(jq -r '.email // ""' "${cache}" 2>/dev/null || echo "")"
+    cached_ts="$(jq -r '.ts // 0' "${cache}" 2>/dev/null || echo 0)"
+  fi
+  now="$(date +%s)"
+  if [[ $((now - cached_ts)) -lt ${EMAIL_TTL} ]]; then
+    printf '%s\n' "${cached}"; return 0
+  fi
+
+  command -v secret-tool >/dev/null 2>&1 || { printf '%s\n' "${cached}"; return 0; }
+
+  local tok email
+  tok="$(secret-tool lookup service gemini username antigravity 2>/dev/null \
+         | jq -r '.token.access_token // empty' 2>/dev/null || true)"
+  [[ -n "${tok}" ]] || { printf '%s\n' "${cached}"; return 0; }
+
+  email="$(curl -s -m 8 https://www.googleapis.com/oauth2/v2/userinfo \
+             -H "Authorization: Bearer ${tok}" 2>/dev/null \
+           | jq -r '.email // empty' 2>/dev/null || true)"
+  [[ -n "${email}" ]] || { printf '%s\n' "${cached}"; return 0; }
+
+  jq -cn --arg email "${email}" --argjson ts "${now}" '{ts:$ts, email:$email}' \
+    > "${cache}.tmp" 2>/dev/null && mv "${cache}.tmp" "${cache}" 2>/dev/null || true
+  printf '%s\n' "${email}"
 }
 
 antigravity_provider() {
-  local d="${HOME_DIR}/.gemini/antigravity"
-  [[ -d "${d}" ]] || return 0
+  local root found=""
+  for root in "${ANTIGRAVITY_ROOTS[@]}"; do
+    [[ -d "${root}" ]] && found=1
+  done
+  [[ -n "${found}" ]] || return 0
 
-  # Try to pick up a Google account email if logged in via Gemini CLI
-  # (shared OAuth under ~/.gemini).
-  local email=""
-  local g="${HOME_DIR}/.gemini/google_accounts.json"
-  [[ -f "${g}" ]] && email="$(jq -r '.active // (.accounts[0].email) // ""' "${g}" 2>/dev/null || true)"
-
-  local tokens
+  local email tokens
+  email="$(antigravity_email)"
   tokens="$(antigravity_tokens)"
 
   jq -n --arg email "${email}" --argjson tokens "${tokens}" '
@@ -339,6 +411,13 @@ antigravity_provider() {
       email: $email,
       plan: "",
       limits: [],
+      # Antigravity logs no token counts anywhere — not in the gen_metadata
+      # protobufs, not in the step metadata, not in any state file. These
+      # numbers are the generated-character proxy from antigravity_tokens(),
+      # which counts output only and so lands orders of magnitude under a
+      # provider that reports real usage. The flag makes the widget say so
+      # rather than let the bars read as measured.
+      approx: true,
       tokensByDay: ($tokens.tokensByDay // []),
       tokensByModel: ($tokens.tokensByModel // [])
     }'
@@ -355,13 +434,93 @@ gemini_provider() {
 }
 
 # ---- opencode --------------------------------------------------------------
+# opencode keeps every message as a JSON blob in a sqlite `message` table, and
+# the blob already carries exact usage:
+#
+#   {"role":"assistant","cost":0.0108,"modelID":"gemini-3.7-flash",
+#    "tokens":{"input":11950,"output":243,"reasoning":147,
+#              "cache":{"write":0,"read":0}},
+#    "time":{"created":<epoch ms>}}
+#
+# So the whole per-day/per-model breakdown is one JSON1 query — no transcript
+# scanning, no heuristics, and the same five token components claude_tokens()
+# sums, which is what keeps the two providers comparable on the same chart.
+
+# The database moved to the store root; a stale zero-byte file is left behind
+# at storage/opencode-stable.db, so pick the largest non-empty candidate rather
+# than the first path that exists.
+opencode_db() {
+  local root="${HOME_DIR}/.local/share/opencode" db
+  for db in "${root}"/opencode-*.db "${root}"/storage/opencode-*.db; do
+    [[ -s "${db}" ]] && printf '%s\n' "${db}"
+  done | xargs -r -d '\n' du -b 2>/dev/null | sort -rn | head -1 | cut -f2-
+}
+
+# Model names are left as opencode reports them ("gemini-3.7-flash",
+# "big-pickle"): unlike Claude's, they span several providers, so stripping or
+# title-casing the vendor half would lose information rather than tidy it.
+#
+# No cache here, deliberately: `time_created` is indexed, so the window filter
+# is a range scan of ~800 rows rather than a table walk, and runs in ~0.1s —
+# cheaper than the stat-and-compare a cache would cost. Contrast
+# antigravity_tokens(), which forks sqlite3 and mktemp per conversation and
+# therefore has to be cached.
+opencode_tokens() {
+  local db since
+  db="$(opencode_db)"
+  [[ -n "${db}" ]] || { echo '{"tokensByDay":[],"tokensByModel":[],"cost":0}'; return 0; }
+  command -v sqlite3 >/dev/null 2>&1 || { echo '{"tokensByDay":[],"tokensByModel":[],"cost":0}'; return 0; }
+
+  since=$(( ($(date -d 'today 00:00:00' +%s) - 6 * 86400) * 1000 ))
+
+  sqlite3 -readonly "${db}" "
+    SELECT json_object(
+      'ts',    json_extract(data, '\$.time.created') / 1000,
+      'model', COALESCE(json_extract(data, '\$.modelID'), 'unknown'),
+      'tok',   COALESCE(json_extract(data, '\$.tokens.input'), 0)
+             + COALESCE(json_extract(data, '\$.tokens.output'), 0)
+             + COALESCE(json_extract(data, '\$.tokens.reasoning'), 0)
+             + COALESCE(json_extract(data, '\$.tokens.cache.write'), 0)
+             + COALESCE(json_extract(data, '\$.tokens.cache.read'), 0),
+      'cost',  COALESCE(json_extract(data, '\$.cost'), 0))
+    FROM message
+    WHERE json_extract(data, '\$.role') = 'assistant'
+      AND time_created >= ${since};" 2>/dev/null \
+  | jq -c -n --argjson days "$(day_window)" '
+      reduce inputs as $e ({day:{}, model:{}, cost:0};
+        .cost += ($e.cost // 0)
+        | .model[$e.model] += $e.tok
+        | reduce range(0; $days | length) as $i (.;
+            if ($e.ts >= $days[$i].start and $e.ts < $days[$i].end)
+            then .day[$days[$i].label] += $e.tok else . end)
+      ) as $acc
+      | { tokensByDay: [ $days[] | {label: .label, tokens: (($acc.day[.label]) // 0)} ],
+          tokensByModel: [ $acc.model | to_entries | sort_by(-.value)[]
+                           | {name: .key, tokens: .value} ],
+          cost: $acc.cost }
+    ' 2>/dev/null || echo '{"tokensByDay":[],"tokensByModel":[],"cost":0}'
+}
+
 opencode_provider() {
-  local f="${HOME_DIR}/.local/share/opencode/auth.json"
-  [[ -f "${f}" ]] || return 0
-  local provs
-  provs="$(jq -r '[keys[]] | join(", ")' "${f}" 2>/dev/null || echo "")"
-  jq -n --arg provs "${provs}" '{ id: "opencode", name: "opencode", icon: "dashboard",
-           email: "", plan: $provs, limits: [], tokensByDay: [], tokensByModel: [] }'
+  local f="${HOME_DIR}/.local/share/opencode/auth.json" db
+  db="$(opencode_db)"
+  [[ -f "${f}" || -n "${db}" ]] || return 0
+
+  # No account/email is stored locally, so the signed-in provider list stands in
+  # for a plan badge.
+  local provs=""
+  [[ -f "${f}" ]] && provs="$(jq -r '[keys[]] | join(", ")' "${f}" 2>/dev/null || echo "")"
+
+  local tokens
+  tokens="$(opencode_tokens)"
+  [[ -n "${tokens}" ]] || tokens='{"tokensByDay":[],"tokensByModel":[],"cost":0}'
+
+  jq -n --arg provs "${provs}" --argjson tokens "${tokens}" '
+    { id: "opencode", name: "opencode", icon: "dashboard",
+      email: "", plan: $provs, limits: [],
+      tokensByDay: ($tokens.tokensByDay // []),
+      tokensByModel: ($tokens.tokensByModel // []),
+      cost: ($tokens.cost // 0) }'
 }
 
 providers="$(

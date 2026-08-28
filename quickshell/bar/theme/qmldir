@@ -1,0 +1,4 @@
+singleton Theme Theme.qml
+singleton Anim Anim.qml
+singleton Brand Brand.qml
+singleton Icons Icons.qml

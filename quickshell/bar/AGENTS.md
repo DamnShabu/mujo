@@ -1,151 +1,70 @@
-# AGENTS.md
+# Quickshell — shell architecture
 
-## What this is
+The mujō desktop for Niri/Wayland: floating grouped top bar, overlay launcher, notifications, parallax wallpaper, Cava visualiser, staging shelf, system dialogs, and the standalone settings app. Repo-wide rules live in the root **`AGENTS.md`**.
 
-Quickshell desktop shell for Niri (Wayland): top bar, app launcher, system
-tray, Wi-Fi/Bluetooth/volume menus, calendar, and an LLM usage tracker — all
-QML.
+## STACK
 
-## Stack
+| Layer | Choice |
+|---|---|
+| Runtime | Quickshell 0.3.0 (QML for Wayland shells) |
+| Compositor | Niri, via the `Niri` QML plugin (`qml-niri` flake input) |
+| Languages | QML/JS for all UI; Python and C for helpers; Bash + jq for the `mujo` CLI |
+| Live data | `Quickshell.Networking`, `.Bluetooth`, `.Services.Pipewire`, `.Services.SystemTray` |
 
-- **Framework:** Quickshell 0.3.0 (QML runtime for Wayland shells)
-- **Compositor:** Niri (Wayland) — connected via the `Niri` QML plugin
-  (`qml-niri` flake input)
-- **Language:** QML/JS (all UI), Perl (one helper script)
-- **Live service data:** `Quickshell.Networking`, `Quickshell.Bluetooth`,
-  `Quickshell.Services.Pipewire`, `Quickshell.Services.SystemTray` — native
-  bindings, no `nmcli`/`bluetoothctl`/`wpctl` shelling out.
-- **Config:** `~/.config/qsshell/llm-status.json` (LLM tracker state,
-  written by `mujo llm`). `Theme.qml` values are hardcoded defaults for now
-  — no settings UI/persistence in this build.
-- **`qs-bar`'s systemd service `path`** (`nixos/features/quickshell.nix`)
-  must list every binary any Process spawned from QML shells out to —
-  currently `bash coreutils findutils jq perl curl wl-clipboard xdg-utils
-  quickshell`. Forgetting to add a new one here means the feature works
-  under `qs -p` (your interactive shell's PATH masks the gap) but silently
-  fails under the real systemd service.
+## CONFIG & STATE
 
-## Architecture
+- **Config** — `~/.config/qsshell/*.json` and `~/.config/quickshell/*.json`. Key files: `settings.json` (reactive store owned by `services/SettingsBus.qml`), `theme.json` (palette, hot-reloaded), `wallpaper.json`.
+- **Ephemeral state** — `~/.local/state/qsshell/*.json` (shelf, notifications, backups, desktop icon grid slots).
+- **Desktop items** — `~/Desktop` is the source of truth for what exists; `desktop-icons.json` holds only grid slots, never anything the user would miss. `mujo desktop list|mkdir|new-file|rename|trash|open|info|path|into|copy|cut|paste|import|terminal|pos|pos-batch|forget` owns every read and write, takes an flock, and deletes via trash rather than `rm`. Anything it spawns that outlives the call (`wl-copy`, a terminal, `gio open`) must be given `9>&-` or it inherits the flock and wedges the next command. Cut/copy/paste go through the system clipboard in `x-special/gnome-copied-files`, so they interoperate with GTK file managers.
+- **Desktop geometry** — the icon/widget surface is inset by `Theme.desktopInset` (+ the bar's reserved band on the bar's edge), which mirrors niri's `layout.gaps + layout.struts` in `modules/wrappers/niri.nix`. That is what keeps widgets from showing in the gap niri leaves around an open window; the wallpaper surface is separate and still edge to edge.
+- **All writes go through the `mujo` CLI** (`quickshell/mujo.sh`), never bare shell tools — it is a `makeWrapper` package with jq/curl/git/tmux on `PATH` and writes atomically. QML invokes it via `Quickshell.execDetached`.
+
+## ICONS
+
+- **Standard actions use the system icon theme.** `components/MaterialIcon.qml` looks the Material Symbol name up in `theme/Icons.qml`, draws the theme's `*-symbolic` icon recoloured to `color` when there is one, and falls back to the Material Symbols glyph when there is not. Call sites keep passing Material Symbol names; add a mapping in `Icons.qml` rather than at the call site, and leave a name unmapped if no freedesktop icon honestly matches it.
+- **File-type icons are full colour** (`Icons.fileIcon`), the desktop convention, keyed by extension.
+- The theme comes from `QS_ICON_THEME`, set session-wide in `nixos/desktop/gtk.nix` and again in the `qs-bar` service. Without it Qt resolves nothing and every icon silently falls back to a glyph — `qs -p ./test-icons.qml` is the check.
+
+## DIRECTORIES
 
 ```
-shell.qml                  ← entrypoint: Niri connection, launcher IPC/state,
-                              one PanelWindow per screen
-modules/bar/modules/       ← all UI components, flat dir, registered in qmldir
-llm-usage.sh               ← bash+jq: detects installed AI assistants (Claude,
-                              Codex, Antigravity, Gemini, opencode) and emits a
-                              providers[] JSON, polled by LlmTrackerMenu.qml
+shell.qml       desktop shell entrypoint (bar, launcher, overlays, prompts)
+settings.qml    standalone settings app entrypoint
+llm-usage.sh    AI-assistant token usage scanner
+theme/          Theme.qml (design tokens), Anim.qml (motion), Brand.qml (identity)
+components/     shared UI primitives
+services/       singletons: settings bus, notifications, launch, lock, weather, cava, …
+modules/        feature domains: bar/ launcher/ notifications/ desktop/ system/ settings/
 ```
 
-The launcher is opened by niri's `Mod+Space` bind, which runs
-`qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle` (see
-`modules/wrappers/niri.nix`). The `-p` path must match the qs-bar daemon's
-launch path (quickshell.nix `barConfig`) or a bare `qs ipc` can't pick between
-the running quickshell instances and silently no-ops.
+Every directory carries a `qmldir`. Read it to see what a domain exposes rather than listing the tree.
 
-**Theme singleton** (`modules/bar/modules/Theme.qml`): every visual
-component reads colors/sizes/fonts from here — never hardcode a color, radius,
-or font family in a component. It's a full design-token set: a near-black
-warm-dark surface stack (`bg`→`surface`→`surfaceHover`→`surfaceActive`) with
-hairline `border`/`borderStrong`, a single Ayu-blue `accent` (+ `accentDim`
-tint fill, `accentText` for text on accent), `success`/`warning`/`error`
-semantics, a radius scale (`radiusSm`/`radiusMd`/`radiusLg`), font tokens
-(`fontFamily` = Ubuntu Sans, `fontMono` = JetBrains Mono) and label styling
-(`fontSizeLabel`, `labelSpacing`).
-
-**Design language** — the bar is *floating grouped pills*, not an edge-to-edge
-slab: the panel is transparent and each cluster is a `BarGroup` (rounded
-`surface` container) detached from the screen edge by `Theme.barMargin`. Panel
-height is `barHeight + barMargin*2`. Shared primitives:
-- `BarGroup.qml` — the rounded floating cluster container (uses a `RowLayout`;
-  give children `Layout.alignment: Qt.AlignVCenter`).
-- `SectionLabel.qml` — uppercase, letter-spaced monospace eyebrow used as the
-  header of every popup card and sub-section (`WI-FI`, `OUTPUT DEVICE`, …).
-- Popup cards: `color: Theme.bg`, `radius: Theme.radiusLg`, `border: Theme.border`,
-  `anchors.margins: 14`. Interactive rows/inputs/chips use `radiusMd`.
-- Numbers/times/percentages/keycaps render in `Theme.fontMono`; prose in
-  `Theme.fontFamily`.
-
-**Bar layout** (`Bar.qml`): left group = `LauncherPill` + divider +
-`Workspaces` (numbered pills, active pill elongates + fills accent), center =
-`ClockPill` (mono time + muted date, opens `CalendarMenu`), right group =
-`LlmTrackerMenu`, `NetworkMenu`, `BluetoothMenu`, `VolumeMenu`, `SystemTray`.
-
-**Trigger + popup pattern:** every right-side widget is an `Item` holding an
-`IconButton` trigger and a `PopupWindow` with `anchor.window: panelWindow`,
-`anchor.item: trigger`, `anchor.edges`/`anchor.gravity` set to `Edges.Bottom`
-(plus `Left`/`Right` to pick which corner) and `anchor.adjustment:
-PopupAdjustment.Slide` so it stays on-screen. This anchors declaratively to
-the trigger item itself — don't go back to computing `anchor.rect.x/y`
-manually via `mapToItem` in a click handler; that was tried first and every
-popup ended up positioned at the same point regardless of which trigger was
-clicked (imperative writes to `anchor.rect`'s grouped value-type properties
-are unreliable — `anchor.item` sidesteps it entirely). Copy `NetworkMenu.qml`
-or `SystemTray.qml` as the template for a new one.
-
-**LLM tracker's provider auto-detection:** `llm-usage.sh` probes each known
-AI-assistant CLI's on-disk config and emits a `providers[]` array
-(`{id, name, icon, email, plan, usage[]}`); `LlmTrackerMenu.qml` renders one
-card per detected provider. Only providers that cache real limit data locally
-get `usage[]` gauges — currently just **Claude Code**, from
-`~/.claude.json`'s `.cachedUsageUtilization.utilization` (the same
-session/weekly percentages and reset times shown on claude.ai/usage). The
-rest (**Codex** `~/.codex/auth.json` JWT → plan/email; **Antigravity**
-`~/.gemini/antigravity/`; **Gemini CLI** `~/.gemini/`; **opencode**
-`~/.local/share/opencode/auth.json`) are presence-detected with whatever
-account/plan can be read and an empty `usage[]` — never a fabricated quota.
-Add a provider by writing a `<name>_provider()` function that prints one
-provider JSON object (or nothing when absent) and adding it to the final
-`jq -s` pipeline.
-
-**Launcher:** opened by niri's `Mod+Space` bind (→ IPC `launcher` target in
-`shell.qml`) or by clicking `LauncherPill`. `shell.qml` owns
-`launcherOpen`/`launcherScreen` globally (so the toggle opens on the
-*focused* screen); each `PanelWindow` derives its own
-`launcherOpen: root.launcherOpen && root.launcherScreen === modelData.name`
-and hands that down to `LauncherPill`, which owns the actual `PopupWindow`
-locally (mirrors the old `DynamicIsland` split — global flag is an
-edge-triggered input, not the source of truth for popup visibility).
-
-## Running
+## RUNNING
 
 ```bash
-qs -p ./shell.qml            # launch a throwaway instance from the working tree
-qs ipc call launcher toggle  # toggle launcher
-qs list --all                # find instance ids; qs kill -i <id> to tear down
+qs -p ./shell.qml                 # desktop shell from the working tree
+qs -p ./settings.qml              # settings app from the working tree
+qs -p ./test-icons.qml            # icon-theme resolution self-check — prints PASS/FAIL, then exits
+qs -p ./test-grid.qml             # DesktopGrid occupancy self-check — prints PASS/FAIL, then exits
+qs -p ./test-notifications.qml    # notification daemon & popup self-check — prints PASS/FAIL, then exits
+qs -p ./test-shelf.qml            # staging shelf state & icon resolution self-check — prints PASS/FAIL, then exits
+qs -p ./test-desktop.qml          # icon placement vs. a widget, against the real ~/Desktop
+qs list --all                     # active instances
+qs kill -i <id>                   # terminate one
+qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle
 ```
 
-## Adding a new component
+**The live `qs-bar` service runs from the Nix store**, so working-tree edits reach it only after `nh os switch`. If a rebuild lands but the bar keeps old code, `systemctl --user restart qs-bar.service`.
 
-1. Create `YourComponent.qml` in `modules/bar/modules/`.
-2. Register it in `modules/bar/modules/qmldir`: `YourComponent YourComponent.qml`.
-3. It's automatically importable from anything else in that directory (and
-   from `shell.qml` via `import "./modules/bar/modules"`, already imported).
+## ADDING A COMPONENT
 
-## Gotchas
-
-- **`qmldir` is manual** — new QML files won't be discovered unless
-  registered there. This is the #1 source of "component not found" errors.
-- **niri's `WorkspaceModel`** has no per-field change notification —
-  `Workspaces.qml` polls `niri.workspaces.get(i)` on a 500ms `Timer` rather
-  than binding directly. Fields are duck-typed (`isFocused` vs `isActive`)
-  since the exact role name isn't guaranteed across niri/plugin versions.
-- **`UntypedObjectModel` properties** (`SystemTray.items`,
-  `Networking.devices`, `Bluetooth.defaultAdapter.devices`,
-  `Pipewire.nodes`, `DesktopEntries.applications`, …) can be passed directly
-  as a `Repeater`/`ListView` `model:`, but for length/filtering in JS use
-  `.values` (a real array) — the object itself doesn't behave like one.
-- **Pipewire nodes need `PwObjectTracker`** — `Pipewire.defaultAudioSink`/
-  `defaultAudioSource`'s `.audio` properties don't update reactively unless
-  the node is held by a `PwObjectTracker { objects: [...] }` somewhere
-  (see `VolumeMenu.qml`).
-- **`PopupWindow` positioning** — use `anchor.item` + `anchor.edges`/
-  `anchor.gravity` (see the trigger + popup pattern above), not manual
-  `anchor.rect.x/y` math.
-- **No build step** — QML is interpreted at runtime. Edit, then `qs -r` (or
-  relaunch `qs -p`) to reload.
-- **No settings UI in this build** — `Theme.qml` is a plain singleton with
-  hardcoded defaults. A prior iteration had a full `SettingsMenu.qml` with
-  live theme editing + persistence to `~/.config/qsshell/settings.json`;
-  that wasn't rebuilt here since it wasn't asked for. If you want it back,
-  `shell.qml`'s config-load block and `Theme.qml`'s property list are the
-  places to extend.
+1. Create the file in the directory matching its role: `components/` (primitive), `services/` (engine or singleton), `modules/<domain>/` (feature).
+2. **Register it in that directory's `qmldir`** — unregistered types fail as `"X is not a type"` or a runtime `ReferenceError`. Singletons need the `singleton` keyword: `singleton MyService MyService.qml`.
+3. Import the shared domains it uses:
+   ```qml
+   import "../../theme"
+   import "../../components"
+   import "../../services"
+   ```
+   Same-directory types need no import.
+4. Persist any new config path by declaring it in the owning NixOS module (see root `AGENTS.md` → **CORE CONSTRAINTS**).

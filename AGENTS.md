@@ -37,7 +37,7 @@ nixos/
 ├── desktop/      session, GTK, plymouth, notifications, keyring prompter, quickshell packaging
 ├── security/     vaultwarden secrets
 ├── services/     system daemons (pipewire, mullvad, preload)
-├── apps/         per-app integrations (zen, claude-code, discord, steam, …)
+├── apps/         per-app integrations (zen, claude-code, opencode, antigravity, herdr, steam, …)
 └── overrides/    machine-local drop-ins — see nixos/overrides/README.md
 
 modules/
@@ -87,6 +87,38 @@ Also `secrets.vaultwarden.sshKeys.*` and `secrets.vaultwarden.gpgKeys.*`.
 - It needs the host's render node (`/dev/dri/renderD128`): niri refuses software EGL, so the guest gets virgl via `-device virtio-gpu-gl-pci -display egl-headless`. Nothing is drawn on the real session.
 - **The first tool call costs ~45s** (VM boot + the ~20s quickshell load); later ones are fast.
 - **`MCP_TIMEOUT` must be raised** (`.claude/settings.json` sets it to 180000). A warm `nix run .#sandbox` answers `initialize` in ~0.5s, but a cold flake eval — which is what happens right after any source edit — exceeds the client's 30s default and the server never connects.
+
+## AI ASSISTANTS
+
+Three agents run against this repo — Claude Code, Antigravity (`agy` + the IDE build) and
+opencode — and they are configured to see the same things:
+
+- **Rules**: `.agents/rules/*.md` is read by all three (`~/.agents` is persisted in
+  `nixos/core/general.nix`). `rtk.md` there mandates prefixing shell commands with `rtk`, a
+  proxy that compresses command output before it reaches the model.
+- **MCP**: host-wide servers (`nixos`, `sandbox`) are declared once in
+  `nixos/apps/_ai-mcp.nix` and rendered into each tool's own format by
+  `nixos/apps/opencode.nix` and `nixos/apps/antigravity-cli.nix`. Checked-in
+  `.mcp.json` (Claude) and `.opencode/opencode.json` (opencode) provide
+  repo-scoped fallbacks.
+- **Nix owns the generated configs.** `~/.config/opencode/opencode.json` and
+  `~/.gemini/config/mcp_config.json` are hjem symlinks into the store, so `agy mcp add` and
+  hand edits will not stick — change `_ai-mcp.nix` and rebuild instead. Everything else
+  (`~/.claude.json`, `~/.claude/settings.json`) stays mutable, because the tools write to it.
+- **Usage tracking**: the bar's LLM widget scans each tool's local state — see
+  `quickshell/bar/llm-usage.sh`, which is the only data source and documents each provider's
+  files at the top.
+- **The agent CLIs are also the desktop's AI backend.** With `ai.provider = "agent"`,
+  everything behind "Ask AI" (the launcher `/` palette, the crash assistant, the Overview
+  card) is answered by an installed agent CLI instead of an OpenAI-compatible endpoint.
+  `mujo ai agents` is the single detection source (claude, opencode, agy, codex, gemini, pi,
+  plus a custom argv from `ai.agentCommand`); `mujo ai chat` runs the selected one in its
+  read-only mode from an empty scratch dir at `~/.cache/qsshell/ai-scratch`. The launcher
+  also offers "Open <agent>: <query>", which opens the same agent interactively in kitty.
+- **One selection, desktop-wide.** `~/.config/qsshell/llm-default.json` names the active
+  agent. `mujo ai use <id>` is its only writer, called both from the bar's LLM widget tabs
+  and from Settings → AI, so switching in either place switches the other and the Ask-AI
+  backend with it. Agent ids match `llm-usage.sh`'s provider ids for exactly this reason.
 
 ## GRAPHIFY
 

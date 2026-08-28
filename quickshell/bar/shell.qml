@@ -5,8 +5,13 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Niri
-import "./modules/bar/modules"
-import "./modules/desktop/modules"
+import "./theme"
+import "./services"
+import "./modules/bar"
+import "./modules/launcher"
+import "./modules/notifications"
+import "./modules/desktop"
+import "./modules/system"
 
 ShellRoot {
     id: root
@@ -44,8 +49,14 @@ ShellRoot {
     // exposes no per-window fullscreen flag, so fullscreenActive is a heuristic:
     // a focused, non-floating window that fills its output. toastScreen selects
     // the output toasts render on (falls back to the primary).
+    // Name of the output that currently holds focus ("" if none). Bars bind to this
+    // to tell "my screen" from "the other one" — focusedScreenName() is a function,
+    // so nothing can bind to it directly.
+    property string focusedOutput: ""
+
     function updateNotifContext() {
         var out = focusedScreenName()
+        root.focusedOutput = out
         Notifications.toastScreen = out || (Quickshell.screens.length ? Quickshell.screens[0].name : "")
         var w = wm ? wm.focusedWindow : null
         var fs = false
@@ -60,6 +71,15 @@ ShellRoot {
     Connections {
         target: wm
         function onFocusedWindowChanged() { root.updateNotifContext() }
+    }
+    // Focus can move between outputs without any window-focus event (switching to an
+    // empty workspace on the other monitor), which used to leave focusedOutput — and
+    // so the toast screen — pointing at the previous monitor.
+    Connections {
+        target: wm ? wm.workspaces : null
+        function onDataChanged() { root.updateNotifContext() }
+        function onCountChanged() { root.updateNotifContext() }
+        function onModelReset() { root.updateNotifContext() }
     }
     Connections {
         target: wm ? wm.focusedWindow : null
@@ -113,9 +133,20 @@ ShellRoot {
     // Config: ~/.config/quickshell/wallpaper.json  (managed by `mujo wallpaper`).
     Wallpaper {}
 
-    // Desktop audio visualizer (WP-15) — one cava process, click-through
-    // Bottom-layer surface per screen. Gated by cava.enabled.
-    CavaOverlay {}
+    // Drag-in staging shelf (WP-25): per-screen always-on-top edge drop surface;
+    // the shared Shelf model also feeds the bar button/popup. State spills to
+    // ~/.local/state/qsshell/shelf.json.
+    ShelfSurface {}
+    Connections {
+        target: Shelf
+        function onToggleRequested() { PopupCoordinator.toggle(root.focusedScreenName() + ":shelf") }
+    }
+    IpcHandler {
+        target: "shelf"
+        function toggle(): void { PopupCoordinator.toggle(root.focusedScreenName() + ":shelf") }
+        function add(path: string): void { Shelf.addPath(path) }
+        function clear(): void { Shelf.clear() }
+    }
 
     // Right-click context menu on the empty desktop (per screen, below windows).
     DesktopMenu {}
@@ -160,6 +191,38 @@ ShellRoot {
         }
     }
 
+    // Escape closes whatever bar menu is open. Bar popups are xdg-popups of a
+    // panel that never takes keyboard focus, so there is no surface to press
+    // Escape *on*; this borrows the compositor keyboard for exactly as long as
+    // a menu is up. Its input region is empty, so unlike the scrim it can never
+    // swallow a click. The launcher is excluded — it owns its own
+    // exclusive-focus surface and handles Escape itself.
+    PanelWindow {
+        id: popupKeys
+        readonly property bool armed: PopupCoordinator.hasActivePopup
+            && !PopupCoordinator.isLauncherOpen
+
+        visible: armed
+        color: "transparent"
+        mask: Region {}
+        exclusionMode: ExclusionMode.Ignore
+        implicitWidth: 1
+        implicitHeight: 1
+        anchors { top: true; left: true }
+
+        WlrLayershell.namespace: "qs-popup-keys"
+        // Exclusive keyboard focus is only honoured on the Top/Overlay layers.
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: popupKeys.armed
+            ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+
+        Item {
+            anchors.fill: parent
+            focus: true
+            Keys.onEscapePressed: PopupCoordinator.closeAll()
+        }
+    }
+
     // App launcher overlay — one per screen, shows on the focused one. Owns its
     // own layer-shell surface with exclusive keyboard focus (see Launcher.qml).
     Variants {
@@ -174,12 +237,23 @@ ShellRoot {
         LaunchFeedback {}
     }
 
+    property var _hiddenMonitors: SettingsBus.get("bar.hiddenMonitors", [])
+    Connections {
+        target: SettingsBus
+        function onValuesChanged() {
+            var h = SettingsBus.get("bar.hiddenMonitors", [])
+            if (JSON.stringify(h) !== JSON.stringify(root._hiddenMonitors)) {
+                root._hiddenMonitors = h
+            }
+        }
+    }
+
     Variants {
         // Drop monitors the user hid the bar on (WP-17). Build a plain JS array
         // (Quickshell.screens is a QML list without Array methods).
         model: {
             var out = []
-            var hidden = SettingsBus.get("bar.hiddenMonitors", [])
+            var hidden = root._hiddenMonitors || []
             for (var i = 0; i < Quickshell.screens.length; i++) {
                 var s = Quickshell.screens[i]
                 if (hidden.indexOf(s.name) < 0) out.push(s)
@@ -218,13 +292,14 @@ ShellRoot {
                 height: parent.height
                 niri: wm
                 screenName: panelWindow.modelData.name
+                focusedOutput: root.focusedOutput
                 panelWindow: panelWindow
                 launcherOpen: panelWindow.launcherOpen
 
                 // Slide out of view when auto-hidden (2px sliver stays for hover).
                 y: panelWindow.revealed ? 0
                    : (Theme.barBottom ? panelWindow.height - 2 : -(panelWindow.height - 2))
-                Behavior on y { NumberAnimation { duration: Anim.d(200); easing.type: Easing.OutCubic } }
+                Behavior on y { NumberAnimation { duration: Anim.d(Anim.standard); easing.type: Easing.OutCubic } }
             }
         }
     }

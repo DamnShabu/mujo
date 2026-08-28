@@ -7,6 +7,7 @@
 #include <string.h>
 #include <poll.h>
 #include <linux/input.h>
+#include <errno.h>
 #include <dirent.h>
 
 #define MAX_DEVS 32
@@ -31,6 +32,7 @@ int open_rel_devices(struct pollfd *fds) {
     }
     fds[nfds].fd = fd;
     fds[nfds].events = POLLIN;
+    fds[nfds].revents = 0;
     nfds++;
   }
   closedir(dir);
@@ -57,26 +59,48 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
-    while (nfds > 0) {
-      int ret = poll(fds, nfds, 100);
-      if (ret < 0) break;
+    int device_error = 0;
+    int ticks = 0;
+    while (!device_error) {
+      int ret = poll(fds, nfds, 500);
+      if (ret < 0) {
+        if (errno == EINTR) continue;
+        break;
+      }
 
       int moved = 0;
       for (int i = 0; i < nfds; i++) {
+        if (fds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+          device_error = 1;
+          break;
+        }
         if (!(fds[i].revents & POLLIN)) continue;
         struct input_event ev;
-        while (read(fds[i].fd, &ev, sizeof(ev)) == sizeof(ev)) {
-          if (ev.type == EV_REL) {
-            if (ev.code == REL_X) { cx += (double)ev.value / screen_w; moved = 1; }
-            else if (ev.code == REL_Y) { cy += (double)ev.value / screen_h; moved = 1; }
+        while (1) {
+          ssize_t n = read(fds[i].fd, &ev, sizeof(ev));
+          if (n == sizeof(ev)) {
+            if (ev.type == EV_REL) {
+              if (ev.code == REL_X) { cx += (double)ev.value / screen_w; moved = 1; }
+              else if (ev.code == REL_Y) { cy += (double)ev.value / screen_h; moved = 1; }
+            }
+          } else if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            break;
+          } else {
+            device_error = 1;
+            break;
           }
         }
+        if (device_error) break;
       }
       if (moved) {
         if (cx < 0.0) cx = 0.0; if (cx > 1.0) cx = 1.0;
         if (cy < 0.0) cy = 0.0; if (cy > 1.0) cy = 1.0;
         printf("{\"x\":%.4f,\"y\":%.4f}\n", cx, cy);
         fflush(stdout);
+      }
+      if (++ticks > 10) {
+        ticks = 0;
+        break; // Periodically rescan for newly connected devices
       }
     }
 

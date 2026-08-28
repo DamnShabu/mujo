@@ -1,4 +1,9 @@
-{ pkgs, self, lib, ... }: {
+{
+  pkgs,
+  self,
+  lib,
+  ...
+}: {
   hardware.cpu.amd.updateMicrocode = true;
 
   services = {
@@ -17,8 +22,8 @@
   # first for cheap reclaim of cold pages; the 16G disk swap partition
   # (disko.nix) stays as overflow and for hibernation via its resumeDevice.
   # memoryPercent can be tuned after checking `zramctl` for actual usage.
-  zramSwap.enable = true;
-  zramSwap.memoryPercent = 50;
+  zramSwap.enable = lib.mkDefault true;
+  zramSwap.memoryPercent = lib.mkDefault 50;
 
   environment.systemPackages = with pkgs; [
     glib
@@ -60,5 +65,4 @@
 
   services.xserver.videoDrivers = ["amdgpu"];
   boot.initrd.kernelModules = ["amdgpu"];
-
 }
