@@ -105,15 +105,16 @@ Item {
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                 spacing: 10
                 SectionLabel { text: "Add credential" }
-                RowLayout {
+                // One 2-column grid for the four fields, with the button on its
+                // own row: sharing a row with the button made the second row's
+                // fields narrower, so the form's column edge zig-zagged.
+                GridLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    columns: 2
+                    columnSpacing: 8
+                    rowSpacing: 10
                     TextField { Layout.fillWidth: true; placeholder: "Label *"; text: root.fLabel; onTextChanged: root.fLabel = text }
                     TextField { Layout.fillWidth: true; placeholder: "Service"; text: root.fService; onTextChanged: root.fService = text }
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
                     TextField { Layout.fillWidth: true; placeholder: "Account / username"; text: root.fAccount; onTextChanged: root.fAccount = text }
                     TextField {
                         id: secretField
@@ -122,6 +123,11 @@ Item {
                         password: true
                         onAccepted: root.addItem(text)
                     }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Item { Layout.fillWidth: true }
                     DialogButton {
                         text: "Add"
                         primary: true

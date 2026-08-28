@@ -214,28 +214,26 @@ Item {
                         onAccepted: root.bset("ai.model", text.trim())
                     }
                 }
+                // Both endpoint actions share one row. They used to sit on
+                // separate rows, which read as two stray buttons stacked down
+                // the page with a gap between them.
                 RowLayout {
                     Layout.fillWidth: true; spacing: 8
                     DialogButton { text: "Save endpoint"; primary: true; onClicked: { root.bset("ai.baseUrl", urlField.text.trim()); root.bset("ai.model", modelField.text.trim()) } }
+                    // `mujo ai test` covers both backends: GET /models for the
+                    // HTTP path, <bin> --version for an agent CLI.
+                    DialogButton {
+                        text: root.testState === "running" ? "Testing…" : (root.usingAgent ? "Check assistant" : "Test connection")
+                        enabled: root.testState !== "running"
+                        onClicked: root.runTest()
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 6
+                        visible: root.testState === "ok" || root.testState === "error"
+                        MaterialIcon { iconName: root.testState === "ok" ? "check_circle" : "error"; pixelSize: 15; color: root.testState === "ok" ? Theme.success : Theme.error }
+                        Text { text: root.testMsg; color: root.testState === "ok" ? Theme.success : Theme.error; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideRight; Layout.fillWidth: true }
+                    }
                     Item { Layout.fillWidth: true }
-                }
-            }
-
-            // ── connectivity ──
-            // `mujo ai test` covers both backends: GET /models for the HTTP
-            // path, <bin> --version for an agent CLI.
-            RowLayout {
-                Layout.fillWidth: true; spacing: 8
-                DialogButton {
-                    text: root.testState === "running" ? "Testing…" : (root.usingAgent ? "Check assistant" : "Test connection")
-                    enabled: root.testState !== "running"
-                    onClicked: root.runTest()
-                }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 6
-                    visible: root.testState === "ok" || root.testState === "error"
-                    MaterialIcon { iconName: root.testState === "ok" ? "check_circle" : "error"; pixelSize: 15; color: root.testState === "ok" ? Theme.success : Theme.error }
-                    Text { text: root.testMsg; color: root.testState === "ok" ? Theme.success : Theme.error; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideRight; Layout.fillWidth: true }
                 }
             }
 
@@ -246,6 +244,10 @@ Item {
                 SectionLabel { text: "API key" }
                 RowLayout {
                     Layout.fillWidth: true; spacing: 8
+                    // Labelled like every other field row in this panel, so the
+                    // inputs share one left edge instead of this one starting
+                    // 90px further left than Base URL and Model.
+                    Text { text: "Key"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
                     TextField {
                         id: keyField; Layout.fillWidth: true
                         password: true

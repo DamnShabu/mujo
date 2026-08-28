@@ -25,7 +25,19 @@
       self.nixosModules.quickshell
     ];
 
-
+    boot.kernelParams = lib.mkAfter [
+      "clocksource=tsc"
+      "tsc=reliable"
+      "nohpet"
+      "mitigations=off"
+      "nowatchdog"
+      "audit=0"
+      "nomce"
+      "elevator=none"
+      "quiet"
+      "rd.udev.log_level=3"
+      "systemd.show_status=auto"
+    ];
 
     virtualisation = {
       memorySize = 8192;
@@ -41,11 +53,13 @@
         options = [
           # Hardware CPU passthrough with invariant TSC and fast string features
           "-cpu host,migratable=off,+invtsc,+tsc-deadline,+clflushopt,+fsrm"
+          "-machine hpet=off"
           "-global kvm-pit.lost_tick_policy=discard"
-          # virgl over a host render node: real GLES in the guest
+          # virgl over a host render node: real GLES in the guest with zero-copy blob memory
           "-vga none"
-          "-device virtio-gpu-gl-pci,xres=1280,yres=800"
+          "-device virtio-gpu-gl-pci,xres=1280,yres=800,blob=true,hostmem=1G,max_hostmem=2G"
           "-display egl-headless"
+          "-spice port=5920,disable-ticketing=on"
         ];
       };
       sharedDirectories.nixconf = {
@@ -62,29 +76,37 @@
         "cache=loose"
         "posixacl=0"
       ];
+      fileSystems."/nix/.ro-store".options = [
+        "ro"
+        "trans=virtio"
+        "version=9p2000.L"
+        "msize=1048576"
+        "cache=loose"
+        "posixacl=0"
+      ];
+      fileSystems."/tmp/shared".options = [
+        "trans=virtio"
+        "version=9p2000.L"
+        "msize=1048576"
+        "cache=none"
+        "posixacl=0"
+      ];
     };
 
     environment.sessionVariables = {
-      QML_DISK_CACHE_PATH = "/tmp/qml_cache";
+      QML_DISK_CACHE_PATH = "/run/qmlcache";
+      QSG_RHI_BACKEND = "opengl";
+      VK_DRIVER_FILES = "";
+      VK_ICD_FILENAMES = "";
     };
 
-    services.pipewire = {
-      enable = true;
-      pulse.enable = true;
-      extraConfig.pipewire."99-no-rt"."context.properties"."module.rt" = false;
-      extraConfig.pipewire-pulse."99-no-rt"."context.properties"."module.rt" = false;
-    };
+    services.pipewire.enable = lib.mkForce false;
     security.rtkit.enable = lib.mkForce false;
     services.upower.enable = lib.mkForce false;
     services.udisks2.enable = lib.mkForce false;
     services.power-profiles-daemon.enable = lib.mkForce false;
     services.flatpak.enable = lib.mkForce false;
     services.printing.enable = lib.mkForce false;
-
-    # Ensure the shared exchange directory is world-writable so screenshots write directly
-    systemd.tmpfiles.rules = [
-      "d /tmp/shared 1777 root root -"
-    ];
 
     users.users.${user} = {
       isNormalUser = true;
@@ -112,6 +134,9 @@
     systemd.services = {
       dhcpcd.enable = false;
       NetworkManager-wait-online.enable = false;
+      bluetooth.serviceConfig.ExecStart = "${pkgs.coreutils}/bin/false";
+      ModemManager.serviceConfig.ExecStart = "${pkgs.coreutils}/bin/false";
+      wpa_supplicant.serviceConfig.ExecStart = "${pkgs.coreutils}/bin/false";
     };
 
     # Portals pull in the whole GNOME portal stack for no benefit here.
@@ -123,11 +148,6 @@
     # environment import anyway.
     programs.bash.loginShellInit = ''
       if [ "$(tty)" = /dev/tty1 ]; then
-        chmod 1777 /tmp/shared 2>/dev/null || true
-        # Seed ~/.config/{quickshell,qsshell}. The shell reads its settings from
-        # there via SettingsBus, and an unseeded guest renders against missing
-        # files instead of the defaults `mujo` writes. Any invocation seeds;
-        # `help` is the one that only reads, and it exits 1 by design.
         mujo help >/dev/null 2>&1 || true
         systemctl --user start niri.service
       fi
@@ -148,14 +168,39 @@
       nerd-fonts.jetbrains-mono
     ];
 
-    # Point the stable /etc path at the 9p working tree instead of the store
-    # copy, so an edit is live after a qs-bar restart with no rebuild. Doing it
-    # here rather than by overriding qs-bar's ExecStart keeps the niri keybinds
-    # working: they address the running instance as
-    # `qs -p /etc/xdg/quickshell/bar/shell.qml ipc call …`, which only matches
-    # if the service was started from that same path.
+    # Point the stable /etc path at an in-memory tmpfs copy synced from the
+    # 9p working tree. Reading 140 QML files and resolving thousands of type
+    # lookups over 9p VirtFS introduces massive IOPS latency; running from
+    # RAM tmpfs drops shell load times from ~18s to under 1s.
+    systemd.tmpfiles.rules = [
+      "d /tmp/shared 1777 root root -"
+      "d /run/qmlcache 1777 root root -"
+      "d /run/quickshell-bar 0755 ${user} users -"
+    ];
+
+    systemd.services.sync-quickshell-bar = {
+      description = "Sync quickshell bar into RAM tmpfs and seed state";
+      wantedBy = ["multi-user.target"];
+      before = ["graphical.target"];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = pkgs.writeShellScript "sync-sandbox-state" ''
+          mkdir -p /run/quickshell-bar /run/qmlcache /tmp/shared
+          chmod 1777 /tmp/shared /run/qmlcache
+          ${pkgs.coreutils}/bin/cp -a /mnt/nixconf/quickshell/bar/. /run/quickshell-bar/
+          mkdir -p /home/${user}/.cache/qsshell /home/${user}/.local/state/qsshell /home/${user}/.config/quickshell /home/${user}/.config/qsshell
+          echo '{"temp":20,"code":0,"city":"Sandbox","humidity":50,"wind":5,"updated":'$(date +%s)',"units":"metric"}' > /home/${user}/.cache/qsshell/weather.json
+          echo '{"items":[],"positions":{}}' > /home/${user}/.local/state/qsshell/desktop.json
+          echo '[]' > /home/${user}/.local/state/qsshell/notifications.json
+          echo '{"items":[]}' > /home/${user}/.local/state/qsshell/shelf.json
+          chown -R ${user}:users /home/${user} /run/quickshell-bar
+        '';
+        RemainAfterExit = true;
+      };
+    };
+
     environment.etc."xdg/quickshell/bar".source =
-      lib.mkForce "/mnt/nixconf/quickshell/bar";
+      lib.mkForce "/run/quickshell-bar";
 
     system.stateVersion = "25.11";
   };

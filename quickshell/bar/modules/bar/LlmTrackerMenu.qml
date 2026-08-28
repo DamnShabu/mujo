@@ -6,6 +6,9 @@ import "../../theme"
 import "../../components"
 import "../../services"
 
+// AI Usage Menu & Bar Pill: Omarchy-inspired usage widget focused strictly
+// on the active / selected AI provider. Left-click opens the usage dashboard,
+// right-click launches the active agent in an interactive terminal.
 Item {
     id: root
     property var panelWindow
@@ -16,35 +19,28 @@ Item {
     implicitWidth: trigger.width
     implicitHeight: trigger.height
 
-    // Always show fresh numbers the moment the user opens the menu — the timers
-    // below keep it live while open, but this removes the "stale until it next
-    // polls" feel without waiting on a tick.
     onMenuOpenChanged: if (root.menuOpen) {
-        statusLoad.running = true
-        ollamaLoad.running = true
         usageLoad.running = true
         root.now = new Date()
     }
 
     // ---- state --------------------------------------------------------------
-    property var trackedModels: []
-    property real tokens: 0
-    property string updated: ""
-    property var localModels: []
-
-    // Providers detected + measured by llm-usage.sh (Claude, Codex, …).
     property var providers: []
-    // Persisted "default"/active provider id, and the one the user is viewing.
     property string defaultId: ""
-    property string selectedId: ""
     property date now: new Date()
 
-    // Scan lifecycle, so the popup can show a skeleton on the very first open
-    // and surface a real message when llm-usage.sh fails instead of silently
-    // rendering an empty card.
+    // Scan lifecycle
     property bool loaded: false
     property string loadError: ""
     readonly property bool loading: usageLoad.running
+
+    // Resolved selected provider ID (synced with settings.json ai.agent and llm-default.json)
+    readonly property string selectedId: {
+        var agent = SettingsBus.get("ai.agent", "")
+        if (agent && agent !== "") return agent
+        if (root.defaultId && root.defaultId !== "") return root.defaultId
+        return root.providers.length > 0 ? root.providers[0].id : ""
+    }
 
     readonly property var selectedProvider: {
         var list = root.providers
@@ -53,7 +49,37 @@ Item {
         return list.length > 0 ? list[0] : null
     }
 
+    readonly property var limits: (root.selectedProvider && root.selectedProvider.limits) ? root.selectedProvider.limits : []
+    readonly property var days: (root.selectedProvider && root.selectedProvider.tokensByDay) ? root.selectedProvider.tokensByDay : []
+    readonly property var models: (root.selectedProvider && root.selectedProvider.tokensByModel) ? root.selectedProvider.tokensByModel : []
+
+    readonly property real activeTodayTokens: {
+        var d = root.days
+        return d.length > 0 ? (d[d.length - 1].tokens || 0) : 0
+    }
+
+    // Max limit percentage / highest severity across gauges for warning tint
+    readonly property int maxGaugePercent: {
+        var maxP = 0
+        for (var i = 0; i < root.limits.length; i++) {
+            var p = root.limits[i].percent || 0
+            if (p > maxP) maxP = p
+        }
+        return maxP
+    }
+
+    readonly property string maxSeverity: {
+        for (var i = 0; i < root.limits.length; i++) {
+            var s = root.limits[i].severity || ""
+            if (s === "critical" || s === "high") return "critical"
+            if (s === "warning") return "warning"
+        }
+        return "normal"
+    }
+
     function formatTokens(n) {
+        if (!n || isNaN(n)) return "0"
+        if (n >= 1000000000) return (n / 1000000000).toFixed(1) + "B"
         if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
         if (n >= 1000) return (n / 1000).toFixed(1) + "k"
         return String(Math.round(n))
@@ -70,8 +96,6 @@ Item {
         return m + "m"
     }
 
-    // Reset label for a usage gauge: relative ("Resets in …") when under a day
-    // away, absolute weekday/time otherwise.
     function resetLabel(resetsAt) {
         if (!resetsAt) return ""
         var reset = new Date(resetsAt)
@@ -87,7 +111,6 @@ Item {
         return Theme.accent
     }
 
-    // Fraction 0..1 for a horizontal token bar relative to the group's max.
     function barFrac(value, max) {
         if (!max || max <= 0) return 0
         return Math.max(0, Math.min(1, value / max))
@@ -100,63 +123,12 @@ Item {
         return m
     }
 
-    readonly property int activeCount: root.providers.length + root.trackedModels.length + root.localModels.length
-
-    // Persist the chosen provider as the new default and switch the view.
-    function selectProvider(id) {
-        root.selectedId = id
-        persistDefault.selection = id
-        persistDefault.running = true
-    }
-
-    // ---- data loaders -------------------------------------------------------
-    Process {
-        id: statusLoad
-        running: false
-        command: ["sh", "-c", "cat \"$1\" 2>/dev/null || echo '{}'", "_", Quickshell.env("HOME") + "/.config/qsshell/llm-status.json"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    var obj = JSON.parse(this.text)
-                    root.trackedModels = obj.models || []
-                    root.tokens = obj.tokens || 0
-                    root.updated = obj.updated || ""
-                } catch (e) {
-                    root.trackedModels = []
-                    root.tokens = 0
-                }
-            }
-        }
-    }
-
-    Process {
-        id: ollamaLoad
-        running: false
-        command: ["sh", "-c", "command -v ollama >/dev/null 2>&1 && ollama ps 2>/dev/null || true"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var lines = this.text.split("\n").filter(function(l) { return l.trim() !== "" })
-                var out = []
-                for (var i = 0; i < lines.length; i++) {
-                    if (i === 0 && lines[i].trim().indexOf("NAME") === 0) continue
-                    var cols = lines[i].trim().split(/\s{2,}/)
-                    if (cols.length > 0 && cols[0] !== "") {
-                        out.push({name: cols[0], size: cols.length > 2 ? cols[2] : ""})
-                    }
-                }
-                root.localModels = out
-            }
-        }
-    }
-
+    // ---- data loader --------------------------------------------------------
     Process {
         id: usageLoad
         running: false
         command: ["bash", Qt.resolvedUrl("../../llm-usage.sh").toString().slice(7)]
 
-        // A failed scan keeps the last good numbers on screen and reports the
-        // failure alongside them — blanking the card would look like "no usage"
-        // rather than "couldn't measure".
         onExited: function (exitCode) {
             if (exitCode !== 0)
                 root.loadError = usageErr.text.split("\n")[0] || ("llm-usage.sh exited " + exitCode)
@@ -170,12 +142,6 @@ Item {
                     var obj = JSON.parse(this.text)
                     root.providers = obj.providers || []
                     root.defaultId = obj.default || ""
-                    // Keep the user's active tab if it still exists; otherwise
-                    // fall back to the persisted default.
-                    var ok = false
-                    for (var i = 0; i < root.providers.length; i++)
-                        if (root.providers[i].id === root.selectedId) ok = true
-                    if (!ok) root.selectedId = root.defaultId
                     root.loadError = ""
                     root.loaded = true
                 } catch (e) {
@@ -185,33 +151,7 @@ Item {
         }
     }
 
-    // One writer for the active-provider selection: `mujo ai use` owns
-    // llm-default.json, and the same value picks the Ask-AI backend.
-    Process {
-        id: persistDefault
-        running: false
-        property string selection: ""
-        command: ["mujo", "ai", "use", selection]
-        // The same file names the Ask-AI backend, so tell the AI service the
-        // selection moved — nothing else watches llm-default.json.
-        onExited: AI.refreshAgents()
-    }
-
-    // Poll fast enough to look live while the popup is on screen, slowly enough
-    // to stay free when it isn't — the closed-menu rate only has to keep the
-    // trigger's badge count honest. llm-usage.sh caches per provider, so a tick
-    // that finds nothing new on disk costs almost nothing either way.
-    Timer {
-        interval: root.menuOpen ? 5000 : 60000
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: {
-            statusLoad.running = true
-            ollamaLoad.running = true
-        }
-    }
-
+    // Refresh timers
     Timer {
         interval: root.menuOpen ? 30000 : 300000
         running: true
@@ -227,7 +167,17 @@ Item {
         onTriggered: root.now = new Date()
     }
 
-    // Hairline section divider used between popup sections.
+    // Re-scan when settings AI agent changes
+    Connections {
+        target: SettingsBus
+        function onSettingsChanged(key) {
+            if (key.indexOf("ai.") === 0) {
+                usageLoad.running = true
+            }
+        }
+    }
+
+    // Hairline divider
     component HRule: Rectangle {
         Layout.fillWidth: true
         Layout.preferredHeight: 1
@@ -237,19 +187,21 @@ Item {
     }
 
     readonly property bool showTokens: SettingsBus.get("bar.llm.showTokens", false)
-    readonly property real activeTodayTokens: {
-        var p = root.selectedProvider
-        var d = p && p.tokensByDay ? p.tokensByDay : []
-        return d.length > 0 ? (d[d.length - 1].tokens || 0) : root.tokens
-    }
+    readonly property bool hasWarning: root.maxSeverity === "warning" || (root.maxGaugePercent >= 70 && root.maxGaugePercent < 90)
+    readonly property bool hasCritical: root.maxSeverity === "critical" || root.maxGaugePercent >= 90
 
+    // ---- Trigger Pill (Top Bar) ---------------------------------------------
     Rectangle {
         id: trigger
         implicitHeight: Theme.barHeight - 6
-        implicitWidth: (root.showTokens && root.activeTodayTokens > 0) ? (trigRow.implicitWidth + 14) : 28
+        implicitWidth: (root.showTokens || root.activeTodayTokens > 0) ? (trigRow.implicitWidth + 14) : 28
         radius: Theme.radiusSm
-        color: root.menuOpen ? Theme.accentDim : (trigHh.hovered ? Theme.surfaceHover : "transparent")
-        border.color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.borderStrong : "transparent")
+        color: root.menuOpen ? Theme.accentDim
+             : (trigHh.hovered ? Theme.surfaceHover : "transparent")
+        border.color: root.menuOpen ? Theme.accent
+                    : (root.hasCritical ? Theme.error
+                    : (root.hasWarning ? Theme.warning
+                    : (trigHh.hovered ? Theme.borderStrong : "transparent")))
         border.width: 1
 
         Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
@@ -258,20 +210,26 @@ Item {
         RowLayout {
             id: trigRow
             anchors.centerIn: parent
-            spacing: 4
+            spacing: 5
 
             MaterialIcon {
-                iconName: "smart_toy"
+                iconName: root.selectedProvider ? (root.selectedProvider.icon || "smart_toy") : "smart_toy"
                 pixelSize: 16
-                color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : Theme.textSecondary)
+                color: root.menuOpen ? Theme.accent
+                     : (root.hasCritical ? Theme.error
+                     : (root.hasWarning ? Theme.warning
+                     : (trigHh.hovered ? Theme.text : Theme.textSecondary)))
                 Layout.alignment: Qt.AlignVCenter
                 Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
             }
 
             Text {
-                visible: root.showTokens && root.activeTodayTokens > 0
+                visible: root.showTokens || root.activeTodayTokens > 0
                 text: root.formatTokens(root.activeTodayTokens)
-                color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : Theme.textSecondary)
+                color: root.menuOpen ? Theme.accent
+                     : (root.hasCritical ? Theme.error
+                     : (root.hasWarning ? Theme.warning
+                     : (trigHh.hovered ? Theme.text : Theme.textSecondary)))
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSizeSmall
                 font.bold: true
@@ -280,30 +238,31 @@ Item {
             }
         }
 
-        Rectangle {
-            visible: !root.showTokens && root.activeCount > 0
-            anchors.top: parent.top
-            anchors.right: parent.right
-            anchors.margins: -2
-            width: 14
-            height: 14
-            radius: 7
-            color: Theme.accent
+        HoverHandler { id: trigHh; cursorShape: Qt.PointingHandCursor }
 
-            Text {
-                anchors.centerIn: parent
-                text: root.activeCount
-                color: Theme.accentText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeLabel - 1
-                font.bold: true
+        // Left-click opens usage panel, Right-click launches interactive agent in terminal (Omarchy style)
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            cursorShape: Qt.PointingHandCursor
+            onClicked: (mouse) => {
+                if (mouse.button === Qt.RightButton) {
+                    AI.openInTerminal()
+                } else {
+                    PopupCoordinator.toggle(root.popupId)
+                }
             }
         }
 
-        HoverHandler { id: trigHh; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: PopupCoordinator.toggle(root.popupId) }
+        Tooltip {
+            visible: trigHh.hovered && !root.menuOpen
+            text: (root.selectedProvider ? root.selectedProvider.name : "AI Assistant")
+                  + (root.activeTodayTokens > 0 ? (" · " + root.formatTokens(root.activeTodayTokens) + " tokens today") : "")
+                  + "\nLeft-click: usage panel · Right-click: launch terminal"
+        }
     }
 
+    // ---- Usage Popup Card ---------------------------------------------------
     PopupWindow {
         id: popup
         visible: root.menuOpen
@@ -314,14 +273,10 @@ Item {
         anchor.gravity: Theme.popupGravity | Edges.Left
         anchor.adjustment: PopupAdjustment.Slide
 
-        // A provider with limits + 7 days + a long model list can outgrow a
-        // short screen, so the card stops at the screen height (minus the bar
-        // and a breathing margin) and the content scrolls inside it. Horizontal
-        // overflow is handled by the compositor via PopupAdjustment.Slide.
         readonly property int screenHeight: root.panelWindow && root.panelWindow.screen
             ? root.panelWindow.screen.height : 1080
 
-        implicitWidth: 300 + 32
+        implicitWidth: 320 + 32
         implicitHeight: Math.min(content.implicitHeight + 28 + 32, screenHeight - 96)
 
         onClosed: PopupCoordinator.close(root.popupId)
@@ -342,9 +297,7 @@ Item {
                     width: parent.width
                     spacing: 12
 
-                    // ---- first-load skeleton -----------------------------------
-                    // Only until the first scan lands; later refreshes reuse the
-                    // numbers already on screen and show the header spinner.
+                    // ---- Skeleton during initial load -----------------------
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 10
@@ -356,7 +309,7 @@ Item {
                             Spinner { size: 15 }
                             Text {
                                 Layout.fillWidth: true
-                                text: "Measuring usage…"
+                                text: "Loading usage data…"
                                 color: Theme.textSecondary
                                 font.pixelSize: Theme.fontSizeSmall
                             }
@@ -366,8 +319,8 @@ Item {
                             model: 3
                             delegate: Rectangle {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 7
-                                radius: 3.5
+                                Layout.preferredHeight: 8
+                                radius: 4
                                 color: Theme.surfaceHover
                                 SequentialAnimation on opacity {
                                     running: !Anim.reduceMotion
@@ -379,12 +332,12 @@ Item {
                         }
                     }
 
-                    // ---- scan failure ------------------------------------------
+                    // ---- Scan failure notification --------------------------
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
                         visible: root.loadError !== ""
-                        MaterialIcon { iconName: "error"; pixelSize: 14; color: Theme.error }
+                        MaterialIcon { iconName: "error"; pixelSize: 15; color: Theme.error }
                         Text {
                             Layout.fillWidth: true
                             text: root.loadError
@@ -394,15 +347,15 @@ Item {
                         }
                     }
 
-                    // ---- header: active provider identity ----------------------
+                    // ---- Header: Selected Provider Identity -----------------
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 11
                         visible: root.selectedProvider !== null
 
                         Rectangle {
-                            Layout.preferredWidth: 38
-                            Layout.preferredHeight: 38
+                            Layout.preferredWidth: 40
+                            Layout.preferredHeight: 40
                             radius: Theme.radiusMd
                             color: Theme.accentDim
                             border.color: Theme.accent
@@ -410,7 +363,7 @@ Item {
                             MaterialIcon {
                                 anchors.centerIn: parent
                                 iconName: root.selectedProvider ? (root.selectedProvider.icon || "smart_toy") : "smart_toy"
-                                pixelSize: 21
+                                pixelSize: 22
                                 color: Theme.accent
                             }
                         }
@@ -419,17 +372,20 @@ Item {
                             Layout.fillWidth: true
                             spacing: 3
                             Text {
-                                text: root.selectedProvider ? root.selectedProvider.name : ""
-                                color: Theme.text; font.pixelSize: 15; font.bold: true
+                                text: root.selectedProvider ? root.selectedProvider.name : "AI Assistant"
+                                color: Theme.text
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeTitle
+                                font.bold: true
                             }
                             RowLayout {
                                 spacing: 6
                                 Rectangle {
-                                    visible: root.selectedProvider && root.selectedProvider.plan
+                                    visible: root.selectedProvider && (root.selectedProvider.plan || "") !== ""
                                     radius: Theme.radiusSm
                                     color: Theme.accentDim
-                                    implicitWidth: planText.implicitWidth + 12
-                                    implicitHeight: planText.implicitHeight + 5
+                                    implicitWidth: planText.implicitWidth + 10
+                                    implicitHeight: planText.implicitHeight + 4
                                     Text {
                                         id: planText
                                         anchors.centerIn: parent
@@ -442,11 +398,7 @@ Item {
                                         font.capitalization: Font.AllUppercase
                                     }
                                 }
-                                // Spend to date, from the providers that report
-                                // it (currently only opencode, whose per-message
-                                // blobs carry a cost field). Sits before the
-                                // email so the elided address still gets the
-                                // remaining width.
+
                                 Text {
                                     readonly property real cost: (root.selectedProvider && root.selectedProvider.cost) || 0
                                     visible: cost > 0
@@ -455,10 +407,12 @@ Item {
                                     font.family: Theme.fontMono
                                     font.pixelSize: Theme.fontSizeLabel
                                 }
+
                                 Text {
-                                    visible: root.selectedProvider && root.selectedProvider.email
+                                    visible: root.selectedProvider && (root.selectedProvider.email || "") !== ""
                                     text: root.selectedProvider ? (root.selectedProvider.email || "") : ""
                                     color: Theme.textDim
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontSizeLabel
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
@@ -466,8 +420,17 @@ Item {
                             }
                         }
 
-                        // Refresh-in-flight tell. Fades rather than pops so a
-                        // 5s poll doesn't strobe the header.
+                        // Terminal Launch Button
+                        IconButton {
+                            iconName: "terminal"
+                            Tooltip { text: "Launch terminal session" }
+                            onClicked: {
+                                AI.openInTerminal()
+                                PopupCoordinator.close(root.popupId)
+                            }
+                        }
+
+                        // Refresh indicator
                         Spinner {
                             size: 14
                             color: Theme.textDim
@@ -477,63 +440,18 @@ Item {
                         }
                     }
 
-                    // ---- provider tabs: click switches the default provider ----
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.topMargin: 2
-                        spacing: 7
-                        visible: root.providers.length > 1
-
-                        Repeater {
-                            model: root.providers
-                            delegate: Rectangle {
-                                required property var modelData
-                                readonly property bool selected: modelData.id === root.selectedId
-                                Layout.fillWidth: true
-                                implicitHeight: 34
-                                radius: Theme.radiusMd
-                                color: selected ? Theme.accentDim : (tabHover.hovered ? Theme.surfaceHover : Theme.surface)
-                                border.color: selected ? Theme.accent : Theme.border
-                                border.width: 1
-
-                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-
-                                RowLayout {
-                                    anchors.centerIn: parent
-                                    spacing: 5
-                                    MaterialIcon {
-                                        iconName: modelData.icon || "smart_toy"
-                                        pixelSize: 14
-                                        color: selected ? Theme.accent : Theme.textSecondary
-                                    }
-                                    Text {
-                                        text: modelData.name
-                                        color: selected ? Theme.accent : Theme.textSecondary
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        font.bold: selected
-                                        elide: Text.ElideRight
-                                    }
-                                }
-
-                                HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: root.selectProvider(modelData.id) }
-                            }
-                        }
-                    }
-
-                    // ---- LIMITS ------------------------------------------------
-                    HRule { visible: root.selectedProvider && root.selectedProvider.limits && root.selectedProvider.limits.length > 0 }
+                    // ---- Rate Limits & Quota Section ------------------------
+                    HRule {}
 
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 13
-                        visible: root.selectedProvider && root.selectedProvider.limits && root.selectedProvider.limits.length > 0
+                        spacing: 11
 
-                        SectionLabel { text: "Limits" }
+                        SectionLabel { text: "Limits & Quota" }
 
+                        // Limit gauges (when usage API is available)
                         Repeater {
-                            model: root.selectedProvider ? (root.selectedProvider.limits || []) : []
+                            model: root.limits
                             delegate: ColumnLayout {
                                 required property var modelData
                                 Layout.fillWidth: true
@@ -541,11 +459,20 @@ Item {
 
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    Text { text: modelData.label; color: Theme.text; font.pixelSize: Theme.fontSizeTitle; font.bold: true; Layout.fillWidth: true }
+                                    Text {
+                                        text: modelData.label
+                                        color: Theme.text
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.bold: true
+                                        Layout.fillWidth: true
+                                    }
                                     Text {
                                         text: modelData.percent + "%"
                                         color: root.gaugeColor(modelData.severity, modelData.percent)
-                                        font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeTitle; font.bold: true
+                                        font.family: Theme.fontMono
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.bold: true
                                     }
                                 }
 
@@ -565,30 +492,99 @@ Item {
                                     }
                                 }
 
-                                Text {
+                                RowLayout {
                                     visible: root.resetLabel(modelData.resetsAt) !== ""
-                                    text: root.resetLabel(modelData.resetsAt)
-                                    color: Theme.textDim; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel - 1
+                                    spacing: 4
+                                    MaterialIcon {
+                                        iconName: "schedule"
+                                        pixelSize: 12
+                                        color: Theme.textDim
+                                    }
+                                    Text {
+                                        text: root.resetLabel(modelData.resetsAt)
+                                        color: Theme.textDim
+                                        font.family: Theme.fontMono
+                                        font.pixelSize: Theme.fontSizeLabel - 1
+                                    }
+                                }
+                            }
+                        }
+
+                        // Status banner when provider doesn't report API rate limits
+                        Rectangle {
+                            visible: root.limits.length === 0 && root.selectedProvider !== null
+                            Layout.fillWidth: true
+                            implicitHeight: bannerCol.implicitHeight + 16
+                            radius: Theme.radiusMd
+                            color: Theme.surfaceHover
+                            border.color: Theme.border
+                            border.width: 1
+
+                            RowLayout {
+                                id: bannerCol
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 10
+
+                                MaterialIcon {
+                                    iconName: "bolt"
+                                    pixelSize: 18
+                                    color: Theme.accent
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    Text {
+                                        text: "Active & Telemetry Monitored"
+                                        color: Theme.text
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        text: root.selectedProvider && root.selectedProvider.approx
+                                            ? "Usage tracked via local conversation transcripts"
+                                            : "Usage monitored from local session records"
+                                        color: Theme.textDim
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // ---- TOKENS BY DAY -----------------------------------------
+                    // ---- 7-Day Activity / Tokens By Day ---------------------
                     HRule { visible: dayGroup.visible }
 
                     ColumnLayout {
                         id: dayGroup
                         Layout.fillWidth: true
                         spacing: 7
-                        readonly property var days: root.selectedProvider ? (root.selectedProvider.tokensByDay || []) : []
-                        readonly property real dayMax: root.maxOf(days, "tokens")
-                        visible: days.length > 0
+                        readonly property real dayMax: root.maxOf(root.days, "tokens")
+                        visible: root.days.length > 0
 
-                        SectionLabel { text: "Tokens by day" + (root.selectedProvider && root.selectedProvider.approx ? " (est.)" : "") }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            SectionLabel {
+                                text: "Tokens by day" + (root.selectedProvider && root.selectedProvider.approx ? " (est.)" : "")
+                                Layout.fillWidth: true
+                            }
+                            Text {
+                                text: root.formatTokens(root.activeTodayTokens) + " today"
+                                color: Theme.accent
+                                font.family: Theme.fontMono
+                                font.pixelSize: Theme.fontSizeLabel
+                                font.bold: true
+                            }
+                        }
 
                         Repeater {
-                            model: dayGroup.days
+                            model: root.days
                             delegate: RowLayout {
                                 required property var modelData
                                 readonly property bool isToday: modelData.label === "Today"
@@ -598,9 +594,10 @@ Item {
                                 Text {
                                     text: modelData.label
                                     color: isToday ? Theme.text : Theme.textSecondary
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontSizeSmall
                                     font.bold: isToday
-                                    Layout.preferredWidth: 36
+                                    Layout.preferredWidth: 38
                                 }
 
                                 Rectangle {
@@ -632,21 +629,22 @@ Item {
                         }
                     }
 
-                    // ---- TOKENS BY MODEL ---------------------------------------
+                    // ---- Tokens By Model ------------------------------------
                     HRule { visible: modelGroup.visible }
 
                     ColumnLayout {
                         id: modelGroup
                         Layout.fillWidth: true
                         spacing: 7
-                        readonly property var models: root.selectedProvider ? (root.selectedProvider.tokensByModel || []) : []
-                        readonly property real modelMax: root.maxOf(models, "tokens")
-                        visible: models.length > 0
+                        readonly property real modelMax: root.maxOf(root.models, "tokens")
+                        visible: root.models.length > 0
 
-                        SectionLabel { text: "Tokens by model" + (root.selectedProvider && root.selectedProvider.approx ? " (est.)" : "") }
+                        SectionLabel {
+                            text: "Tokens by model" + (root.selectedProvider && root.selectedProvider.approx ? " (est.)" : "")
+                        }
 
                         Repeater {
-                            model: modelGroup.models
+                            model: root.models
                             delegate: RowLayout {
                                 required property var modelData
                                 Layout.fillWidth: true
@@ -655,8 +653,9 @@ Item {
                                 Text {
                                     text: modelData.name
                                     color: Theme.text
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontSizeSmall
-                                    Layout.preferredWidth: 78
+                                    Layout.preferredWidth: 84
                                     elide: Text.ElideRight
                                 }
 
@@ -688,73 +687,52 @@ Item {
                         }
                     }
 
-                    // ---- per-provider empty state ------------------------------
+                    // ---- Empty State ----------------------------------------
+                    Text {
+                        Layout.fillWidth: true
+                        visible: root.loaded && root.selectedProvider === null
+                        text: "No AI coding assistants detected. Install Claude Code, Antigravity CLI, or OpenCode."
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeLabel
+                        wrapMode: Text.WordWrap
+                    }
+
+                    // ---- Footer: Quick Actions ------------------------------
+                    HRule {}
+
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.topMargin: 4
-                        spacing: 7
-                        visible: root.selectedProvider
-                            && (!root.selectedProvider.limits || root.selectedProvider.limits.length === 0)
-                            && (!root.selectedProvider.tokensByModel || root.selectedProvider.tokensByModel.length === 0)
-                            && root.localModels.length === 0
-                        MaterialIcon { iconName: "info"; pixelSize: 14; color: Theme.textDim }
-                        Text {
+                        spacing: 8
+
+                        DialogButton {
+                            text: "Open Terminal"
+                            iconName: "terminal"
+                            primary: true
                             Layout.fillWidth: true
-                            text: "No usage data for " + (root.selectedProvider ? root.selectedProvider.name : "") + " — detected only."
-                            color: Theme.textDim
-                            font.pixelSize: Theme.fontSizeLabel
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-
-                    // ---- fallbacks: local ollama + manually tracked ------------
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        visible: root.localModels.length > 0
-
-                        SectionLabel { text: "Local · ollama" }
-
-                        Repeater {
-                            model: root.localModels
-                            delegate: RowLayout {
-                                required property var modelData
-                                Layout.fillWidth: true
-                                spacing: 8
-                                MaterialIcon { iconName: "memory"; pixelSize: 13; color: Theme.accent }
-                                Text { text: modelData.name; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; Layout.fillWidth: true; elide: Text.ElideRight }
-                                Text { text: modelData.size; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeLabel }
+                            onClicked: {
+                                AI.openInTerminal()
+                                PopupCoordinator.close(root.popupId)
                             }
                         }
-                    }
 
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        visible: root.trackedModels.length > 0
-
-                        SectionLabel { text: "Tracked" }
-
-                        Repeater {
-                            model: root.trackedModels
-                            delegate: RowLayout {
-                                required property var modelData
-                                Layout.fillWidth: true
-                                spacing: 8
-                                MaterialIcon { iconName: "smart_toy"; pixelSize: 13; color: Theme.accent }
-                                Text { text: modelData.name; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; Layout.fillWidth: true; elide: Text.ElideRight }
-                                Text { text: modelData.note || ""; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeLabel; elide: Text.ElideRight }
+                        IconButton {
+                            iconName: "settings"
+                            Tooltip { text: "AI Settings" }
+                            onClicked: {
+                                Quickshell.execDetached(["mujo", "settings"])
+                                PopupCoordinator.close(root.popupId)
                             }
                         }
                     }
 
                     Text {
                         Layout.fillWidth: true
-                        visible: root.loaded && root.activeCount === 0
-                        text: "No AI assistants detected. Sign in to Claude Code or start a local ollama model."
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontSizeLabel
-                        wrapMode: Text.WordWrap
+                        text: "Right-click bar icon to quickly launch terminal"
+                        color: Theme.textDim
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeLabel - 1
+                        horizontalAlignment: Text.AlignHCenter
                     }
                 }
             }

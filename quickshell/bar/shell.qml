@@ -279,24 +279,15 @@ ShellRoot {
     }
 
     Variants {
-        // Drop monitors the user hid the bar on (WP-17). Build a plain JS array
-        // (Quickshell.screens is a QML list without Array methods).
-        model: {
-            var out = []
-            var hidden = root._hiddenMonitors || []
-            for (var i = 0; i < Quickshell.screens.length; i++) {
-                var s = Quickshell.screens[i]
-                if (hidden.indexOf(s.name) < 0) out.push(s)
-            }
-            return out
-        }
+        model: Quickshell.screens
 
         PanelWindow {
             id: panelWindow
             required property var modelData
+            readonly property bool isHidden: (root._hiddenMonitors || []).indexOf(modelData.name) >= 0
+            visible: !isHidden
             property bool launcherOpen: PopupCoordinator.isLauncherOpen && (PopupCoordinator.launcherScreen === "" || PopupCoordinator.launcherScreen === modelData.name)
             screen: modelData
-            visible: true
             color: "transparent"
             WlrLayershell.namespace: "qs-bar"
 
