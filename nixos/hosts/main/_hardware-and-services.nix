@@ -34,7 +34,6 @@
   # duplicate of these two lines was dead). The 16G disk swap partition in
   # disko.nix stays as overflow and for hibernation via its resumeDevice.
 
-
   environment.systemPackages = with pkgs; [
     glib
 

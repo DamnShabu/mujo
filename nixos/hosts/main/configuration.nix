@@ -33,7 +33,6 @@
       self.nixosModules.user-persistence
       self.nixosModules.system-preferences
 
-
       self.nixosModules.flatpak
 
       self.nixosModules.opencode
