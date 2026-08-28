@@ -13,6 +13,7 @@ QtObject {
 
     readonly property bool enabled: SettingsBus.get("sentinel.enable", true)
     readonly property bool autoReapZombies: SettingsBus.get("sentinel.autoReapZombies", true)
+    readonly property bool autoKillRunaways: SettingsBus.get("sentinel.autoKillRunaways", true)
 
     property int healthScore: 100
     property string healthStatus: "optimal" // "optimal", "warning", "critical"
@@ -21,6 +22,8 @@ QtObject {
     property var topMem: []
     property var gpu: null
     property int zombieCount: 0
+    property var activeFlags: ({})
+    property var autoKilled: []
     property var _warnedPids: ({}) // PID -> timestamp of last warning toast to avoid spamming
 
     signal scanCompleted()
@@ -56,11 +59,53 @@ QtObject {
                     sentinel.topMem = d.topMem || []
                     sentinel.gpu = d.gpu || null
                     sentinel.zombieCount = d.zombieCount || 0
+                    sentinel.activeFlags = d.activeFlags || ({})
+                    sentinel.autoKilled = d.autoKilled || []
                     sentinel.scanCompleted()
 
                     // Auto-reap zombies if enabled and present
                     if (sentinel.autoReapZombies && sentinel.zombieCount > 0 && !reapProc.running) {
                         reapProc.running = true
+                    }
+
+                    // Flag 2 Warnings: Sustained runaway approaching auto-kill threshold
+                    if (d.warnings && d.warnings.length > 0) {
+                        for (var w = 0; w < d.warnings.length; w++) {
+                            var item = d.warnings[w]
+                            Notifications.notify(
+                                "⚠️ Runaway Task: " + item.comm,
+                                "Process (PID " + item.pid + ") has sustained runaway resource usage for 2 minutes. It will be terminated if unresponsive.",
+                                "memory", "normal",
+                                {
+                                    appName: "Sentinel",
+                                    actions: [
+                                        { text: "Freeze", invoke: (function(p) { return function () { sentinel.stop(p) } })(item.pid) },
+                                        { text: "Kill", invoke: (function(p) { return function () { sentinel.kill(p) } })(item.pid) },
+                                        { text: "Open Health", invoke: function () { SettingsBus.go("health") } }
+                                    ],
+                                    expire: 20
+                                }
+                            )
+                        }
+                    }
+
+                    // Flag 3 Auto-Kills: Terminated unresponsive processes
+                    if (d.autoKilled && d.autoKilled.length > 0) {
+                        for (var k = 0; k < d.autoKilled.length; k++) {
+                            var ak = d.autoKilled[k]
+                            Notifications.notify(
+                                "🛑 Process Terminated: " + ak.comm,
+                                "Sentinel auto-killed PID " + ak.pid + " after 3 minutes of unresponsive runaway resource usage.",
+                                "error", "critical",
+                                {
+                                    appName: "Sentinel",
+                                    actions: [
+                                        { text: "Open Health", invoke: function () { SettingsBus.go("health") } }
+                                    ],
+                                    expire: 25
+                                }
+                            )
+                        }
                     }
 
                     // Check for severe runaway processes to alert

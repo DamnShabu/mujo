@@ -4,3 +4,4 @@ OcrCard OcrCard.qml
 TranslateCard TranslateCard.qml
 AnnotationCanvas AnnotationCanvas.qml
 Loupe Loupe.qml
+ScreenshotOverlay ScreenshotOverlay.qml

@@ -477,6 +477,19 @@ Item {
                     Layout.fillWidth: true; spacing: 12
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 1
+                        Text { text: "3-Minute Auto-Kill Protection"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
+                        Text { text: "Automatically terminate un-whitelisted processes that sustain 3 consecutive runaway flags without progress."; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                    }
+                    ToggleSwitch {
+                        checked: SettingsBus.get("sentinel.autoKillRunaways", true)
+                        onToggled: function(c) { root.bset("sentinel.autoKillRunaways", c) }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 12
+                    ColumnLayout {
+                        Layout.fillWidth: true; spacing: 1
                         Text { text: "AI Crash Assistant"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
                         Text { text: "Capture coredumps, service failures, OOM events, and GPU resets, offering root-cause AI fix recipes."; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
                     }

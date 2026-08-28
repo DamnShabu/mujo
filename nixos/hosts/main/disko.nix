@@ -65,16 +65,16 @@
                   };
 
                   "/persist" = {
-                    mountOptions = ["subvol=persist" "noatime"];
+                    mountOptions = ["subvol=persist" "noatime" "compress=zstd:1"];
                     mountpoint = "/persist";
                   };
 
                   "/nix" = {
-                    # relatime (not noatime): the preload daemon learns which
-                    # files to prefetch from atime, so /nix (where all store
-                    # paths live) must track access times. /persist stays
-                    # noatime; user data doesn't need tracking.
-                    mountOptions = ["subvol=nix" "relatime"];
+                    # noatime: relatime existed only so the preload daemon could
+                    # learn prefetch order from atime. preload is gone, so the
+                    # store no longer needs access-time writes at all.
+                    # zstd:1 is cheap and /nix is highly compressible.
+                    mountOptions = ["subvol=nix" "noatime" "compress=zstd:1"];
                     mountpoint = "/nix";
                   };
                 };

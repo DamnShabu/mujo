@@ -47,7 +47,8 @@ sentinel_usage() {
 Usage: mujo sentinel <command> [args...]
 
 Commands:
-  scan                      Scan running processes, CPU, RAM, GPU, zombies (JSON)
+  scan                      Scan running processes, CPU, RAM, GPU, zombies (JSON).
+                            Flags runaways (max 1/min); auto-kills after 3 sustained flags.
   reap                      Silently reap harmless zombie and defunct processes (JSON)
   action <cmd> <pid> [val]  Send process signal (kill, term, stop, cont, renice)
 EOF
@@ -298,13 +299,13 @@ EOF
 }
 
 CONF="${HOME}/.config/quickshell/wallpaper.json"
-mkdir -p "$(dirname "${CONF}")"
+[[ -d "${CONF%/*}" ]] || mkdir -p "${CONF%/*}"
 [[ -f "${CONF}" ]] || printf '{"effects":{"motion":true}}\n' > "${CONF}"
 
 # Local wallpaper library. Downloads land here; `list`/`random` read from here
 # plus the user's Pictures dir.
 WALLPAPER_DIR="${XDG_PICTURES_DIR:-${HOME}/Pictures}/Wallpapers"
-mkdir -p "${WALLPAPER_DIR}"
+[[ -d "${WALLPAPER_DIR}" ]] || mkdir -p "${WALLPAPER_DIR}"
 
 # Download <url> into the library, echo the local path (or fail). Optional 2nd
 # arg names the file; otherwise derived from the URL.
@@ -446,14 +447,14 @@ wallpaper_tag() {
 }
 
 LLM_CONF="${HOME}/.config/qsshell/llm-status.json"
-mkdir -p "$(dirname "${LLM_CONF}")"
+[[ -d "${LLM_CONF%/*}" ]] || mkdir -p "${LLM_CONF%/*}"
 [[ -f "${LLM_CONF}" ]] || printf '{"models":[],"tokens":0,"updated":null}\n' > "${LLM_CONF}"
 
 THEME_CONF="${HOME}/.config/quickshell/theme.json"
 [[ -f "${THEME_CONF}" ]] || printf '{"preset":"ayu","accent":"","transparency":1.0}\n' > "${THEME_CONF}"
 
 INTEG_CONF="${HOME}/.config/qsshell/integrations.json"
-mkdir -p "$(dirname "${INTEG_CONF}")"
+[[ -d "${INTEG_CONF%/*}" ]] || mkdir -p "${INTEG_CONF%/*}"
 [[ -f "${INTEG_CONF}" ]] || printf '{}\n' > "${INTEG_CONF}"
 
 WEATHER_CONF="${HOME}/.config/quickshell/weather.json"
@@ -1428,7 +1429,7 @@ case "${CMD}" in
   desktop)
     [[ $# -ge 1 ]] || { echo "Usage: mujo desktop list|mkdir [name]|new-file [name]|rename <old> <new>|trash <name>...|open <name>|info <name>|path <name>|into <folder> <name>...|copy <name>...|cut <name>...|paste|import <copy|cut> <uri>...|terminal|pos <name> <col> <row>|pos-batch <json>|forget <name>" >&2; exit 1; }
     SUB="$1"; shift
-    mkdir -p "${DESKTOP_DIR}" "$(dirname "${DESKTOP_POS}")"
+    [[ -d "${DESKTOP_DIR}" && -d "${DESKTOP_POS%/*}" ]] || mkdir -p "${DESKTOP_DIR}" "${DESKTOP_POS%/*}"
     [[ -f "${DESKTOP_POS}" ]] || printf '{}\n' > "${DESKTOP_POS}"
 
     # Every desktop mutation is a read-modify-write of one small JSON file, and a
@@ -1686,38 +1687,88 @@ case "${CMD}" in
     esac
     ;;
   sysmon)
-    # One-shot CPU% (0.3s sample) + memory% + temp + disk + net rate. The
-    # dashboard (WP-19) polls this every 2s while visible and keeps its own
-    # sparkline history; temp/disk/net degrade to null when unreadable so the
-    # card can show a disabled row instead of a fake value.
+    # CPU% + memory% + temp + disk + net rate. The dashboard (WP-19) polls this
+    # every 2s while visible and keeps its own sparkline history; temp/disk/net
+    # degrade to null when unreadable so the card can show a disabled row
+    # instead of a fake value.
+    #
+    # The CPU/net deltas come from the previous call's snapshot rather than a
+    # `sleep 0.3` in-process sample: that sleep blocked a whole process for 15%
+    # of every poll interval, and measuring across the real 2s gap is a more
+    # accurate average anyway. Falls back to the sampled path on the first call
+    # (or after a long gap, so a hidden widget can't report an hour-long mean).
+    SYSMON_PREV="/run/user/${UID:-1000}/qsshell-sysmon.prev"
     netsum() { awk -F'[: ]+' '/:/ && $2 != "lo" {rx+=$3; tx+=$11} END{print rx" "tx}' /proc/net/dev; }
-    read -r _ a b c d e f g _ < /proc/stat; t1=$((a+b+c+d+e+f+g)); idle1=$((d+e))
-    read -r rx1 tx1 < <(netsum)
-    sleep 0.3
+
+    p_t=""; p_idle=""; p_rx=""; p_tx=""; p_ts=""
+    [[ -r "${SYSMON_PREV}" ]] && read -r p_t p_idle p_rx p_tx p_ts < "${SYSMON_PREV}" 2>/dev/null
+
     read -r _ a b c d e f g _ < /proc/stat; t2=$((a+b+c+d+e+f+g)); idle2=$((d+e))
     read -r rx2 tx2 < <(netsum)
-    dt=$((t2-t1)); didle=$((idle2-idle1))
-    cpu=0; [[ "${dt}" -gt 0 ]] && cpu=$(( (100*(dt-didle))/dt ))
-    mt=$(awk '/^MemTotal/{print $2}' /proc/meminfo)
-    ma=$(awk '/^MemAvailable/{print $2}' /proc/meminfo)
-    mem=0; [[ "${mt}" -gt 0 ]] && mem=$(( (100*(mt-ma))/mt ))
-    # net throughput over the sample window, KB/s
-    rxk=$(awk "BEGIN{v=(${rx2}-${rx1})/0.3/1024; print (v<0?0:v)}")
-    txk=$(awk "BEGIN{v=(${tx2}-${tx1})/0.3/1024; print (v<0?0:v)}")
-    # hottest thermal zone in °C, null if the host exposes none
-    temp=null; hi=0
+    ts2="${EPOCHREALTIME/,/.}"
+
+    # Reusable window? Needs a parseable snapshot from between 0.2s and 30s ago
+    # whose counters have not gone backwards (a reboot resets /proc/stat).
+    use_prev=0
+    if [[ -n "${p_ts}" && "${p_t}" =~ ^[0-9]+$ && "${t2}" -ge "${p_t}" ]]; then
+      elapsed_ok="$(awk -v a="${p_ts}" -v b="${ts2}" 'BEGIN{d=b-a; print (d>=0.2 && d<=30) ? 1 : 0}')"
+      [[ "${elapsed_ok}" == "1" ]] && use_prev=1
+    fi
+
+    if [[ "${use_prev}" -eq 0 ]]; then
+      t1="${t2}"; idle1="${idle2}"; rx1="${rx2}"; tx1="${tx2}"; ts1="${ts2}"
+      sleep 0.3
+      read -r _ a b c d e f g _ < /proc/stat; t2=$((a+b+c+d+e+f+g)); idle2=$((d+e))
+      read -r rx2 tx2 < <(netsum)
+      ts2="${EPOCHREALTIME/,/.}"
+    else
+      t1="${p_t}"; idle1="${p_idle}"; rx1="${p_rx}"; tx1="${p_tx}"; ts1="${p_ts}"
+    fi
+
+    printf '%s %s %s %s %s\n' "${t2}" "${idle2}" "${rx2}" "${tx2}" "${ts2}" \
+      > "${SYSMON_PREV}.tmp" 2>/dev/null \
+      && mv "${SYSMON_PREV}.tmp" "${SYSMON_PREV}" 2>/dev/null || true
+
+    # Memory, in bash rather than two awks over /proc/meminfo.
+    mt=0; ma=0
+    while read -r k v _; do
+      case "${k}" in
+        MemTotal:)     mt="${v}" ;;
+        MemAvailable:) ma="${v}"; break ;;
+      esac
+    done < /proc/meminfo
+
+    # hottest thermal zone in millidegrees, 0 if the host exposes none
+    hi=0
     for z in /sys/class/thermal/thermal_zone*/temp; do
       [[ -r "${z}" ]] || continue
-      v=$(cat "${z}" 2>/dev/null) || continue
+      read -r v < "${z}" 2>/dev/null || continue
       [[ "${v}" =~ ^[0-9]+$ && "${v}" -gt "${hi}" ]] && hi="${v}"
     done
-    [[ "${hi}" -gt 0 ]] && temp=$(( hi/1000 ))
+
     # root filesystem usage
     read -r _ dtot dused _ dpct _ < <(df -kP / | tail -1)
     dpct="${dpct%\%}"
-    printf '{"cpu":%d,"mem":%d,"memUsedGb":%.1f,"memTotalGb":%.1f,"temp":%s,"diskPct":%d,"diskUsedGb":%.1f,"diskTotalGb":%.1f,"netRxKbps":%.1f,"netTxKbps":%.1f}\n' \
-      "${cpu}" "${mem}" "$(awk "BEGIN{print (${mt}-${ma})/1048576}")" "$(awk "BEGIN{print ${mt}/1048576}")" \
-      "${temp}" "${dpct}" "$(awk "BEGIN{print ${dused}/1048576}")" "$(awk "BEGIN{print ${dtot}/1048576}")" "${rxk}" "${txk}"
+
+    # One awk builds the whole line; the six that used to format these floats
+    # individually were six forks per poll.
+    awk -v t1="${t1}" -v t2="${t2}" -v i1="${idle1}" -v i2="${idle2}" \
+        -v rx1="${rx1}" -v rx2="${rx2}" -v tx1="${tx1}" -v tx2="${tx2}" \
+        -v ts1="${ts1}" -v ts2="${ts2}" -v mt="${mt}" -v ma="${ma}" \
+        -v hi="${hi}" -v dpct="${dpct}" -v dused="${dused}" -v dtot="${dtot}" '
+      BEGIN {
+        dt = t2 - t1; didle = i2 - i1;
+        cpu = (dt > 0) ? int(100 * (dt - didle) / dt) : 0;
+        if (cpu < 0) cpu = 0; if (cpu > 100) cpu = 100;
+        mem = (mt > 0) ? int(100 * (mt - ma) / mt) : 0;
+        win = ts2 - ts1; if (win <= 0) win = 0.3;
+        rxk = (rx2 - rx1) / win / 1024; if (rxk < 0) rxk = 0;
+        txk = (tx2 - tx1) / win / 1024; if (txk < 0) txk = 0;
+        temp = (hi > 0) ? sprintf("%d", int(hi / 1000)) : "null";
+        printf "{\"cpu\":%d,\"mem\":%d,\"memUsedGb\":%.1f,\"memTotalGb\":%.1f,\"temp\":%s,\"diskPct\":%d,\"diskUsedGb\":%.1f,\"diskTotalGb\":%.1f,\"netRxKbps\":%.1f,\"netTxKbps\":%.1f}\n",
+          cpu, mem, (mt - ma) / 1048576, mt / 1048576, temp, dpct,
+          dused / 1048576, dtot / 1048576, rxk, txk;
+      }'
     ;;
 
   battery)
@@ -2463,33 +2514,176 @@ case "${CMD}" in
           END { printf "]\n" }
         ')"
 
-        jq -n \
-          --argjson procs "${PROCS_JSON}" \
-          --arg gpu_busy "${GPU_BUSY}" \
-          --arg vram_used "${VRAM_USED}" \
-          --arg vram_total "${VRAM_TOTAL}" '
-          ($procs | map(select(.stat | startswith("Z")))) as $zombies |
-          ($procs | map(select(.cpu >= 70 and (.comm != "quickshell" and .comm != "niri" and .comm != ".nixos-test-dri")) | . + {type: "cpu_runaway", label: "CPU Runaway"})) as $cpuRunaways |
-          ($procs | map(select((.mem >= 25 or .rssMb >= 3500) and (.comm != ".nixos-test-dri")) | . + {type: "mem_hog", label: "Memory Hog"})) as $memHogs |
-          ($procs | map(select((.stat | startswith("D")) and .ppid != 2 and .pid != 2) | . + {type: "d_state", label: "Uninterruptible Disk Wait"})) as $dState |
-          ($zombies | map(. + {type: "zombie", label: "Defunct Zombie"})) as $taggedZombies |
-          ($cpuRunaways + $memHogs + $taggedZombies + $dState | unique_by(.pid)) as $anomalies |
-          (100 - (($zombies | length) * 10) - (($cpuRunaways | length) * 15) - (($memHogs | length) * 15)) as $rawScore |
-          (if $rawScore < 10 then 10 elif $rawScore > 100 then 100 else $rawScore end) as $score |
-          {
-            healthScore: $score,
-            status: (if $score >= 85 then "optimal" elif $score >= 60 then "warning" else "critical" end),
-            zombieCount: ($zombies | length),
-            anomalyCount: ($anomalies | length),
-            anomalies: $anomalies,
-            topCpu: ($procs | sort_by(-.cpu) | .[0:6]),
-            topMem: ($procs | sort_by(-.rssMb) | .[0:6]),
-            gpu: {
-              busyPercent: ($gpu_busy | if . == "null" then null else tonumber end),
-              vramUsedMb: ($vram_used | if . == "null" then null else tonumber end),
-              vramTotalMb: ($vram_total | if . == "null" then null else tonumber end)
-            }
-          }'
+        # Parent pids whose children are ALL zombies = dead QEMU guest still spinning
+        STALE_VMS="$(ps -eo ppid=,stat= | awk '$2 ~ /^Z/ {z[$1]=1} $2 !~ /^Z/ {l[$1]=1} END {for (p in z) if (!(p in l)) print p}')"
+        STALE_VMS_JSON="$(printf '%s\n' "${STALE_VMS}" | jq -Rs '[split("\n")[] | select(. != "") | tonumber]')"
+
+        SCAN_JSON="$(
+          jq -n \
+            --argjson procs "${PROCS_JSON}" \
+            --argjson staleVms "${STALE_VMS_JSON}" \
+            --arg gpu_busy "${GPU_BUSY}" \
+            --arg vram_used "${VRAM_USED}" \
+            --arg vram_total "${VRAM_TOTAL}" '
+            ($procs | map(select(.stat | startswith("Z")))) as $zombies |
+            ($procs | map(select(.cpu >= 70 and (.comm != "quickshell" and .comm != "niri" and (.comm != ".nixos-test-dri" or (.pid as $p | ($staleVms | index($p) != null))))) | . + {type: "cpu_runaway", label: "CPU Runaway"})) as $cpuRunaways |
+            ($procs | map(select((.mem >= 25 or .rssMb >= 3500) and (.comm != ".nixos-test-dri")) | . + {type: "mem_hog", label: "Memory Hog"})) as $memHogs |
+            ($procs | map(select((.stat | startswith("D")) and .ppid != 2 and .pid != 2) | . + {type: "d_state", label: "Uninterruptible Disk Wait"})) as $dState |
+            ($zombies | map(. + {type: "zombie", label: "Defunct Zombie"})) as $taggedZombies |
+            ($cpuRunaways + $memHogs + $taggedZombies + $dState | unique_by(.pid)) as $anomalies |
+            (100 - (($zombies | length) * 10) - (($cpuRunaways | length) * 15) - (($memHogs | length) * 15)) as $rawScore |
+            (if $rawScore < 10 then 10 elif $rawScore > 100 then 100 else $rawScore end) as $score |
+            {
+              healthScore: $score,
+              status: (if $score >= 85 then "optimal" elif $score >= 60 then "warning" else "critical" end),
+              zombieCount: ($zombies | length),
+              anomalyCount: ($anomalies | length),
+              anomalies: $anomalies,
+              topCpu: ($procs | sort_by(-.cpu) | .[0:6]),
+              topMem: ($procs | sort_by(-.rssMb) | .[0:6]),
+              gpu: {
+                busyPercent: ($gpu_busy | if . == "null" then null else tonumber end),
+                vramUsedMb: ($vram_used | if . == "null" then null else tonumber end),
+                vramTotalMb: ($vram_total | if . == "null" then null else tonumber end)
+              }
+            }'
+        )"
+
+        # --- 3-flag escalation: 1 flag per process per minute, auto-kill after 3 sustained
+        # flags unless the process went down, shows live children, active I/O, or is protected.
+        NOW="$(date +%s)"
+        FLAGS_FILE="${HOME}/.local/state/qsshell/sentinel-flags.json"
+        [[ -d "${FLAGS_FILE%/*}" ]] || mkdir -p "${FLAGS_FILE%/*}" 2>/dev/null
+        PREV_FLAGS="$(cat "${FLAGS_FILE}" 2>/dev/null || printf '{"flags":{}}')"
+        
+        # Read user setting for auto-killing runaways (default true)
+        SETTINGS_CONF="${HOME}/.config/qsshell/settings.json"
+        AUTO_KILL_ENABLED="true"
+        if [[ -f "${SETTINGS_CONF}" ]]; then
+          AUTO_KILL_ENABLED="$(jq -r '."sentinel.autoKillRunaways" // true' "${SETTINGS_CONF}" 2>/dev/null || echo true)"
+        fi
+
+        # Extract actionable runaway anomalies (CPU runaways >=75%, mem hogs, uninterruptible D-states)
+        RUNAWAYS_RAW="$(printf '%s' "${SCAN_JSON}" | jq -c '[.anomalies[] | select(.type == "cpu_runaway" or .type == "mem_hog" or .type == "d_state") | {pid, comm, type, rssMb, cpu}]')"
+        
+        # Enrich with current I/O bytes from /proc/<pid>/io if available
+        RUNAWAYS_WITH_IO="$(
+          printf '%s' "${RUNAWAYS_RAW}" | jq -c '.[]' 2>/dev/null | while read -r r; do
+            [[ -n "${r}" ]] || continue
+            PID_R="$(printf '%s' "${r}" | jq -r '.pid')"
+            IO_BYTES=0
+            if [[ -r "/proc/${PID_R}/io" ]]; then
+              IO_BYTES="$(awk '/^(rchar|wchar):/ {s += $2} END {print s+0}' "/proc/${PID_R}/io" 2>/dev/null || echo 0)"
+            fi
+            printf '%s' "${r}" | jq --argjson io "${IO_BYTES}" '. + {io: $io}'
+          done | jq -s '.'
+        )"
+        [[ -n "${RUNAWAYS_WITH_IO}" ]] || RUNAWAYS_WITH_IO="[]"
+
+        # Parents with at least one live (non-zombie) child = still doing work underneath
+        LIVE_CHILD_JSON="$(ps -eo ppid=,stat= | awk '$2 !~ /^Z/ && $1 != 2 {print $1}' | sort -u | jq -Rs '[split("\n")[] | select(. != "") | tonumber]')"
+        PROTECTED_RE='(^|\.)(quickshell|niri|agy|claude|opencode|codex|gemini|pi|kitty|ghostty|foot|alacritty|wezterm|zen|firefox|chromium|chrome|brave|systemd|dbus-daemon|wireplumber|pipewire|Xwayland)(-|$)'
+
+        # Advance flags for current runaways (max 1/min), drop recovered pids.
+        FLAGS_UPDATED="$(printf '%s' "${PREV_FLAGS}" | jq \
+          --argjson ru "${RUNAWAYS_WITH_IO}" \
+          --argjson live "${LIVE_CHILD_JSON}" \
+          --argjson now "${NOW}" '
+            .flags = (.flags // {})
+            # Drop recovered pids (went down or exited)
+            | .flags |= with_entries(.key as $k | select($ru | any(.pid == ($k | tonumber))))
+            | reduce $ru[] as $r (.;
+                ($r.pid | tostring) as $k |
+                ($live | index($r.pid) != null) as $hasLiveChild |
+                .flags[$k] = (
+                  if .flags[$k] then
+                    .flags[$k] as $prev |
+                    ($r.io - ($prev.prevIo // 0)) as $ioDelta |
+                    # Meaningful work: active live child processes or >= 10MB I/O delta in past minute
+                    ($hasLiveChild or $ioDelta >= 10485760) as $isMeaningful |
+                    if ($now - ($prev.last // 0)) >= 60 then
+                      if $isMeaningful then
+                        $prev + {count: 1, last: $now, comm: $r.comm, type: $r.type, prevIo: $r.io, warned: false}
+                      else
+                        $prev + {count: ($prev.count + 1), last: $now, comm: $r.comm, type: $r.type, prevIo: $r.io}
+                      end
+                    else
+                      $prev + {comm: $r.comm, type: $r.type}
+                    end
+                  else
+                    {
+                      count: 1,
+                      first: $now,
+                      last: $now,
+                      comm: $r.comm,
+                      type: $r.type,
+                      prevIo: $r.io,
+                      warned: false
+                    }
+                  end
+                )
+              )'
+        )"
+
+        # Emit Flag 2 warnings for processes that sustained 2 minutes and have not been warned yet
+        WARNINGS="$(
+          printf '%s' "${FLAGS_UPDATED}" | jq -c \
+            '[ .flags | to_entries[]
+               | select(.value.count == 2 and (.value.warned != true))
+               | {pid: (.key | tonumber), comm: .value.comm, type: .value.type, count: 2} ]'
+        )"
+
+        # Mark warned flags so we don'\''t spam toasts every 10s
+        FLAGS_UPDATED="$(
+          printf '%s' "${FLAGS_UPDATED}" | jq \
+            '.flags |= with_entries(if .value.count == 2 then .value.warned = true else . end)'
+        )"
+
+        # Candidates to kill: >=3 flags, still a runaway, no live children.
+        KILL_CANDIDATES="$(
+          printf '%s' "${FLAGS_UPDATED}" | jq -c \
+            --argjson live "${LIVE_CHILD_JSON}" \
+            --argjson ru "${RUNAWAYS_WITH_IO}" '
+              [ .flags | to_entries[]
+                | .key as $k
+                | select(.value.count >= 3)
+                | select($ru | any(.pid == ($k | tonumber)))
+                | select(($live | index($k | tonumber)) == null)
+                | {pid: ($k | tonumber), comm: .value.comm, type: .value.type} ]'
+        )"
+
+        AUTO_KILLED='[]'
+        while IFS= read -r cand; do
+          [[ -n "${cand}" ]] || continue
+          PID_K="$(printf '%s' "${cand}" | jq -r '.pid')"
+          COMM_K="$(printf '%s' "${cand}" | jq -r '.comm')"
+          TYPE_K="$(printf '%s' "${cand}" | jq -r '.type')"
+          if grep -qE "${PROTECTED_RE}" <<<"${COMM_K}"; then
+            # Protected agent/shell: never auto-kill, reset its streak.
+            FLAGS_UPDATED="$(printf '%s' "${FLAGS_UPDATED}" | jq ".flags[\"${PID_K}\"].count = 1 | .flags[\"${PID_K}\"].warned = false")"
+            continue
+          fi
+          if [[ "${AUTO_KILL_ENABLED}" == "true" ]]; then
+            kill -15 "${PID_K}" 2>/dev/null
+            sleep 1
+            kill -9 "${PID_K}" 2>/dev/null
+            AUTO_KILLED="$(printf '%s' "${AUTO_KILLED}" | jq --arg pid "${PID_K}" --arg comm "${COMM_K}" --arg type "${TYPE_K}" '. + [{pid: ($pid | tonumber), comm: $comm, type: $type, reason: "sustained 3 flags without progress", timestamp: '"${NOW}"'}]')"
+            FLAGS_UPDATED="$(printf '%s' "${FLAGS_UPDATED}" | jq "del(.flags[\"${PID_K}\"])")"
+          fi
+        done < <(printf '%s' "${KILL_CANDIDATES}" | jq -c '.[]') 2>/dev/null
+
+        # Meaningful runaways (live children) that hit 3 flags: reset rather than kill.
+        FLAGS_UPDATED="$(printf '%s' "${FLAGS_UPDATED}" | jq --argjson live "${LIVE_CHILD_JSON}" '
+          .flags |= with_entries(
+            if .value.count >= 3 and ($live | index(.key | tonumber)) != null
+            then .value.count = 1 | .value.warned = false else . end)')"
+        printf '%s\n' "${FLAGS_UPDATED}" > "${FLAGS_FILE}"
+
+        printf '%s' "${SCAN_JSON}" | jq \
+          --argjson ak "${AUTO_KILLED}" \
+          --argjson warn "${WARNINGS:-[]}" \
+          --argjson flags "${FLAGS_UPDATED}" \
+          '. + {autoKilled: $ak, warnings: $warn, activeFlags: ($flags.flags // {})}'
         ;;
       reap)
         REAPED=0

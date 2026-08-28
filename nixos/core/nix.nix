@@ -8,6 +8,17 @@
       inputs.nix-index-database.nixosModules.nix-index
     ];
     programs.nix-index-database.comma.enable = true;
+    nix.settings = {
+      experimental-features = ["nix-command" "flakes"];
+      # auto-optimise-store hashes and hardlinks every path as it is written,
+      # on the critical path of every build. The scheduled optimise below gets
+      # the same disk saving without taxing each build.
+      auto-optimise-store = false;
+      # max-jobs/cores are left at their defaults on purpose: they resolve to
+      # "auto", which already scales down to a weak machine's core count.
+    };
+
+    nix.optimise.automatic = true;
 
     programs.direnv = {
       enable = true;
@@ -19,10 +30,6 @@
       };
     };
 
-    nix.settings = {
-      experimental-features = ["nix-command" "flakes"];
-      auto-optimise-store = true;
-    };
 
     nix.gc = {
       automatic = true;

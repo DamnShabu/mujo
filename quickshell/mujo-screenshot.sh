@@ -8,15 +8,15 @@ RAW_SHOT="${TMP_BASE}-raw.png"
 CROPPED_SHOT="${TMP_BASE}-crop.png"
 OCR_PREPROC="${TMP_BASE}-ocr.png"
 CONFIG_FILE="${HOME}/.config/qsshell/screenshot.json"
+LOCK_FILE="/run/user/${UID:-1000}/mujo-screenshot.lock"
 
-mkdir -p "${HOME}/Pictures/Screenshots"
-mkdir -p "${HOME}/.config/qsshell"
+# Created lazily in cmd_save — get_config runs on every screenshot-overlay open.
 
 get_config() {
   local key="$1"
   local def="$2"
   if [[ -f "$CONFIG_FILE" ]]; then
-    jq -r ".$key // \"$def\"" "$CONFIG_FILE" 2>/dev/null || echo "$def"
+    jq -r --arg k "$key" --arg d "$def" '.[$k] // $d' "$CONFIG_FILE" 2>/dev/null || echo "$def"
   else
     echo "$def"
   fi
@@ -32,13 +32,14 @@ set_config() {
   else
     echo "{\"$key\": \"$val\"}" > "$tmp"
   fi
+  [[ -d "${CONFIG_FILE%/*}" ]] || mkdir -p "${CONFIG_FILE%/*}"
   mv "$tmp" "$CONFIG_FILE"
 }
 
 cmd_freeze() {
-  # Instant full virtual desktop capture
+  # Instant full virtual desktop capture with 0 compression for maximum speed (~30ms)
   rm -f "${TMP_BASE}"*
-  grim "$RAW_SHOT"
+  grim -l 0 "$RAW_SHOT"
   echo "$RAW_SHOT"
 }
 
@@ -102,11 +103,41 @@ cmd_translate() {
   trans -b -s auto -t "$target_lang" "$text" 2>/dev/null || echo "Translation failed"
 }
 
+cmd_close() {
+  local bar_qml="/etc/xdg/quickshell/bar/shell.qml"
+  if command -v quickshell >/dev/null 2>&1; then
+    quickshell -p "$bar_qml" ipc call screenshot close >/dev/null 2>&1 || true
+  elif command -v qs >/dev/null 2>&1; then
+    qs -p "$bar_qml" ipc call screenshot close >/dev/null 2>&1 || true
+  fi
+}
+
 cmd_launch() {
+  # Prevent concurrent launches / duplicate instances
+  exec 200>"$LOCK_FILE"
+  if ! flock -n 200; then
+    echo "mujo-screenshot: Another instance is already launching." >&2
+    exit 0
+  fi
+
   cmd_freeze >/dev/null
+
+  # 1. Fast path: IPC call to the running qs-bar daemon (<30ms)
+  local bar_qml="/etc/xdg/quickshell/bar/shell.qml"
+  if command -v quickshell >/dev/null 2>&1; then
+    if quickshell -p "$bar_qml" ipc call screenshot open >/dev/null 2>&1; then
+      exit 0
+    fi
+  fi
+  if command -v qs >/dev/null 2>&1; then
+    if qs -p "$bar_qml" ipc call screenshot open >/dev/null 2>&1; then
+      exit 0
+    fi
+  fi
+
+  # 2. Fallback to standalone quickshell instance if qs-bar daemon is not running
   local qml_path="${MUJO_SCREENSHOT_QML:-}"
   if [[ -z "$qml_path" || ! -f "$qml_path" ]]; then
-    # Fallback to relative script path if running in dev mode
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if [[ -f "${script_dir}/bar/screenshot.qml" ]]; then
@@ -119,7 +150,7 @@ cmd_launch() {
   if [[ -n "$qml_path" && -f "$qml_path" ]]; then
     export QT_SCALE_FACTOR=1
     export QT_AUTO_SCREEN_SCALE_FACTOR=0
-    exec quickshell -p "$qml_path"
+    exec quickshell -n -p "$qml_path"
   else
     echo "Error: screenshot.qml not found at $qml_path" >&2
     exit 1
@@ -135,9 +166,10 @@ case "${1:-launch}" in
   translate) cmd_translate "$2" "${@:3}" ;;
   config-get) get_config "$2" "${3:-}" ;;
   config-set) set_config "$2" "$3" ;;
-  launch) cmd_launch ;;
+  close) cmd_close ;;
+  launch|open) cmd_launch ;;
   *)
-    echo "Usage: $0 {launch|freeze|crop|copy|save|ocr|translate|config-get|config-set}" >&2
+    echo "Usage: $0 {launch|open|close|freeze|crop|copy|save|ocr|translate|config-get|config-set}" >&2
     exit 1
     ;;
 esac

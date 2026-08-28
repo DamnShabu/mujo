@@ -36,7 +36,11 @@
       self.packages.${pkgs.stdenv.hostPlatform.system}.environment
     ];
 
+    # The NixOS + Nix HTML manuals are ~50 MB and are rebuilt on every switch;
+    # man pages stay, since those are what actually gets read at the terminal.
     documentation.info.enable = false;
+    documentation.nixos.enable = false;
+    documentation.doc.enable = false;
 
     persistence.data.directories = [
       "nixconf"

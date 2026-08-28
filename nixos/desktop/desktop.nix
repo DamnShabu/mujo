@@ -56,6 +56,10 @@
 
     services.gvfs.enable = true;
 
+    # NixOS turns speech-dispatcher on by default; nothing here uses TTS, and it
+    # drags in espeak-ng -> mbrola-voices (645 MB) plus a resident user daemon.
+    services.speechd.enable = false;
+
     # ── fonts ─────────────────────────────────────────────────────────────────
     fonts.packages = with pkgs; [
       fira-code
@@ -124,7 +128,10 @@
 
     # ── hardware ──────────────────────────────────────────────────────────────
     hardware = {
-      enableAllFirmware = true;
+      # enableAllFirmware pulls the full 770 MB linux-firmware tree. This host is
+      # AMD-only (services.xserver.videoDrivers = ["amdgpu"]), and
+      # enableRedistributableFirmware — already true — covers it.
+      enableRedistributableFirmware = true;
       bluetooth.enable = true;
       graphics = {
         enable = true;

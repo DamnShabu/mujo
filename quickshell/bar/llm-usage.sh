@@ -108,25 +108,60 @@ claude_limits() {
 
 # The 7-day bucket window every per-day breakdown is summed into: one
 # {start,end,label} object per day, oldest first, "Today" last.
+# Built once per run: three callers used to spawn 13 processes each (a `date`
+# and a `jq` per day) for the same value. `printf %(...)T` is a bash builtin,
+# and one jq -n builds the whole array.
+_DAY_WINDOW=""
 day_window() {
-  local midnight days start label i
-  midnight="$(date -d 'today 00:00:00' +%s)"
-  days='[]'
-  for i in 6 5 4 3 2 1 0; do
-    start=$((midnight - i * 86400))
-    if [[ "${i}" -eq 0 ]]; then label="Today"; else label="$(date -d "@${start}" +%a)"; fi
-    days="$(jq -c --argjson s "${start}" --arg l "${label}" \
-      '. + [{start:$s, end:($s+86400), label:$l}]' <<<"${days}")"
-  done
-  printf '%s\n' "${days}"
+  if [[ -z "${_DAY_WINDOW}" ]]; then
+    local midnight labels="" i start
+    midnight="$(date -d 'today 00:00:00' +%s)"
+    for i in 6 5 4 3 2 1 0; do
+      start=$((midnight - i * 86400))
+      if [[ "${i}" -eq 0 ]]; then
+        labels+="Today"$'\n'
+      else
+        printf -v lbl '%(%a)T' "${start}"
+        labels+="${lbl}"$'\n'
+      fi
+    done
+    _DAY_WINDOW="$(jq -c -R -n --argjson m "${midnight}" '
+      [inputs] as $labels
+      | [range(0;7) | . as $i
+         | ($m - (6 - $i) * 86400) as $s
+         | {start:$s, end:($s+86400), label:$labels[$i]}]' <<<"${labels}")"
+  fi
+  printf '%s\n' "${_DAY_WINDOW}"
 }
 
 # Sum transcript tokens into per-day (last 7 days) and per-model buckets.
+# Newest mtime across the session logs. Same role as antigravity_stamp: a
+# cheap key that changes exactly when there is new data to read.
+claude_stamp() {
+  find "${HOME_DIR}/.claude/projects" -name '*.jsonl' -printf '%T@\n' 2>/dev/null \
+    | sort -rn | head -1
+}
+
 claude_tokens() {
-  local dir="${HOME_DIR}/.claude/projects" days
+  local dir="${HOME_DIR}/.claude/projects" days cache stamp
   if [[ ! -d "${dir}" ]]; then echo '{"tokensByDay":[],"tokensByModel":[]}'; return 0; fi
 
+  # This walk re-read and JSON-parsed ~166 MB of session logs on every single
+  # call, on a 300s timer. Stamp-cache it exactly like antigravity_tokens does:
+  # midnight is part of the key because the day buckets are labelled relative
+  # to today, so yesterday's cache must not replay as today's numbers.
+  cache="${HOME_DIR}/.cache/qsshell/llm-claude.json"
+  [[ -d "${cache%/*}" ]] || mkdir -p "${cache%/*}"
+  stamp="$(claude_stamp)|$(date -d 'today 00:00:00' +%s)"
+  if [[ -n "${stamp}" && -f "${cache}" ]] \
+     && [[ "$(jq -r '.stamp // ""' "${cache}" 2>/dev/null)" == "${stamp}" ]]; then
+    jq -c '.data' "${cache}" 2>/dev/null && return 0
+  fi
+
   days="$(day_window)"
+
+  local result
+  result="$(
 
   # Only touch files modified within the window; slurp lines through one jq.
   find "${dir}" -name '*.jsonl' -mtime -8 -print0 2>/dev/null \
@@ -158,6 +193,12 @@ claude_tokens() {
             tokensByModel: [ $acc.model | to_entries | sort_by(-.value)[]
                              | {name:.key, tokens:.value} ] }
       ' 2>/dev/null || echo '{"tokensByDay":[],"tokensByModel":[]}'
+  )"
+
+  [[ -n "${result}" ]] || result='{"tokensByDay":[],"tokensByModel":[]}'
+  jq -cn --argjson data "${result}" --arg stamp "${stamp}" '{stamp:$stamp, data:$data}' \
+    > "${cache}.tmp" 2>/dev/null && mv "${cache}.tmp" "${cache}" 2>/dev/null || true
+  echo "${result}"
 }
 
 # ~/.claude.json: oauthAccount carries the email and plan tier.

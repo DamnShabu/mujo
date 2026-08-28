@@ -12,7 +12,13 @@
     iconThemePackage = pkgs.colloid-icon-theme;
     iconThemeName = "Colloid-Dark";
 
-    cursorThemePackage = pkgs.bibata-cursors;
+    # bibata-cursors ships all 12 colour/handedness variants (322 MB); only
+    # cursorThemeName below is ever referenced. Slice out the one theme — same
+    # trick modules/flake/perSystem.nix uses for skeuos-gtk.
+    cursorThemePackage = pkgs.runCommand "bibata-modern-classic" {} ''
+      mkdir -p $out/share/icons
+      cp -a ${pkgs.bibata-cursors}/share/icons/Bibata-Modern-Classic $out/share/icons/
+    '';
     cursorThemeName = "Bibata-Modern-Classic";
 
     gtksettings = ''
