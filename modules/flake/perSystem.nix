@@ -62,7 +62,6 @@
           mkdir -p $out/share/themes
           cp -a ${src}/themes/Skeuos-Grey-Dark $out/share/themes/
         '';
-
     };
   };
 }
