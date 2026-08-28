@@ -25,6 +25,19 @@
       self.nixosModules.quickshell
     ];
 
+    boot.kernelParams = [
+      "quiet"
+      "mitigations=off"
+      "nowatchdog"
+      "audit=0"
+      "nohpet"
+      "tsc=reliable"
+      "nomce"
+      "elevator=none"
+      "systemd.show_status=auto"
+      "rd.udev.log_level=3"
+    ];
+
     virtualisation = {
       memorySize = 8192;
       cores = 16;
@@ -39,6 +52,9 @@
         options = [
           # Hardware CPU passthrough with invariant TSC and fast string features
           "-cpu host,migratable=off,+invtsc,+tsc-deadline,+clflushopt,+fsrm"
+          "-machine q35,accel=kvm,kernel-irqchip=on"
+          "-no-hpet"
+          "-global kvm-pit.lost_tick_policy=discard"
           # virgl over a host render node: real GLES in the guest
           "-vga none"
           "-device virtio-gpu-gl-pci,xres=1280,yres=800"
@@ -56,7 +72,8 @@
         "trans=virtio"
         "version=9p2000.L"
         "msize=1048576"
-        "cache=mmap"
+        "cache=loose"
+        "posixacl=0"
       ];
     };
 
