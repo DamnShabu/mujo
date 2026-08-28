@@ -35,11 +35,55 @@ Item {
     }
     readonly property bool searching: root.adapter && root.adapter.enabled && root.adapter.discovering && root.deviceCount === 0
 
-    IconButton {
+    readonly property bool showDevice: SettingsBus.get("bar.bluetooth.showDevice", false)
+    readonly property string connectedDevName: {
+        if (!root.adapter || !root.adapter.devices) return ""
+        var devs = root.adapter.devices.values
+        for (var i = 0; i < devs.length; i++) if (devs[i].connected) return devs[i].name || "Device"
+        return ""
+    }
+
+    Rectangle {
         id: trigger
-        iconName: !root.adapter || !root.adapter.enabled ? "bluetooth_disabled" : (root.anyConnected ? "bluetooth_connected" : "bluetooth")
-        active: root.menuOpen
-        onClicked: PopupCoordinator.toggle(root.popupId)
+        implicitHeight: Theme.barHeight - 6
+        implicitWidth: (root.showDevice && root.anyConnected && root.connectedDevName !== "") ? (trigRow.implicitWidth + 14) : 28
+        radius: Theme.radiusSm
+        color: root.menuOpen ? Theme.accentDim : (trigHh.hovered ? Theme.surfaceHover : "transparent")
+        border.color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.borderStrong : "transparent")
+        border.width: 1
+
+        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+        RowLayout {
+            id: trigRow
+            anchors.centerIn: parent
+            spacing: 4
+
+            MaterialIcon {
+                iconName: !root.adapter || !root.adapter.enabled ? "bluetooth_disabled" : (root.anyConnected ? "bluetooth_connected" : "bluetooth")
+                pixelSize: 16
+                color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : (root.anyConnected ? Theme.accent : Theme.textSecondary))
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+            }
+
+            Text {
+                visible: root.showDevice && root.anyConnected && root.connectedDevName !== ""
+                text: root.connectedDevName
+                color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.text : Theme.textSecondary)
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+                font.bold: true
+                elide: Text.ElideRight
+                Layout.maximumWidth: 110
+                Layout.alignment: Qt.AlignVCenter
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+            }
+        }
+
+        HoverHandler { id: trigHh; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: PopupCoordinator.toggle(root.popupId) }
     }
 
     onMenuOpenChanged: {

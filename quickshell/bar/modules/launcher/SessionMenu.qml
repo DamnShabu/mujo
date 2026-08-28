@@ -21,9 +21,11 @@ Item {
 
     onMenuOpenChanged: if (!menuOpen) root.confirmId = ""
 
+    readonly property string iconStyle: SettingsBus.get("bar.session.iconStyle", "power")
+
     IconButton {
         id: trigger
-        iconName: "power_settings_new"
+        iconName: root.iconStyle === "user" ? "person" : (root.iconStyle === "logo" ? "fingerprint" : "power_settings_new")
         active: root.menuOpen
         iconColor: root.active ? Theme.accent : (root.hovered ? Theme.error : Theme.textSecondary)
         onClicked: PopupCoordinator.toggle(root.popupId)

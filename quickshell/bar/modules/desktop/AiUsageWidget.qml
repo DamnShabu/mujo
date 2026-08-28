@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell.Io
 import "../../theme"
 import "../../components"
+import "../../services"
 
 // AI usage on the desktop: the same llm-usage.sh scan the bar's LLM tracker menu
 // runs, reduced to the active provider's rate-limit gauges plus today's token
@@ -16,15 +17,20 @@ BaseWidget {
     property string defaultId: ""
 
     // wcfg.provider pins the widget to one assistant; otherwise it follows the
-    // provider the user made active in the bar widget.
-    readonly property string wantId: wcfg.provider !== undefined ? String(wcfg.provider) : ""
+    // provider the user made active in the bar widget or settings default.
+    readonly property string wantId: wcfg.provider !== undefined ? String(wcfg.provider) : SettingsBus.get("desktop.aiusage.provider", "")
+    readonly property bool showGauges: wcfg.showGauges !== undefined ? !!wcfg.showGauges : SettingsBus.get("desktop.aiusage.showGauges", true)
+    readonly property string cardStyle: wcfg.cardStyle !== undefined ? wcfg.cardStyle : "glass"
+
+    chromeless: cardStyle === "chromeless"
+
     readonly property var provider: {
         var want = root.wantId !== "" ? root.wantId : root.defaultId
         for (var i = 0; i < providers.length; i++)
             if (providers[i].id === want) return providers[i]
         return providers.length > 0 ? providers[0] : null
     }
-    readonly property var limits: provider && provider.limits ? provider.limits : []
+    readonly property var limits: (root.showGauges && provider && provider.limits) ? provider.limits : []
     readonly property real todayTokens: {
         var d = provider && provider.tokensByDay ? provider.tokensByDay : []
         return d.length > 0 ? (d[d.length - 1].tokens || 0) : 0

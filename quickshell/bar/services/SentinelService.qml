@@ -18,13 +18,16 @@ QtObject {
     property int healthScore: 100
     property string healthStatus: "optimal" // "optimal", "warning", "critical"
     property var anomalies: []
+    property var problematicProcesses: []
+    property var terminatedHistory: []
     property var topCpu: []
     property var topMem: []
     property var gpu: null
     property int zombieCount: 0
+    property int orphanCount: 0
     property var activeFlags: ({})
     property var autoKilled: []
-    property var _warnedPids: ({}) // PID -> timestamp of last warning toast to avoid spamming
+    property var _warnedPids: ({})
 
     signal scanCompleted()
     signal anomalyDetected(var anomaly)
@@ -39,6 +42,22 @@ QtObject {
     function cont(pid) { _runAction("cont", pid) }
     function renice(pid, val) { _runAction("renice", pid, val) }
     function reap() { reapProc.running = true }
+
+    function dismissTerminated(pid) {
+        var a = []
+        for (var i = 0; i < sentinel.terminatedHistory.length; i++) {
+            if (sentinel.terminatedHistory[i].pid !== pid) {
+                a.push(sentinel.terminatedHistory[i])
+            }
+        }
+        sentinel.terminatedHistory = a
+        sentinel._recomputeProblematic()
+    }
+
+    function clearTerminatedHistory() {
+        sentinel.terminatedHistory = []
+        sentinel._recomputeProblematic()
+    }
 
     function _runAction(act, pid, val) {
         actionProc.command = val ? ["mujo", "sentinel", "action", act, String(pid), String(val)]
@@ -59,60 +78,130 @@ QtObject {
                     sentinel.topMem = d.topMem || []
                     sentinel.gpu = d.gpu || null
                     sentinel.zombieCount = d.zombieCount || 0
+                    sentinel.orphanCount = d.orphanCount || 0
                     sentinel.activeFlags = d.activeFlags || ({})
                     sentinel.autoKilled = d.autoKilled || []
-                    sentinel.scanCompleted()
 
-                    // Auto-reap zombies if enabled and present
-                    if (sentinel.autoReapZombies && sentinel.zombieCount > 0 && !reapProc.running) {
+                    // Auto-reap zombies and orphaned processes if enabled and present
+                    if (sentinel.autoReapZombies && (sentinel.zombieCount > 0 || sentinel.orphanCount > 0) && !reapProc.running) {
                         reapProc.running = true
                     }
 
-                    // Flag 2 Warnings: Sustained runaway approaching auto-kill threshold
-                    if (d.warnings && d.warnings.length > 0) {
-                        for (var w = 0; w < d.warnings.length; w++) {
-                            var item = d.warnings[w]
-                            Notifications.notify(
-                                "⚠️ Runaway Task: " + item.comm,
-                                "Process (PID " + item.pid + ") has sustained runaway resource usage for 2 minutes. It will be terminated if unresponsive.",
-                                "memory", "normal",
-                                {
-                                    appName: "Sentinel",
-                                    actions: [
-                                        { text: "Freeze", invoke: (function(p) { return function () { sentinel.stop(p) } })(item.pid) },
-                                        { text: "Kill", invoke: (function(p) { return function () { sentinel.kill(p) } })(item.pid) },
-                                        { text: "Open Health", invoke: function () { SettingsBus.go("health") } }
-                                    ],
-                                    expire: 20
-                                }
-                            )
+                    // Build unified problematicProcesses list without desktop notifications
+                    sentinel._updateProblematicProcesses(d)
+                    sentinel.scanCompleted()
+
+                    // Signal anomalies for internal listeners without showing notification toasts
+                    if (sentinel.anomalies && sentinel.anomalies.length > 0) {
+                        for (var i = 0; i < sentinel.anomalies.length; i++) {
+                            sentinel.anomalyDetected(sentinel.anomalies[i])
                         }
                     }
-
-                    // Flag 3 Auto-Kills: Terminated unresponsive processes
-                    if (d.autoKilled && d.autoKilled.length > 0) {
-                        for (var k = 0; k < d.autoKilled.length; k++) {
-                            var ak = d.autoKilled[k]
-                            Notifications.notify(
-                                "🛑 Process Terminated: " + ak.comm,
-                                "Sentinel auto-killed PID " + ak.pid + " after 3 minutes of unresponsive runaway resource usage.",
-                                "error", "critical",
-                                {
-                                    appName: "Sentinel",
-                                    actions: [
-                                        { text: "Open Health", invoke: function () { SettingsBus.go("health") } }
-                                    ],
-                                    expire: 25
-                                }
-                            )
-                        }
-                    }
-
-                    // Check for severe runaway processes to alert
-                    sentinel._checkSevereAnomalies(sentinel.anomalies)
                 } catch (e) {}
             }
         }
+    }
+
+    function _updateProblematicProcesses(d) {
+        if (d.autoKilled && d.autoKilled.length > 0) {
+            var hist = sentinel.terminatedHistory.slice()
+            for (var k = 0; k < d.autoKilled.length; k++) {
+                var ak = d.autoKilled[k]
+                var exists = false
+                for (var h = 0; h < hist.length; h++) {
+                    if (hist[h].pid === ak.pid && hist[h].timestamp === ak.timestamp) {
+                        exists = true
+                        break
+                    }
+                }
+                if (!exists) {
+                    hist.unshift({
+                        pid: ak.pid,
+                        comm: ak.comm || "task",
+                        type: ak.type || "auto_killed",
+                        label: "Auto-Killed",
+                        details: "Terminated after 3 min unresponsive runaway resource usage",
+                        status: "terminated",
+                        cpu: 0,
+                        rssMb: 0,
+                        reason: ak.reason || "sustained 3 flags without progress",
+                        timestamp: ak.timestamp ? (ak.timestamp * 1000) : Date.now()
+                    })
+                }
+            }
+            if (hist.length > 20) hist = hist.slice(0, 20)
+            sentinel.terminatedHistory = hist
+        }
+
+        sentinel._recomputeProblematic()
+    }
+
+    function _recomputeProblematic() {
+        var list = []
+        var flags = sentinel.activeFlags || ({})
+        var anomalies = sentinel.anomalies || []
+
+        // Process active anomalies
+        for (var i = 0; i < anomalies.length; i++) {
+            var a = anomalies[i]
+            var pidStr = String(a.pid)
+            var flagInfo = flags[pidStr] || null
+            var flagCount = flagInfo ? (flagInfo.count || 0) : 0
+            var isWarning = flagCount >= 2
+
+            var details = ""
+            if (a.type === "cpu_runaway") {
+                details = "Consuming " + (a.cpu ? a.cpu.toFixed(1) : "0") + "% CPU"
+            } else if (a.type === "mem_hog") {
+                details = "Holding " + (a.rssMb ? (a.rssMb >= 1024 ? (a.rssMb / 1024).toFixed(1) + " GB" : a.rssMb + " MB") : "0 MB") + " RAM"
+            } else if (a.type === "zombie") {
+                details = "Defunct zombie process awaiting parent cleanup"
+            } else if (a.type === "orphaned_process") {
+                details = "Orphaned background process running without parent"
+            } else if (a.type === "d_state") {
+                details = "Uninterruptible disk wait state"
+            } else {
+                details = a.label || "Resource anomaly"
+            }
+
+            if (isWarning) {
+                details += " · Sustained runaway (" + flagCount + "m)"
+            }
+
+            list.push({
+                pid: a.pid,
+                ppid: a.ppid,
+                comm: a.comm || "task",
+                type: a.type || "anomaly",
+                label: isWarning ? ("Runaway (" + flagCount + "m)") : (a.label || "Anomaly"),
+                details: details,
+                cpu: a.cpu || 0,
+                rssMb: a.rssMb || 0,
+                mem: a.mem || 0,
+                stat: a.stat || "",
+                status: "active",
+                flagCount: flagCount,
+                warning: isWarning,
+                timestamp: Date.now()
+            })
+        }
+
+        // Append terminated history items (if not already present as active)
+        for (var j = 0; j < sentinel.terminatedHistory.length; j++) {
+            var th = sentinel.terminatedHistory[j]
+            var found = false
+            for (var m = 0; m < list.length; m++) {
+                if (list[m].pid === th.pid && list[m].status === "active") {
+                    found = true
+                    break
+                }
+            }
+            if (!found) {
+                list.push(th)
+            }
+        }
+
+        sentinel.problematicProcesses = list
     }
 
     property Process reapProc: Process {
@@ -122,7 +211,6 @@ QtObject {
                 try {
                     var r = JSON.parse(this.text)
                     if (r.reapedCount && r.reapedCount > 0) {
-                        // Silent reap or low notification
                         sentinel.refresh()
                     }
                 } catch (e) {}
@@ -133,51 +221,6 @@ QtObject {
     property Process actionProc: Process {
         onExited: function (code) {
             sentinel.refresh()
-        }
-    }
-
-    function _checkSevereAnomalies(list) {
-        var now = Date.now()
-        for (var i = 0; i < list.length; i++) {
-            var a = list[i]
-            if (a.type === "cpu_runaway" && a.cpu >= 80) {
-                if (!sentinel._warnedPids[a.pid] || now - sentinel._warnedPids[a.pid] > 90000) {
-                    sentinel._warnedPids[a.pid] = now
-                    sentinel.anomalyDetected(a)
-                    Notifications.notify(
-                        "High CPU Usage: " + a.comm,
-                        "Process (PID " + a.pid + ") is consuming " + a.cpu.toFixed(0) + "% CPU.",
-                        "memory", "normal",
-                        {
-                            appName: "Sentinel",
-                            actions: [
-                                { text: "Freeze", invoke: function () { sentinel.stop(a.pid) } },
-                                { text: "Kill", invoke: function () { sentinel.kill(a.pid) } },
-                                { text: "Open Health", invoke: function () { SettingsBus.go("health") } }
-                            ],
-                            expire: 15
-                        }
-                    )
-                }
-            } else if (a.type === "mem_hog" && a.rssMb >= 4000) {
-                if (!sentinel._warnedPids[a.pid] || now - sentinel._warnedPids[a.pid] > 120000) {
-                    sentinel._warnedPids[a.pid] = now
-                    sentinel.anomalyDetected(a)
-                    Notifications.notify(
-                        "High Memory Usage: " + a.comm,
-                        "Process (PID " + a.pid + ") is holding " + (a.rssMb / 1024).toFixed(1) + " GB RAM.",
-                        "memory", "normal",
-                        {
-                            appName: "Sentinel",
-                            actions: [
-                                { text: "Kill", invoke: function () { sentinel.kill(a.pid) } },
-                                { text: "Open Health", invoke: function () { SettingsBus.go("health") } }
-                            ],
-                            expire: 15
-                        }
-                    )
-                }
-            }
         }
     }
 

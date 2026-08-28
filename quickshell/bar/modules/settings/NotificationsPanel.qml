@@ -14,6 +14,11 @@ Item {
 
     function bset(k, v) { SettingsBus.set(k, v) }
 
+    // One readout column for every slider row, right-aligned, so the sliders
+    // and their values line up down the panel instead of each row sizing to
+    // its own label.
+    readonly property int sliderValueW: 64
+
     readonly property var corners: [
         { v: "bottom-right", l: "Bottom right" },
         { v: "bottom-left", l: "Bottom left" },
@@ -111,7 +116,8 @@ Item {
                             font.family: Theme.fontMono
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
-                            Layout.preferredWidth: 32
+                            horizontalAlignment: Text.AlignRight
+                            Layout.preferredWidth: root.sliderValueW
                         }
                     }
                 }
@@ -133,7 +139,8 @@ Item {
                             font.family: Theme.fontMono
                             font.pixelSize: Theme.fontSizeSmall
                             font.bold: true
-                            Layout.preferredWidth: 60
+                            horizontalAlignment: Text.AlignRight
+                            Layout.preferredWidth: root.sliderValueW
                         }
                     }
                 }

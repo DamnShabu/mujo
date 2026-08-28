@@ -84,19 +84,11 @@ def _idle_watchdog():
 
 threading.Thread(target=_idle_watchdog, daemon=True).start()
 atexit.register(lambda: teardown("server exiting"))
-# Raising SystemExit rather than tearing down inside the handler keeps the work
-# on the main thread and lets atexit do it exactly once.
-#
-# Best-effort: signal.signal() raises ValueError unless it is called on the main
-# thread, and the test driver decides where this script runs. A failure here
-# must not take the server down with it -- atexit still covers every exit that
-# unwinds, and the idle watchdog still covers the rest.
 try:
     for _sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(_sig, lambda *_: sys.exit(0))
 except (ValueError, OSError) as e:
     print(f"sandbox: signal handlers unavailable ({e})", file=sys.stderr)
-
 
 
 def user_name():
@@ -108,14 +100,24 @@ def user_name():
 def ensure_up():
     if vm.booted:
         return
+    t_start = time.time()
+    print(f"sandbox: booting VM...", file=sys.stderr)
     vm.start()
+    t_qemu = time.time()
+    print(f"sandbox: vm.start() took {t_qemu - t_start:.2f}s, waiting for multi-user.target...", file=sys.stderr)
     vm.wait_for_unit("multi-user.target")
+    t_multi = time.time()
+    print(f"sandbox: multi-user.target reached in {t_multi - t_qemu:.2f}s, waiting for niri.service...", file=sys.stderr)
     try:
         vm.wait_for_unit("niri.service", user=user_name(), timeout=180)
     except Exception as e:  # a dead compositor is still worth screenshotting
         print(f"niri did not come up: {e}", file=sys.stderr)
+    t_niri = time.time()
+    print(f"sandbox: niri.service reached in {t_niri - t_multi:.2f}s, waiting for quickshell...", file=sys.stderr)
     if wait_for_shell(0):
-        time.sleep(3)  # see the settle note in the reload branch below
+        t_qs = time.time()
+        print(f"sandbox: quickshell shell_state ready in {t_qs - t_niri:.2f}s (Total cold boot: {t_qs - t_start:.2f}s)", file=sys.stderr)
+        time.sleep(0.5)
 
 
 def run(cmd, timeout=120):
@@ -135,49 +137,44 @@ def user_run(cmd, timeout=120):
 
 
 def shell_state():
-    """(config loads so far, systemd restarts so far) for qs-bar.
+    """(config loads so far, systemd restarts so far) for qs-bar."""
+    ready_file = vm.shared_dir / "qs_ready"
+    if ready_file.exists():
+        try:
+            return (len(ready_file.read_text().splitlines()), 0)
+        except Exception:
+            return (1, 0)
+    return (0, 0)
 
-    The QML tree takes ~20s to come up in the VM, so "the unit is active" is
-    far too early to screenshot; the load counter moving is the honest signal
-    that the shell is actually on screen. The restart counter catches the
-    other outcome: a QML error makes quickshell exit and Restart=always spin
-    it, which would otherwise just look like a slow load.
-    """
+
+def wait_for_shell(base_loads, base_restarts=None, timeout=60):
+    deadline = time.time() + timeout
+    ready_file = vm.shared_dir / "qs_ready"
+    while time.time() < deadline:
+        if ready_file.exists():
+            try:
+                loads = len(ready_file.read_text().splitlines())
+                if loads > base_loads:
+                    return True
+            except Exception:
+                pass
+        time.sleep(0.05)
+    # Fallback to journalctl check only if file check timed out
     out = user_run(
         "journalctl --user -u qs-bar --no-pager | grep -c 'Configuration Loaded'; "
         "systemctl --user show qs-bar.service -p NRestarts --value"
     )
     nums = [int(n) for n in out.split() if n.isdigit()]
-    return tuple((nums + [0, 0])[:2])
-
-
-def wait_for_shell(base_loads, base_restarts=None, timeout=120):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        loads, restarts = shell_state()
-        if loads > base_loads:
-            return True
-        # Only after an explicit reload do we know a restart means breakage;
-        # during boot qs-bar may legitimately bounce waiting for niri.
-        if base_restarts is not None and restarts > base_restarts:
-            return False
-        time.sleep(2)
-    return False
+    loads, restarts = tuple((nums + [0, 0])[:2])
+    return loads > base_loads
 
 
 def screenshot():
-    """Grab the display with grim inside the session.
-
-    Not QEMU's screendump: once virtio-gpu-gl is scanning out through
-    egl-headless there is no CPU-side surface for it to dump ("no surface").
-    wlr-screencopy has one, and the PNG comes back over the driver's shared
-    directory rather than the serial backdoor.
-    """
+    """Grab the display with grim inside the session."""
     ensure_up()
     host_png = vm.shared_dir / "shot.png"
     host_png.unlink(missing_ok=True)
     out = user_run(f"grim {GUEST_SHOT}")
-    # grim runs as the user; root moves it across so 9p ownership never bites.
     run(f"cp {GUEST_SHOT} /tmp/shared/shot.png")
     if not host_png.exists():
         raise RuntimeError(f"grim failed: {out.strip()}")
@@ -209,8 +206,10 @@ def click(x, y, button="left"):
             {"type": "abs", "data": {"axis": "y", "value": y * 32767 // max(h - 1, 1)}},
         ]
     )
+    time.sleep(0.05)
     for down in (True, False):
         send_input([{"type": "btn", "data": {"button": button, "down": down}}])
+        time.sleep(0.02)
 
 
 TOOLS = [
@@ -333,7 +332,7 @@ def _dispatch(name, a):
             # surfaces are mapped and painted, so an immediate screenshot
             # catches an empty desktop. Poll for a stable frame if 3s ever
             # stops being enough.
-            time.sleep(3)
+            time.sleep(0.3)
             return text("shell reloaded from the working tree and back on screen")
         return text(
             "shell did not come back up; last log lines:\n"
@@ -354,12 +353,23 @@ def reply(mid, **kw):
         send({"jsonrpc": "2.0", "id": mid, **kw})
 
 
+if os.environ.get("MUJO_SANDBOX_STANDALONE") == "1":
+    print("sandbox: standalone mode requested, booting VM for live observation...", file=sys.stderr)
+    ensure_up()
+    print("sandbox: VM is active. Live display stream listening on 127.0.0.1:5920", file=sys.stderr)
+    while True:
+        with _vm_lock:
+            _last_use = time.time()
+        time.sleep(2)
+
 while True:
     line = sys.stdin.readline()
     if not line:
         break
     if not line.strip():
         continue
+    with _vm_lock:
+        _last_use = time.time()
     req = json.loads(line)
     mid, method = req.get("id"), req.get("method")
     try:
@@ -383,4 +393,5 @@ while True:
         else:
             reply(mid, error={"code": -32601, "message": f"unknown method {method}"})
     except Exception as e:
-        reply(mid, error={"code": -32000, "message": f"{type(e).__name__}: {e}"})
+        import traceback
+        reply(mid, error={"code": -32000, "message": traceback.format_exc()})

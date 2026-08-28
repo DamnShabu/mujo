@@ -39,6 +39,20 @@ Item {
         return false
     }
 
+    readonly property string wsStyle: SettingsBus.get("bar.workspaces.style", "numbers")
+    readonly property string gliderStyle: SettingsBus.get("bar.workspaces.gliderStyle", "morphic")
+    readonly property bool showWindowDots: SettingsBus.get("bar.workspaces.showWindowDots", true)
+    readonly property bool hideEmpty: SettingsBus.get("bar.workspaces.hideEmpty", false)
+
+    function formatWsLabel(idx) {
+        if (root.wsStyle === "dots") return "•"
+        if (root.wsStyle === "roman") {
+            var romans = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
+            return romans[idx - 1] || String(idx)
+        }
+        return String(idx)
+    }
+
     function refresh() {
         var result = []
         var foundFocused = 0
@@ -48,13 +62,15 @@ Item {
                 var ws = root.niri.workspaces.get(i)
                 if (ws && (root.screenName === "" || ws.output === root.screenName)) {
                     var isFoc = root.isWorkspaceFocused(ws)
+                    var hasWin = root.workspaceHasWindows(ws)
+                    if (root.hideEmpty && !isFoc && !hasWin) continue
                     var currentIdx = result.length
                     if (isFoc) foundFocused = currentIdx
                     result.push({
                         wsId: ws.id,
                         wsFocused: isFoc,
                         wsIndex: currentIdx + 1,
-                        hasWindows: root.workspaceHasWindows(ws)
+                        hasWindows: hasWin
                     })
                 }
             }
@@ -85,7 +101,7 @@ Item {
 
     // ─── Morphic Glider Calculations ─────────────────────────────────────────
     readonly property int pillW: Theme.workspacePillSize
-    readonly property int pillExpandedW: Theme.workspacePillSize + 12
+    readonly property int pillExpandedW: root.gliderStyle === "morphic" ? (Theme.workspacePillSize + 12) : Theme.workspacePillSize
     readonly property int gap: Theme.workspaceSpacing
 
     function gliderTargetX() {
@@ -99,11 +115,13 @@ Item {
     // Morphic Glider Backplate
     Rectangle {
         id: morphicGlider
-        visible: root.workspaceList.length > 0
-        height: root.pillW
-        y: (parent.height - height) / 2
-        radius: Theme.workspacePillRadius
-        color: Theme.accent
+        visible: root.workspaceList.length > 0 && root.gliderStyle !== "none"
+        height: root.gliderStyle === "underline" ? 3 : root.pillW
+        y: root.gliderStyle === "underline" ? (parent.height - 3) : ((parent.height - height) / 2)
+        radius: root.gliderStyle === "underline" ? 1.5 : Theme.workspacePillRadius
+        color: root.gliderStyle === "outline" ? "transparent" : Theme.accent
+        border.color: root.gliderStyle === "outline" ? Theme.accent : "transparent"
+        border.width: root.gliderStyle === "outline" ? 1.5 : 0
 
         x: root.gliderTargetX()
         width: root.pillExpandedW
@@ -138,7 +156,7 @@ Item {
                 property bool hovered: wsHover.hovered
                 property bool hasWindows: modelData.hasWindows
 
-                Layout.preferredWidth: focused ? root.pillExpandedW : root.pillW
+                Layout.preferredWidth: (focused && root.gliderStyle === "morphic") ? root.pillExpandedW : root.pillW
                 Layout.preferredHeight: root.pillW
 
                 Behavior on Layout.preferredWidth {
@@ -155,15 +173,16 @@ Item {
                     Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast) } }
                 }
 
-                // Workspace Numeral
+                // Workspace Numeral / Label / Icon
                 Text {
                     anchors.centerIn: parent
-                    text: wsItem.modelData.wsIndex
+                    text: root.formatWsLabel(wsItem.modelData.wsIndex)
                     font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
+                    font.pixelSize: root.wsStyle === "dots" ? (Theme.fontSizeHeading + 2) : Theme.fontSizeSmall
                     font.bold: wsItem.focused
-                    color: wsItem.focused ? Theme.accentText
-                                          : (wsItem.hovered ? Theme.text : Theme.textSecondary)
+                    color: (wsItem.focused && root.gliderStyle !== "underline" && root.gliderStyle !== "outline")
+                           ? Theme.accentText
+                           : (wsItem.hovered ? Theme.text : (wsItem.focused ? Theme.accent : Theme.textSecondary))
 
                     Behavior on color {
                         ColorAnimation { duration: Anim.d(Anim.fast) }
@@ -172,7 +191,7 @@ Item {
 
                 // Window Presence Indicator (clean micro-dot)
                 Rectangle {
-                    visible: wsItem.hasWindows && !wsItem.focused
+                    visible: root.showWindowDots && wsItem.hasWindows && !wsItem.focused
                     anchors {
                         bottom: parent.bottom
                         bottomMargin: 2

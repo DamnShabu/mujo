@@ -323,9 +323,7 @@
         abbr -a jcuf 'journalctl --user -f'
         abbr -a jce 'journalctl -xe'
 
-        # Linting & Graphify
-        abbr -a tc 'trunk check'
-        abbr -a tf 'trunk fmt'
+        # Graphify
         abbr -a gqu 'graphify query'
         abbr -a gup 'graphify update .'
         abbr -a gex 'graphify explain'

@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Layouts
 import "../../theme"
+import "../../components"
+import "../../services"
 
 // ActiveWindowPill: Living Application & Window Nexus for Mujo (無常)
 // Displays the currently focused application icon and title with directional
@@ -11,12 +13,18 @@ Item {
     property string screenName: ""
     property string focusedOutput: ""
 
+    readonly property bool showIcon: SettingsBus.get("bar.activeWindow.showIcon", true)
+    readonly property bool showTitle: SettingsBus.get("bar.activeWindow.showTitle", true)
+    readonly property int maxTitleWidth: SettingsBus.get("bar.activeWindow.maxWidth", 190)
+    readonly property string pillStyle: SettingsBus.get("bar.activeWindow.style", "pill")
+
     // niri.focusedWindow is session-global, so every bar used to mirror the same
     // title. Gate it on our own output: hasWindow drives visible, implicitWidth and
     // the icon, so one condition hides the lot off-focus.
     readonly property bool onFocusedScreen: root.screenName === root.focusedOutput
     readonly property var window: root.niri ? root.niri.focusedWindow : null
     readonly property bool hasWindow: root.onFocusedScreen && root.window !== null && root.window.title !== undefined && String(root.window.title).trim().length > 0
+        && (root.showIcon || root.showTitle)
     readonly property string appTitle: root.hasWindow ? String(root.window.title).trim() : ""
     readonly property string appId: root.hasWindow && root.window.appId ? String(root.window.appId).toLowerCase() : ""
 
@@ -140,7 +148,7 @@ Item {
             // same call `Icons.fileIcon` makes for file types.
             Image {
                 source: root._displayIcon
-                visible: source !== ""
+                visible: root.showIcon && source !== ""
                 Layout.preferredWidth: 16
                 Layout.preferredHeight: 16
                 Layout.alignment: Qt.AlignVCenter
@@ -155,12 +163,14 @@ Item {
             // Window Title
             Text {
                 id: titleText
+                visible: root.showTitle
                 text: root._displayTitle
-                color: hh.hovered ? Theme.text : Theme.textSecondary
+                color: hh.hovered ? Theme.text : (root.pillStyle === "badge" ? Theme.accent : Theme.textSecondary)
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
+                font.bold: root.pillStyle === "badge"
                 elide: Text.ElideRight
-                Layout.maximumWidth: 190
+                Layout.maximumWidth: root.maxTitleWidth
                 Layout.alignment: Qt.AlignVCenter
 
                 Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }

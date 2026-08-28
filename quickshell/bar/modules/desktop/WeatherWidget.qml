@@ -10,8 +10,14 @@ BaseWidget {
     id: root
 
     property var wcfg: ({})
-    readonly property bool compact: Weather.style === "compact" || width < 180
+    readonly property string weatherStyle: wcfg.style !== undefined ? wcfg.style : SettingsBus.get("desktop.weather.style", "standard")
+    readonly property bool compact: weatherStyle === "compact" || width < 180
+    readonly property bool detailed: weatherStyle === "detailed" && width >= 220
+    readonly property bool showCity: wcfg.showCity !== undefined ? !!wcfg.showCity : SettingsBus.get("desktop.weather.showCity", true)
+    readonly property bool showCondition: wcfg.showCondition !== undefined ? !!wcfg.showCondition : SettingsBus.get("desktop.weather.showCondition", true)
+    readonly property string cardStyle: wcfg.cardStyle !== undefined ? wcfg.cardStyle : "glass"
 
+    chromeless: cardStyle === "chromeless"
     title: ""
     iconName: ""
     loading: Weather.data === null && Weather.error === ""
@@ -22,7 +28,7 @@ BaseWidget {
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 6
+        anchors.margins: root.chromeless ? 0 : 8
         spacing: 12
 
         Item { Layout.fillWidth: true }
@@ -57,7 +63,7 @@ BaseWidget {
             }
 
             Text {
-                visible: !root.compact
+                visible: !root.compact && root.showCondition
                 text: Weather.data ? Weather.descFor(Weather.data.code) : "Loading…"
                 color: Theme.text
                 font.family: Theme.fontFamily
@@ -67,13 +73,35 @@ BaseWidget {
             }
 
             Text {
-                visible: !root.compact
+                visible: !root.compact && root.showCity
                 text: Weather.data ? Weather.data.city : ""
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeLabel
                 elide: Text.ElideRight
                 Layout.maximumWidth: Math.max(50, root.width - 90)
+            }
+
+            RowLayout {
+                visible: root.detailed && Weather.data && (Weather.data.humidity !== undefined || Weather.data.wind !== undefined)
+                spacing: 8
+                Layout.topMargin: 2
+
+                Text {
+                    visible: Weather.data && Weather.data.humidity !== undefined
+                    text: "💧 " + (Weather.data ? Weather.data.humidity : "") + "%"
+                    color: Theme.textDim
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel - 1
+                }
+
+                Text {
+                    visible: Weather.data && Weather.data.wind !== undefined
+                    text: "💨 " + (Weather.data ? Weather.data.wind : "") + " km/h"
+                    color: Theme.textDim
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel - 1
+                }
             }
         }
 

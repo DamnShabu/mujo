@@ -51,7 +51,10 @@ Variants {
         mask: null
 
         readonly property string screenName: modelData.name
-        readonly property bool isFirst: Quickshell.screens.length > 0 && Quickshell.screens[0].name === screenName
+        readonly property bool isFirst: {
+            var s = Quickshell.screens && Quickshell.screens.values ? Quickshell.screens.values : Quickshell.screens
+            return s && s.length > 0 ? (s[0].name === win.screenName) : true
+        }
 
         property var activeWidget: null
         property string focusedWidgetId: ""
@@ -127,8 +130,11 @@ Variants {
                     var c = JSON.parse(text())
                     cfg.locked = !!c.locked
                     var screens = {}
-                    for (var i = 0; i < Quickshell.screens.length; i++)
-                        screens[Quickshell.screens[i].name] = true
+                    var sList = Quickshell.screens && Quickshell.screens.values ? Quickshell.screens.values : Quickshell.screens
+                    if (sList) {
+                        for (var i = 0; i < sList.length; i++)
+                            if (sList[i] && sList[i].name) screens[sList[i].name] = true
+                    }
                     cfg.widgets = (c.widgets || []).filter(function(w) {
                         if (w.monitor === win.screenName) return true
                         if ((!w.monitor || w.monitor === "") && win.isFirst) return true
@@ -842,7 +848,10 @@ Variants {
             items.push({ divider: true })
             items.push({ icon: "terminal", label: "Open terminal here", action: "terminal" })
             items.push({ divider: true })
-            var widgetSub = [{ icon: "widgets", label: "Add widget", cmd: ["mujo", "settings", "desktop"] }]
+            var widgetSub = [
+                { icon: "widgets", label: "Add widget", cmd: ["mujo", "settings", "desktop"] },
+                { icon: "tune", label: "Widget styles & settings", cmd: ["mujo", "settings", "desktop"] }
+            ]
             if (win.hasWidgets) {
                 widgetSub.push(cfg.locked
                     ? { icon: "lock_open", label: "Unlock widgets", cmd: ["mujo", "widgets", "lock", "off"] }

@@ -26,8 +26,9 @@
     ];
 
     virtualisation = {
-      memorySize = 4096;
-      cores = 4;
+      memorySize = 8192;
+      cores = 16;
+      vlans = [];
       # Root is a tmpfs that dies with the QEMU process — nothing to clean up.
       diskImage = null;
       qemu = {
@@ -36,8 +37,9 @@
         # ("software EGL renderers are skipped"), so it needs the full build.
         package = lib.mkForce pkgs.qemu;
         options = [
-          # virgl over a host render node: real GLES in the guest, but the
-          # display stays off-screen so nothing appears on the host session.
+          # Hardware CPU passthrough with invariant TSC and fast string features
+          "-cpu host,migratable=off,+invtsc,+tsc-deadline,+clflushopt,+fsrm"
+          # virgl over a host render node: real GLES in the guest
           "-vga none"
           "-device virtio-gpu-gl-pci,xres=1280,yres=800"
           "-display egl-headless"
@@ -46,10 +48,40 @@
       sharedDirectories.nixconf = {
         source = ''''${MUJO_SANDBOX_REPO:-/home/${user}/nixconf}'';
         target = "/mnt/nixconf";
+        securityModel = "none";
       };
       # The sandbox may read the working tree, never write to it.
-      fileSystems."/mnt/nixconf".options = ["ro"];
+      fileSystems."/mnt/nixconf".options = [
+        "ro"
+        "trans=virtio"
+        "version=9p2000.L"
+        "msize=1048576"
+        "cache=mmap"
+      ];
     };
+
+    environment.sessionVariables = {
+      QML_DISK_CACHE_PATH = "/tmp/qml_cache";
+      MESA_LOADER_DRIVER_OVERRIDE = "virgl";
+    };
+
+    services.pipewire = {
+      enable = true;
+      pulse.enable = true;
+      extraConfig.pipewire."99-no-rt"."context.properties"."module.rt" = false;
+      extraConfig.pipewire-pulse."99-no-rt"."context.properties"."module.rt" = false;
+    };
+    security.rtkit.enable = lib.mkForce false;
+    services.upower.enable = lib.mkForce false;
+    services.udisks2.enable = lib.mkForce false;
+    services.power-profiles-daemon.enable = lib.mkForce false;
+    services.flatpak.enable = lib.mkForce false;
+    services.printing.enable = lib.mkForce false;
+
+    # Ensure the shared exchange directory is world-writable so screenshots write directly
+    systemd.tmpfiles.rules = [
+      "d /tmp/shared 1777 root root -"
+    ];
 
     users.users.${user} = {
       isNormalUser = true;
@@ -68,6 +100,18 @@
       package = niri;
       useNautilus = false;
     };
+    # Fast boot: disable network daemons and settle services in sandbox
+    networking = {
+      useDHCP = false;
+      dhcpcd.enable = false;
+      networkmanager.enable = false;
+    };
+    systemd.services = {
+      dhcpcd.enable = false;
+      systemd-udev-settle.enable = false;
+      NetworkManager-wait-online.enable = false;
+    };
+
     # Portals pull in the whole GNOME portal stack for no benefit here.
     xdg.portal.enable = lib.mkForce false;
 
@@ -77,6 +121,7 @@
     # environment import anyway.
     programs.bash.loginShellInit = ''
       if [ "$(tty)" = /dev/tty1 ]; then
+        chmod 1777 /tmp/shared 2>/dev/null || true
         # Seed ~/.config/{quickshell,qsshell}. The shell reads its settings from
         # there via SettingsBus, and an unseeded guest renders against missing
         # files instead of the defaults `mujo` writes. Any invocation seeds;
@@ -86,9 +131,9 @@
       fi
     '';
 
-    # grim is how the MCP server takes screenshots: QEMU's own screendump
-    # returns "no surface" once virtio-gpu-gl is scanning out through
-    # egl-headless, and wlr-screencopy from inside the session works anyway.
+    # grim is how the MCP server takes screenshots: QEMU's own screendump only
+    # has a surface while a VNC client is attached to the display above, and
+    # wlr-screencopy from inside the session works whether one is or not.
     # quickshell itself is needed on PATH because niri's keybinds shell out
     # to `qs -p … ipc call …` to drive the running instance.
     environment.systemPackages = [pkgs.grim pkgs.quickshell];

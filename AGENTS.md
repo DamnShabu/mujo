@@ -11,7 +11,6 @@ nh os switch ~/nixconf/                                        # apply (everyday
 pkexec nixos-rebuild switch --flake /home/yurii/nixconf#main   # apply (raw; user accepts the polkit prompt)
 nix flake check                                                # evaluate
 nix flake show                                                 # inspect outputs
-trunk check | trunk fmt                                        # lint / format
 qs -p ./quickshell/bar/shell.qml                               # working-tree test instance; qs kill -i <id> to stop
 nix run .#sandbox                                              # disposable VM + MCP server (see SANDBOX)
 ```
@@ -20,7 +19,6 @@ nix run .#sandbox                                              # disposable VM +
 
 - **`--flake` takes an absolute path.** pkexec runs as root from `/root`, so `.#main` resolves there and fails.
 - **`git add` new files before rebuilding.** The flake source is git; untracked files are invisible to the build.
-- **Route formatters through trunk** (nixpkgs-fmt, shellcheck, ruff, markdownlint).
 - **Never hardcode `"yurii"`.** Use `config.preferences.user.name` (resolves from gitignored `secrets/username`, fallback in `nixos/core/user.nix`).
 - **Persist state explicitly.** The btrfs root is wiped on boot; only `/persist` survives. Each module declares its own `persistence.data.directories`, `persistence.cache.directories`, `persistence.directories`, or `persistence.files` entries.
 - **Read colors from `self.theme.base00..base0F`** (`modules/flake/theme.nix`), never literals.

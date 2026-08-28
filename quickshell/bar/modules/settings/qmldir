@@ -16,5 +16,6 @@ WeatherPanel WeatherPanel.qml
 AiPanel AiPanel.qml
 SystemPanel SystemPanel.qml
 HealthPanel HealthPanel.qml
+VmPanel VmPanel.qml
 WallhavenDetailModal WallhavenDetailModal.qml
 WallpaperEngineDetailModal WallpaperEngineDetailModal.qml

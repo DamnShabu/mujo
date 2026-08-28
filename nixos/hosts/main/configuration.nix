@@ -46,6 +46,7 @@
       self.nixosModules.steam
       self.nixosModules.telegram
       self.nixosModules.gaming
+      self.nixosModules.vm
       self.nixosModules.user-config
       self.nixosModules.user
       self.nixosModules.mullvad

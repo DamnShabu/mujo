@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
 import "../theme"
+import "../services"
 
 // BaseWidget: Unified, reusable base component for all desktop widgets.
 // Provides standardized visual encapsulation, modern glassmorphism styling,
@@ -36,8 +37,11 @@ Item {
     property string error: ""
 
     // ── Styling Tokens ───────────────────────────────────────────────────────
-    property int radius: Theme.radiusLg
-    property color surfaceColor: Theme.withAlpha(Theme.surface, Theme.transparency * 0.82)
+    property real glassOpacity: SettingsBus.get("desktop.widgets.glassOpacity", 0.82)
+    property int radius: SettingsBus.get("desktop.widgets.radius", Theme.radiusLg)
+    property bool enableShadow: SettingsBus.get("desktop.widgets.shadows", true)
+    property bool borderGlow: SettingsBus.get("desktop.widgets.borderGlow", true)
+    property color surfaceColor: Theme.withAlpha(Theme.surface, Theme.transparency * root.glassOpacity)
     property alias headerActions: actionRow.children
     default property alias content: bodyContainer.data
 
@@ -56,7 +60,7 @@ Item {
     }
 
     MultiEffect {
-        visible: !root.chromeless
+        visible: !root.chromeless && root.enableShadow
         anchors.fill: shadowSrc
         source: shadowSrc
         autoPaddingEnabled: true

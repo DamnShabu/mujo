@@ -54,18 +54,21 @@ QtObject {
     // bg → surface → surfaceHover → surfaceActive; borders stay opaque so
     // transparency (applied only to the surface fills) never dissolves structure.
     readonly property var presetOrder: [
-        "ayu", "catppuccin", "dracula", "nord",
-        "gruvbox", "tokyonight", "rosepine", "onedark",
-        "everforest", "kanagawa", "monokaipro", "solarized",
-        "githubdark", "synthwave", "oxocarbon", "palenight"
+        "ayu", "catppuccin", "crimson", "bloodmoon",
+        "dracula", "nord", "gruvbox", "tokyonight",
+        "tokyodark", "rosepine", "horizon", "nightowl",
+        "poimandres", "cyberpunk", "onedark", "everforest",
+        "kanagawa", "monokaipro", "solarized", "githubdark",
+        "synthwave", "oxocarbon", "palenight", "void"
     ]
     readonly property var presetLabels: ({
-        ayu: "Ayu", catppuccin: "Catppuccin", dracula: "Dracula", nord: "Nord",
-        gruvbox: "Gruvbox", tokyonight: "Tokyo Night", rosepine: "Rosé Pine",
-        onedark: "One Dark", everforest: "Everforest", kanagawa: "Kanagawa",
-        monokaipro: "Monokai Pro", solarized: "Solarized Dark",
+        ayu: "Ayu", catppuccin: "Catppuccin", crimson: "Crimson", bloodmoon: "Blood Moon",
+        dracula: "Dracula", nord: "Nord", gruvbox: "Gruvbox", tokyonight: "Tokyo Night",
+        tokyodark: "Tokyo Dark", rosepine: "Rosé Pine", horizon: "Horizon", nightowl: "Night Owl",
+        poimandres: "Poimandres", cyberpunk: "Cyberpunk", onedark: "One Dark", everforest: "Everforest",
+        kanagawa: "Kanagawa", monokaipro: "Monokai Pro", solarized: "Solarized Dark",
         githubdark: "GitHub Dark", synthwave: "Synthwave '84",
-        oxocarbon: "Oxocarbon", palenight: "Palenight"
+        oxocarbon: "Oxocarbon", palenight: "Palenight", void: "Void OLED"
     })
 
     readonly property var presets: ({
@@ -82,6 +85,20 @@ QtObject {
             text: "#cdd6f4", textSecondary: "#a6adc8", textDim: "#6c7086",
             accent: "#89b4fa", accentDim: "#1e2a45", accentText: "#11111b",
             success: "#a6e3a1", warning: "#f9e2af", error: "#f38ba8"
+        },
+        crimson: {
+            bg: "#12090b", surface: "#1a0f12", surfaceHover: "#27151b", surfaceActive: "#361c25",
+            border: "#28141a", borderStrong: "#451e29", borderInteractive: "#632738",
+            text: "#f5e6eb", textSecondary: "#b89da6", textDim: "#6e545c",
+            accent: "#ff385c", accentDim: "#3d111b", accentText: "#ffffff",
+            success: "#4ade80", warning: "#fbbf24", error: "#ff2a4b"
+        },
+        bloodmoon: {
+            bg: "#0d0b0d", surface: "#161114", surfaceHover: "#24171b", surfaceActive: "#331c23",
+            border: "#24171b", borderStrong: "#421d27", borderInteractive: "#5e2434",
+            text: "#fae8ea", textSecondary: "#a89297", textDim: "#635155",
+            accent: "#e63946", accentDim: "#380e14", accentText: "#ffffff",
+            success: "#52b788", warning: "#f4a261", error: "#d90429"
         },
         dracula: {
             bg: "#21222c", surface: "#282a36", surfaceHover: "#343746", surfaceActive: "#44475a",
@@ -111,12 +128,47 @@ QtObject {
             accent: "#7aa2f7", accentDim: "#1c2740", accentText: "#16161e",
             success: "#9ece6a", warning: "#e0af68", error: "#f7768e"
         },
+        tokyodark: {
+            bg: "#11121d", surface: "#1a1b2a", surfaceHover: "#24263a", surfaceActive: "#31334d",
+            border: "#24263a", borderStrong: "#353852", borderInteractive: "#4c5075",
+            text: "#a0a8cd", textSecondary: "#71789c", textDim: "#4a506d",
+            accent: "#ee6d85", accentDim: "#381c25", accentText: "#11121d",
+            success: "#95c561", warning: "#d7a65f", error: "#f25b68"
+        },
         rosepine: {
             bg: "#191724", surface: "#1f1d2e", surfaceHover: "#26233a", surfaceActive: "#393552",
             border: "#26233a", borderStrong: "#403d52", borderInteractive: "#524f67",
             text: "#e0def4", textSecondary: "#908caa", textDim: "#6e6a86",
             accent: "#c4a7e7", accentDim: "#2a2440", accentText: "#191724",
             success: "#9ccfd8", warning: "#f6c177", error: "#eb6f92"
+        },
+        horizon: {
+            bg: "#1a1c23", surface: "#21232d", surfaceHover: "#2b2d3a", surfaceActive: "#373a4a",
+            border: "#2b2d3a", borderStrong: "#3e4256", borderInteractive: "#595e7b",
+            text: "#e0e2ea", textSecondary: "#9da2b8", textDim: "#626880",
+            accent: "#e95678", accentDim: "#361b24", accentText: "#1a1c23",
+            success: "#29d398", warning: "#fab795", error: "#f43e5c"
+        },
+        nightowl: {
+            bg: "#011627", surface: "#0b253a", surfaceHover: "#11324d", surfaceActive: "#1d4263",
+            border: "#11324d", borderStrong: "#1e4e78", borderInteractive: "#2c6b9e",
+            text: "#d6deeb", textSecondary: "#89a4bb", textDim: "#5f7e97",
+            accent: "#82aaff", accentDim: "#162842", accentText: "#011627",
+            success: "#22da6e", warning: "#ecc48d", error: "#ef5350"
+        },
+        poimandres: {
+            bg: "#1b1e28", surface: "#232735", surfaceHover: "#2d3243", surfaceActive: "#393f54",
+            border: "#2d3243", borderStrong: "#41475d", borderInteractive: "#5a627e",
+            text: "#e4f0fb", textSecondary: "#a6accd", textDim: "#5d637f",
+            accent: "#5de4c7", accentDim: "#133833", accentText: "#1b1e28",
+            success: "#5de4c7", warning: "#fffac2", error: "#d0679d"
+        },
+        cyberpunk: {
+            bg: "#100e1f", surface: "#1a162e", surfaceHover: "#262042", surfaceActive: "#362d5a",
+            border: "#262042", borderStrong: "#413669", borderInteractive: "#5e4d94",
+            text: "#f2eefe", textSecondary: "#a99ec9", textDim: "#6a5d8f",
+            accent: "#ffe600", accentDim: "#3d3708", accentText: "#100e1f",
+            success: "#00ff9f", warning: "#ff9900", error: "#ff0055"
         },
         onedark: {
             bg: "#21252b", surface: "#282c34", surfaceHover: "#2f343d", surfaceActive: "#3b4048",
@@ -180,6 +232,13 @@ QtObject {
             text: "#a6accd", textSecondary: "#717cb4", textDim: "#505777",
             accent: "#c792ea", accentDim: "#352747", accentText: "#1f2233",
             success: "#c3e88d", warning: "#ffcb6b", error: "#ff5370"
+        },
+        void: {
+            bg: "#050505", surface: "#0e0e10", surfaceHover: "#18181c", surfaceActive: "#24242a",
+            border: "#1c1c22", borderStrong: "#2e2e38", borderInteractive: "#464654",
+            text: "#f5f5f7", textSecondary: "#9e9ea8", textDim: "#5c5c66",
+            accent: "#ffffff", accentDim: "#26262b", accentText: "#050505",
+            success: "#34d399", warning: "#fbbf24", error: "#f87171"
         }
     })
 
