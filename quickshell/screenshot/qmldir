@@ -1,0 +1,7 @@
+module quickshell.screenshot
+Loupe 1.0 Loupe.qml
+SelectionArea 1.0 SelectionArea.qml
+FloatingToolbar 1.0 FloatingToolbar.qml
+OcrCard 1.0 OcrCard.qml
+TranslateCard 1.0 TranslateCard.qml
+AnnotationCanvas 1.0 AnnotationCanvas.qml

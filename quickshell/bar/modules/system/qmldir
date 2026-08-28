@@ -1,3 +1,4 @@
 LockScreen LockScreen.qml
 PolkitPrompt PolkitPrompt.qml
 KeyringPrompt KeyringPrompt.qml
+CrashFixModal CrashFixModal.qml

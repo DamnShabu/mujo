@@ -71,7 +71,7 @@
     environment.sessionVariables.QML2_IMPORT_PATH = lib.mkForce qmlPath;
     environment.sessionVariables.QT_PLUGIN_PATH = lib.mkForce qtPluginPath;
 
-    environment.systemPackages = [qs.mujo qs.mujo-keyring qs.mujo-wallpaper-engine pkgs.linux-wallpaperengine self.packages.${pkgs.stdenv.hostPlatform.system}.quicksnip];
+    environment.systemPackages = [qs.mujo qs.mujo-keyring qs.mujo-wallpaper-engine pkgs.linux-wallpaperengine qs.mujo-screenshot];
 
     # PAM service the lock-screen helper (qs.unlock) authenticates against. A
     # bare service gets NixOS's default unix auth (pam_unix → setuid unix_chkpwd),
@@ -83,6 +83,7 @@
     # Settings app (bar/settings.qml, spawned by `mujo settings` / Mod+,) can be
     # reached by path too.
     environment.etc."xdg/quickshell/bar".source = qs.bar;
+    environment.etc."xdg/quickshell/screenshot".source = ../../quickshell/screenshot;
 
     services.udev.extraRules = ''
       KERNEL=="event*", SUBSYSTEM=="input", MODE="0666"

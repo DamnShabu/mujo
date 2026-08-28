@@ -1,4 +1,8 @@
-{inputs, ...}: {
+{
+  inputs,
+  self,
+  ...
+}: {
   imports = [
     inputs.wrapper-modules.flakeModules.wrappers
   ];
@@ -19,6 +23,7 @@
         inherit system;
         config.allowUnfree = true;
       };
+      qs = import ../../quickshell/_default.nix {inherit self pkgs;};
     in {
       formatter = pkgs.alejandra;
 
@@ -38,35 +43,8 @@
         '';
       };
 
-      packages.quicksnip = let
-        src = pkgs.fetchFromGitHub {
-          owner = "DamnShabu";
-          repo = "QuickSnip";
-          rev = "3e1a3130ff36bf2f009dabedbe3d3edb1da7b62e";
-          hash = "sha256-I5P5+by5R3IUNhcero7OhbwfvESEMLgc4GCrE0GCR3w=";
-        };
-      in
-        pkgs.writeShellApplication {
-          name = "quicksnip";
-          runtimeInputs = with pkgs; [
-            quickshell
-            grim
-            imagemagick
-            tesseract
-            wl-clipboard
-            curl
-            libnotify
-            xdg-utils
-            wlrctl
-            wtype
-          ];
-          text = ''
-            export QT_SCALE_FACTOR=1
-            export QT_AUTO_SCREEN_SCALE_FACTOR=0
-            export QML2_IMPORT_PATH="${pkgs.lib.makeSearchPath "lib/qt-6/qml" (with pkgs.qt6; [qtmultimedia qtdeclarative qtwayland qt5compat] ++ [pkgs.quickshell])}"
-            exec quickshell -p ${src} -n "$@"
-          '';
-        };
+      packages.mujo-screenshot = qs.mujo-screenshot;
+      packages.quicksnip = qs.mujo-screenshot;
 
       packages.skeuos-gtk = let
         src = pkgs.fetchFromGitHub {

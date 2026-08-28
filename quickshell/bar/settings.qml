@@ -90,6 +90,7 @@ ShellRoot {
                 color: "#5277C3",
                 defaultSub: "system",
                 subSections: [
+                    { key: "health",       label: "Health & Care",         icon: "health_and_safety", brand: "health" },
                     { key: "system",       label: "NixOS & Rebuild",       icon: "terminal", brand: "system" },
                     { key: "general",      label: "General & Defaults",    icon: "tune", brand: "general" },
                     { key: "network",      label: "Network & Mullvad VPN", icon: "vpn_lock", brand: "network" },
@@ -188,6 +189,9 @@ ShellRoot {
             { title: "Pointer & Touchpad",  desc: "Mouse acceleration profile, natural scrolling, tap-to-click", cat: "Vessels", key: "devices" },
 
             // Sovereign (System)
+            { title: "System health & optimizer", desc: "Live process sentinel, runaway killer, storage cleaner, ZRAM compaction", cat: "Sovereign", key: "health" },
+            { title: "Process sentinel & killer", desc: "Freeze, renice, or terminate runaway CPU/RAM tasks and zombies", cat: "Sovereign", key: "health" },
+            { title: "Storage & cache cleaner", desc: "Vacuum journal logs, clean Nix store, purge thumbnails and trash", cat: "Sovereign", key: "health" },
             { title: "NixOS rebuild switch",desc: "Apply and switch host configuration with pkexec escalation", cat: "Sovereign", key: "system" },
             { title: "Generation history",  desc: "Inspect current and past bootable system generations", cat: "Sovereign", key: "system" },
             { title: "System overrides",    desc: "Local module drop-in overrides and flake inspect", cat: "Sovereign", key: "system" },
@@ -250,6 +254,7 @@ ShellRoot {
         Component { id: keyringComp;       KeyringPanel {} }
         Component { id: persistenceComp;   PersistencePanel {} }
         Component { id: shortcutsComp;     ShortcutsPanel {} }
+        Component { id: healthComp;        HealthPanel {} }
         Component { id: systemComp;        SystemPanel {} }
         Component { id: applicationsComp;  ApplicationsPanel {} }
 
@@ -270,6 +275,7 @@ ShellRoot {
                  : key === "keyring"      ? keyringComp
                  : key === "persistence"  ? persistenceComp
                  : key === "shortcuts"    ? shortcutsComp
+                 : key === "health"       ? healthComp
                  : key === "system"       ? systemComp
                  : applicationsComp
         }
