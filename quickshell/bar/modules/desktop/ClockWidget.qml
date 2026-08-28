@@ -30,11 +30,20 @@ BaseWidget {
             font.pixelSize: Math.max(24, Math.min(54, Math.floor(Math.min(root.width * 0.22, root.height * 0.44))))
             font.bold: true
 
+            // Only wake per second when seconds are actually displayed;
+            // otherwise sleep to the next minute boundary. `now` is tracked so
+            // the interval can re-aim after each tick.
+            property date now: new Date()
             Timer {
-                interval: 1000
+                interval: root.showSeconds
+                          ? 1000
+                          : Math.max(1000, 60000 - (timeText.now.getSeconds() * 1000 + timeText.now.getMilliseconds()))
                 running: true
                 repeat: true
-                onTriggered: timeText.updateTime()
+                onTriggered: {
+                    timeText.now = new Date()
+                    timeText.updateTime()
+                }
             }
 
             function updateTime() {

@@ -168,7 +168,15 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
 
                 QtObject { id: clockTick; property date now: new Date() }
-                Timer { interval: 1000; running: true; repeat: true; triggeredOnStart: true; onTriggered: clockTick.now = new Date() }
+                // The island clock is always HH:mm, so it only needs to wake on
+                // the minute; reassigning `interval` re-aims at the next boundary.
+                Timer {
+                    interval: Math.max(1000, 60000 - (clockTick.now.getSeconds() * 1000 + clockTick.now.getMilliseconds()))
+                    running: true
+                    repeat: true
+                    triggeredOnStart: true
+                    onTriggered: clockTick.now = new Date()
+                }
 
                 TapHandler {
                     onTapped: {
@@ -266,11 +274,40 @@ Item {
             Layout.alignment: Qt.AlignVCenter
 
             MaterialIcon {
+                id: weatherIcon
                 iconName: Weather.data ? Weather.iconFor(Weather.data.code) : "cloud"
                 pixelSize: 16
                 color: island.hovered ? Theme.accent : Theme.textSecondary
-                opacity: island.visible && Anim.ambient ? Anim.shimmer(0.7, 1.0) : 0.85
+                opacity: 0.85
                 Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+                // This used to be `opacity: Anim.shimmer(0.7, 1.0)`, which made
+                // Anim.shimmerPhase — an infinite 60fps property write — a
+                // permanent dependency of an always-visible bar item, so the QML
+                // engine re-evaluated a JS binding every single frame for the
+                // life of the session. Two InOutSine halves are exactly one sine
+                // period, so this is the same curve and the same 3.6s cycle,
+                // interpolated in C++ instead.
+                SequentialAnimation {
+                    running: island.visible && Anim.ambient
+                    loops: Animation.Infinite
+                    onStopped: weatherIcon.opacity = 0.85
+                    NumberAnimation {
+                        target: weatherIcon; property: "opacity"; to: 1.0
+                        duration: Math.round(Anim.cycleDuration(3600) / 4)
+                        easing.type: Easing.InOutSine
+                    }
+                    NumberAnimation {
+                        target: weatherIcon; property: "opacity"; to: 0.7
+                        duration: Math.round(Anim.cycleDuration(3600) / 2)
+                        easing.type: Easing.InOutSine
+                    }
+                    NumberAnimation {
+                        target: weatherIcon; property: "opacity"; to: 0.85
+                        duration: Math.round(Anim.cycleDuration(3600) / 4)
+                        easing.type: Easing.InOutSine
+                    }
+                }
             }
             Text {
                 text: Weather.data ? Math.round(Weather.data.temp) + Weather.unitSymbol() : ""

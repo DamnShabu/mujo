@@ -35,6 +35,12 @@ Item {
                     root.present = !!obj.present
                     root.level = typeof obj.level === "number" ? obj.level : 0
                     root.status = obj.status || "Unknown"
+                    // A desktop has no BAT*, and one will not appear at
+                    // runtime. Notifications.qml already stops its identical
+                    // 30s poll on this; without the same stop here the shell
+                    // forked `mujo battery` twice a minute, forever, to learn
+                    // the same "no battery" it learned on the first tick.
+                    if (!root.present) batPoll.stop()
                 } catch (e) {
                     root.present = false
                 }
@@ -43,6 +49,7 @@ Item {
     }
 
     Timer {
+        id: batPoll
         interval: 30000
         running: true
         repeat: true

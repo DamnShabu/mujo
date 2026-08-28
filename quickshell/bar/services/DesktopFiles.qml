@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import Qt.labs.folderlistmodel
 import Quickshell
 import Quickshell.Io
 
@@ -10,10 +11,14 @@ import Quickshell.Io
 // state file the CLI owns, so nothing here ever writes UI metadata into the
 // user's own files.
 //
-// Quickshell 0.3 has no directory watcher — FileView watches single files only —
-// so freshness comes from a poll plus an immediate refresh after every mutation
-// we cause. External changes therefore appear within one poll interval; changes
-// made here appear at once.
+// Every mutation we cause refreshes immediately (see _mutateProc.onExited), so
+// the watcher below exists only for *external* changes — a download landing on
+// the desktop, a file manager moving something in. Qt's FolderListModel is
+// backed by QFileSystemWatcher (inotify), which is why this no longer needs the
+// 2s `mujo desktop list` poll that used to run for the life of the session:
+// that was 30 forks a minute of bash+find+jq to re-read a directory that
+// changes a couple of times an hour. A slow backstop poll stays, because a file
+// being *written in place* changes its size without changing the directory.
 QtObject {
     id: files
 
@@ -28,12 +33,43 @@ QtObject {
     signal reloaded()
     signal failed(string message)
 
-    // ponytail: 2s poll. Upgrade path is an `inotifywait -m` Process feeding
-    // refresh(), worth it only if the latency on externally-created files
-    // actually annoys someone.
-    readonly property int pollInterval: 2000
+    // Backstop only — the FolderListModel watcher below catches everything that
+    // changes the directory itself. This covers in-place writes, which change a
+    // file's size without touching the directory entry.
+    readonly property int pollInterval: 30000
 
     function refresh() { listProc.running = true }
+
+    // Directory watcher (QFileSystemWatcher/inotify under the hood). Any
+    // external create/delete/rename in ~/Desktop lands here within a frame, so
+    // new items now appear faster than the old 2s poll managed while costing
+    // nothing when the desktop is idle.
+    property FolderListModel _watch: FolderListModel {
+        folder: "file://" + files.dir
+        showDirs: true
+        showFiles: true
+        showHidden: false
+        // Sorting is mujo's job; this model is only ever used as a change
+        // signal, never read for its rows.
+        sortField: FolderListModel.Unsorted
+        onCountChanged: watchDebounce.restart()
+    }
+
+    // A single external operation (an unzip, a multi-file move) fires many
+    // watcher events; collapse them into one listing.
+    property Timer _watchDebounce: Timer {
+        id: watchDebounce
+        interval: 150
+        onTriggered: files.refresh()
+    }
+
+    property Timer _poll: Timer {
+        interval: files.pollInterval
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: files.refresh()
+    }
 
     property Process _listProc: Process {
         id: listProc
@@ -57,13 +93,6 @@ QtObject {
         }
     }
 
-    property Timer _poll: Timer {
-        interval: files.pollInterval
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: files.refresh()
-    }
 
     // ─── Mutations ────────────────────────────────────────────────────────────
     // One Process, serialised through a queue. Desktop edits are one-at-a-time
