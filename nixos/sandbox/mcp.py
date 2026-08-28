@@ -102,6 +102,9 @@ def ensure_up():
         return
     t_start = time.time()
     print(f"sandbox: booting VM...", file=sys.stderr)
+    if getattr(vm, "shared_dir", None):
+        (vm.shared_dir / "qs_ready").unlink(missing_ok=True)
+        (vm.shared_dir / "shot.png").unlink(missing_ok=True)
     vm.start()
     t_qemu = time.time()
     print(f"sandbox: vm.start() took {t_qemu - t_start:.2f}s, waiting for multi-user.target...", file=sys.stderr)
@@ -114,7 +117,7 @@ def ensure_up():
         print(f"niri did not come up: {e}", file=sys.stderr)
     t_niri = time.time()
     print(f"sandbox: niri.service reached in {t_niri - t_multi:.2f}s, waiting for quickshell...", file=sys.stderr)
-    if wait_for_shell(0):
+    if wait_for_shell(0, timeout=45):
         t_qs = time.time()
         print(f"sandbox: quickshell shell_state ready in {t_qs - t_niri:.2f}s (Total cold boot: {t_qs - t_start:.2f}s)", file=sys.stderr)
         time.sleep(0.5)
@@ -174,7 +177,12 @@ def screenshot():
     ensure_up()
     host_png = vm.shared_dir / "shot.png"
     host_png.unlink(missing_ok=True)
-    out = user_run(f"grim {SHARED_SHOT}")
+    out = ""
+    for _ in range(20):
+        out = user_run(f"grim {SHARED_SHOT}")
+        if host_png.exists():
+            break
+        time.sleep(0.2)
     if not host_png.exists():
         raise RuntimeError(f"grim failed: {out.strip()}")
     png = host_png.read_bytes()

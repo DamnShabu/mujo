@@ -25,18 +25,7 @@
       self.nixosModules.quickshell
     ];
 
-    boot.kernelParams = [
-      "quiet"
-      "mitigations=off"
-      "nowatchdog"
-      "audit=0"
-      "nohpet"
-      "tsc=reliable"
-      "nomce"
-      "elevator=none"
-      "systemd.show_status=auto"
-      "rd.udev.log_level=3"
-    ];
+
 
     virtualisation = {
       memorySize = 8192;
@@ -52,8 +41,6 @@
         options = [
           # Hardware CPU passthrough with invariant TSC and fast string features
           "-cpu host,migratable=off,+invtsc,+tsc-deadline,+clflushopt,+fsrm"
-          "-machine q35,accel=kvm,kernel-irqchip=on"
-          "-no-hpet"
           "-global kvm-pit.lost_tick_policy=discard"
           # virgl over a host render node: real GLES in the guest
           "-vga none"
@@ -79,7 +66,6 @@
 
     environment.sessionVariables = {
       QML_DISK_CACHE_PATH = "/tmp/qml_cache";
-      MESA_LOADER_DRIVER_OVERRIDE = "virgl";
     };
 
     services.pipewire = {
@@ -117,7 +103,7 @@
       package = niri;
       useNautilus = false;
     };
-    # Fast boot: disable network daemons and settle services in sandbox
+    # Fast boot: disable network daemons in sandbox
     networking = {
       useDHCP = false;
       dhcpcd.enable = false;
@@ -125,7 +111,6 @@
     };
     systemd.services = {
       dhcpcd.enable = false;
-      systemd-udev-settle.enable = false;
       NetworkManager-wait-online.enable = false;
     };
 
