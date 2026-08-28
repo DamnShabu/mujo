@@ -596,29 +596,29 @@ Item {
 
                     Keys.onLeftPressed: function (event) {
                         if (root.mode === "groups" && searchField.text === "") {
-                            groupsView.move(-1, 0)
+                            groupsViewLoader.item.move(-1, 0)
                             event.accepted = true
                         } else if (root.mode === "grid" && searchField.text === "") {
-                            appGrid.move(-1, 0)
+                            appGridLoader.item.move(-1, 0)
                             event.accepted = true
                         } else event.accepted = false
                     }
 
                     Keys.onRightPressed: function (event) {
                         if (root.mode === "groups" && searchField.text === "") {
-                            groupsView.move(1, 0)
+                            groupsViewLoader.item.move(1, 0)
                             event.accepted = true
                         } else if (root.mode === "grid" && searchField.text === "") {
-                            appGrid.move(1, 0)
+                            appGridLoader.item.move(1, 0)
                             event.accepted = true
                         } else event.accepted = false
                     }
 
                     Keys.onReturnPressed: {
-                        if (root.mode === "clip") { clipList.activateSelected(); return }
-                        if (root.mode === "commands") { cmdPalette.activateSelected(); return }
-                        if (root.mode === "groups") { groupsView.activateSelected(); return }
-                        if (root.mode === "grid") { appGrid.activateSelected(); return }
+                        if (root.mode === "clip") { clipListLoader.item.activateSelected(); return }
+                        if (root.mode === "commands") { cmdPaletteLoader.item.activateSelected(); return }
+                        if (root.mode === "groups") { groupsViewLoader.item.activateSelected(); return }
+                        if (root.mode === "grid") { appGridLoader.item.activateSelected(); return }
                         if (actionBar.dropdownOpen) {
                             if (dropdown.hoverIndex >= 0) {
                                 dropdown.activate(dropdown.hoverIndex)
@@ -629,10 +629,10 @@ Item {
                     }
 
                     Keys.onUpPressed: {
-                        if (root.mode === "clip") { clipList.move(0, -1); return }
-                        if (root.mode === "commands") { cmdPalette.move(0, -1); return }
-                        if (root.mode === "groups") { groupsView.move(0, -1); return }
-                        if (root.mode === "grid") { appGrid.move(0, -1); return }
+                        if (root.mode === "clip") { clipListLoader.item.move(0, -1); return }
+                        if (root.mode === "commands") { cmdPaletteLoader.item.move(0, -1); return }
+                        if (root.mode === "groups") { groupsViewLoader.item.move(0, -1); return }
+                        if (root.mode === "grid") { appGridLoader.item.move(0, -1); return }
                         if (actionBar.dropdownOpen) {
                             dropdown.hoverIndex = Math.max(0, dropdown.hoverIndex - 1)
                             return
@@ -644,10 +644,10 @@ Item {
                     }
 
                     Keys.onDownPressed: {
-                        if (root.mode === "clip") { clipList.move(0, 1); return }
-                        if (root.mode === "commands") { cmdPalette.move(0, 1); return }
-                        if (root.mode === "groups") { groupsView.move(0, 1); return }
-                        if (root.mode === "grid") { appGrid.move(0, 1); return }
+                        if (root.mode === "clip") { clipListLoader.item.move(0, 1); return }
+                        if (root.mode === "commands") { cmdPaletteLoader.item.move(0, 1); return }
+                        if (root.mode === "groups") { groupsViewLoader.item.move(0, 1); return }
+                        if (root.mode === "grid") { appGridLoader.item.move(0, 1); return }
                         if (actionBar.dropdownOpen) {
                             dropdown.hoverIndex = Math.min(dropdown.model.length - 1, dropdown.hoverIndex + 1)
                             return
@@ -846,44 +846,103 @@ Item {
                     query: searchField.text
                 }
 
+                // Modes 3-6 used to be four fully-built component trees --
+                // LauncherGrid (652 lines), LauncherGroupsView (1089, including
+                // three modal dialogs), CommandPalette and ClipboardList --
+                // instantiated at shell startup, per screen, and merely
+                // `visible:`-toggled. That is ~3400 lines of live QML resident
+                // from boot, times the number of monitors, for a UI that only
+                // exists after a keybind. They are all anchors.fill, so a Loader
+                // changes nothing about their size or layout; every call site
+                // below is already guarded by the same `root.mode` check that
+                // gates the Loader.
+
                 // 3. Grid Mode
-                LauncherGrid {
-                    id: appGrid
+                Loader {
+                    id: appGridLoader
                     anchors.fill: parent
-                    visible: root.mode === "grid"
-                    screenName: root.screenName
-                    query: searchField.text
-                    onRequestClose: root.requestClose()
+                    readonly property bool wanted: root.mode === "grid"
+                    // Latch: build on first use, then keep. These used to be
+                    // always-built, so scroll position and selection survived
+                    // mode switches and launcher close/open; latching preserves
+                    // that exactly while still costing nothing until the mode is
+                    // opened for the first time.
+                    property bool everUsed: false
+                    onWantedChanged: if (wanted) everUsed = true
+                    Component.onCompleted: if (wanted) everUsed = true
+                    active: everUsed
+                    visible: wanted
+                    sourceComponent: LauncherGrid {
+                        screenName: root.screenName
+                        query: searchField.text
+                        onRequestClose: root.requestClose()
+                    }
                 }
 
                 // 4. Groups Mode
-                LauncherGroupsView {
-                    id: groupsView
+                Loader {
+                    id: groupsViewLoader
                     anchors.fill: parent
-                    visible: root.mode === "groups"
-                    screenName: root.screenName
-                    query: searchField.text
-                    onRequestClose: root.requestClose()
+                    readonly property bool wanted: root.mode === "groups"
+                    // Latch: build on first use, then keep. These used to be
+                    // always-built, so scroll position and selection survived
+                    // mode switches and launcher close/open; latching preserves
+                    // that exactly while still costing nothing until the mode is
+                    // opened for the first time.
+                    property bool everUsed: false
+                    onWantedChanged: if (wanted) everUsed = true
+                    Component.onCompleted: if (wanted) everUsed = true
+                    active: everUsed
+                    visible: wanted
+                    sourceComponent: LauncherGroupsView {
+                        screenName: root.screenName
+                        query: searchField.text
+                        onRequestClose: root.requestClose()
+                    }
                 }
 
                 // 5. Command Palette Mode
-                CommandPalette {
-                    id: cmdPalette
+                Loader {
+                    id: cmdPaletteLoader
                     anchors.fill: parent
-                    visible: root.mode === "commands"
-                    screenName: root.screenName
-                    query: searchField.text.slice(1)
-                    onRequestClose: root.requestClose()
-                    onRequestClip: root.setMode("clip")
+                    readonly property bool wanted: root.mode === "commands"
+                    // Latch: build on first use, then keep. These used to be
+                    // always-built, so scroll position and selection survived
+                    // mode switches and launcher close/open; latching preserves
+                    // that exactly while still costing nothing until the mode is
+                    // opened for the first time.
+                    property bool everUsed: false
+                    onWantedChanged: if (wanted) everUsed = true
+                    Component.onCompleted: if (wanted) everUsed = true
+                    active: everUsed
+                    visible: wanted
+                    sourceComponent: CommandPalette {
+                        screenName: root.screenName
+                        query: searchField.text.slice(1)
+                        onRequestClose: root.requestClose()
+                        onRequestClip: root.setMode("clip")
+                    }
                 }
 
                 // 6. Clipboard History Mode
-                ClipboardList {
-                    id: clipList
+                Loader {
+                    id: clipListLoader
                     anchors.fill: parent
-                    visible: root.mode === "clip"
-                    query: searchField.text
-                    onRequestClose: root.requestClose()
+                    readonly property bool wanted: root.mode === "clip"
+                    // Latch: build on first use, then keep. These used to be
+                    // always-built, so scroll position and selection survived
+                    // mode switches and launcher close/open; latching preserves
+                    // that exactly while still costing nothing until the mode is
+                    // opened for the first time.
+                    property bool everUsed: false
+                    onWantedChanged: if (wanted) everUsed = true
+                    Component.onCompleted: if (wanted) everUsed = true
+                    active: everUsed
+                    visible: wanted
+                    sourceComponent: ClipboardList {
+                        query: searchField.text
+                        onRequestClose: root.requestClose()
+                    }
                 }
             }
 
