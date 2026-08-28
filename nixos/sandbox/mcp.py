@@ -27,7 +27,7 @@ os.environ.pop("DISPLAY", None)
 
 vm = machines[0]  # noqa: F821  (injected by the test driver)
 UID = 1000
-GUEST_SHOT = "/tmp/mujo-sandbox-shot.png"
+SHARED_SHOT = "/tmp/shared/shot.png"
 _size = []
 _user = []
 
@@ -130,10 +130,10 @@ def user_run(cmd, timeout=120):
     """Run a command in the guest as the sandbox user, inside their session."""
     inner = (
         f"export XDG_RUNTIME_DIR=/run/user/{UID}; "
-        'export WAYLAND_DISPLAY=$(cd "$XDG_RUNTIME_DIR" && '
-        "ls -d wayland-[0-9] 2>/dev/null | head -1); " + cmd
+        'export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"; '
+        + cmd
     )
-    return run(f"su -l {user_name()} --shell /bin/sh -c {shlex.quote(inner)}", timeout)
+    return run(f"runuser -u {user_name()} -- /bin/sh -c {shlex.quote(inner)}", timeout)
 
 
 def shell_state():
@@ -147,7 +147,7 @@ def shell_state():
     return (0, 0)
 
 
-def wait_for_shell(base_loads, base_restarts=None, timeout=60):
+def wait_for_shell(base_loads, base_restarts=None, timeout=30):
     deadline = time.time() + timeout
     ready_file = vm.shared_dir / "qs_ready"
     while time.time() < deadline:
@@ -158,7 +158,7 @@ def wait_for_shell(base_loads, base_restarts=None, timeout=60):
                     return True
             except Exception:
                 pass
-        time.sleep(0.05)
+        time.sleep(0.02)
     # Fallback to journalctl check only if file check timed out
     out = user_run(
         "journalctl --user -u qs-bar --no-pager | grep -c 'Configuration Loaded'; "
@@ -170,12 +170,11 @@ def wait_for_shell(base_loads, base_restarts=None, timeout=60):
 
 
 def screenshot():
-    """Grab the display with grim inside the session."""
+    """Grab the display with grim directly into the shared exchange dir."""
     ensure_up()
     host_png = vm.shared_dir / "shot.png"
     host_png.unlink(missing_ok=True)
-    out = user_run(f"grim {GUEST_SHOT}")
-    run(f"cp {GUEST_SHOT} /tmp/shared/shot.png")
+    out = user_run(f"grim {SHARED_SHOT}")
     if not host_png.exists():
         raise RuntimeError(f"grim failed: {out.strip()}")
     png = host_png.read_bytes()
@@ -199,17 +198,18 @@ def send_input(events):
 
 def click(x, y, button="left"):
     w, h = screen_size()
-    # QEMU absolute axes are 0..32767 regardless of the guest resolution.
+    ax = x * 32767 // max(w - 1, 1)
+    ay = y * 32767 // max(h - 1, 1)
+    # Batch position and press into one QMP transaction, followed by release
     send_input(
         [
-            {"type": "abs", "data": {"axis": "x", "value": x * 32767 // max(w - 1, 1)}},
-            {"type": "abs", "data": {"axis": "y", "value": y * 32767 // max(h - 1, 1)}},
+            {"type": "abs", "data": {"axis": "x", "value": ax}},
+            {"type": "abs", "data": {"axis": "y", "value": ay}},
+            {"type": "btn", "data": {"button": button, "down": True}},
         ]
     )
-    time.sleep(0.05)
-    for down in (True, False):
-        send_input([{"type": "btn", "data": {"button": button, "down": down}}])
-        time.sleep(0.02)
+    time.sleep(0.01)
+    send_input([{"type": "btn", "data": {"button": button, "down": False}}])
 
 
 TOOLS = [
