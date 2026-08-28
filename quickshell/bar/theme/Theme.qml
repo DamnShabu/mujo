@@ -218,6 +218,7 @@ QtObject {
     property int fontSizeSmall: 11
     property int fontSizeBody: 12
     property int fontSizeTitle: 13
+    property int fontSizeHeading: 15
     property real labelSpacing: 1.4       // letter-spacing for uppercase labels
 
     // ─── Radii ────────────────────────────────────────────────────────────────

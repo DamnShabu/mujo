@@ -1,8 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "../bar/theme"
-import "../bar/components"
+import "../../theme"
 
 Rectangle {
     id: root
@@ -55,52 +54,75 @@ Rectangle {
         return Math.max(10, idealY)
     }
 
+    // Action button component
+    component ToolButton: Rectangle {
+        id: btn
+        property string iconName: ""
+        property string toolTipText: ""
+        property bool isPrimary: false
+        property bool isToggled: false
+        signal clicked()
+
+        width: 34
+        height: 34
+        radius: 17
+        color: {
+            if (btn.isToggled) return Theme.accent
+            if (btnHover.hovered) return Theme.surfaceHover
+            if (btn.isPrimary) return Theme.withAlpha(Theme.accent, 0.15)
+            return "transparent"
+        }
+        border.color: btn.isPrimary ? Theme.accent : "transparent"
+        border.width: btn.isPrimary ? 1 : 0
+
+        Text {
+            anchors.centerIn: parent
+            text: btn.iconName
+            font.family: "Material Symbols Rounded"
+            font.pixelSize: 18
+            color: btn.isToggled ? Theme.accentText : (btn.isPrimary ? Theme.accent : Theme.text)
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        HoverHandler { id: btnHover }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: btn.clicked()
+        }
+
+        // Hover Tooltip Badge
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.top
+            anchors.bottomMargin: 8
+            visible: btnHover.hovered && btn.toolTipText !== ""
+            width: tipText.implicitWidth + 14
+            height: 24
+            radius: 12
+            color: Theme.bg
+            border.color: Theme.borderStrong
+            border.width: 1
+            z: 99999
+
+            Text {
+                id: tipText
+                anchors.centerIn: parent
+                text: btn.toolTipText
+                font.family: Theme.fontFamily
+                font.pixelSize: 11
+                font.bold: true
+                color: Theme.text
+            }
+        }
+    }
+
     RowLayout {
         id: toolbarRow
         anchors.centerIn: parent
         spacing: 4
-
-        // Action button component
-        component ToolButton: Rectangle {
-            id: btn
-            property string iconName: ""
-            property string toolTipText: ""
-            property bool isPrimary: false
-            property bool isToggled: false
-            signal clicked()
-
-            width: 34
-            height: 34
-            radius: 17
-            color: {
-                if (btn.isToggled) return Theme.accent
-                if (btnHover.hovered) return Theme.surfaceHover
-                if (btn.isPrimary) return Theme.withAlpha(Theme.accent, 0.15)
-                return "transparent"
-            }
-            border.color: btn.isPrimary ? Theme.accent : "transparent"
-            border.width: btn.isPrimary ? 1 : 0
-
-            MaterialIcon {
-                anchors.centerIn: parent
-                iconName: btn.iconName
-                pixelSize: 18
-                color: btn.isToggled ? Theme.accentText : (btn.isPrimary ? Theme.accent : Theme.text)
-            }
-
-            HoverHandler { id: btnHover }
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: btn.clicked()
-            }
-
-            Tooltip {
-                text: btn.toolTipText
-                visible: btnHover.hovered
-            }
-        }
 
         // Copy (Primary)
         ToolButton {

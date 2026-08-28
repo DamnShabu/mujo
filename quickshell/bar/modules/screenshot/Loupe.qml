@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
-import "../bar/theme"
+import "../../theme"
 
 Item {
     id: root

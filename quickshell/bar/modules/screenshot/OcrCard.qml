@@ -1,8 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "../bar/theme"
-import "../bar/components"
+import "../../theme"
 
 Rectangle {
     id: root
@@ -11,32 +10,30 @@ Rectangle {
     property bool busy: false
     property string errorMessage: ""
 
+    signal closeRequested()
     signal copyRequested(string text)
     signal translateRequested(string text)
-    signal closeRequested()
 
     width: 440
-    height: Math.min(380, contentCol.implicitHeight + 32)
-    radius: Theme.cornerRadius + 4
+    height: 300
+    radius: Theme.radiusLg
     color: Theme.surface
     border.color: Theme.borderStrong
     border.width: 1
-    clip: true
     z: 10000
 
-    // Subtle drop shadow / border glow
+    // Shadow / outline effect
     Rectangle {
         anchors.fill: parent
         anchors.margins: -1
-        radius: parent.radius + 1
+        radius: root.radius + 1
         color: "transparent"
-        border.color: Theme.withAlpha(Theme.accent, 0.3)
+        border.color: Theme.border
         border.width: 1
         z: -1
     }
 
     ColumnLayout {
-        id: contentCol
         anchors.fill: parent
         anchors.margins: 16
         spacing: 12
@@ -46,10 +43,13 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 8
 
-            MaterialIcon {
-                iconName: "document_scanner"
-                pixelSize: 20
+            Text {
+                text: "document_scanner"
+                font.family: "Material Symbols Rounded"
+                font.pixelSize: 20
                 color: Theme.accent
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
             }
 
             Text {
@@ -62,10 +62,28 @@ Rectangle {
             }
 
             // Spinner if busy
-            Spinner {
+            Item {
+                width: 16
+                height: 16
                 visible: root.busy
-                spinning: root.busy
-                size: 16
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "progress_activity"
+                    font.family: "Material Symbols Rounded"
+                    font.pixelSize: 16
+                    color: Theme.accent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+
+                    RotationAnimator on rotation {
+                        from: 0
+                        to: 360
+                        duration: 900
+                        loops: Animation.Infinite
+                        running: root.busy
+                    }
+                }
             }
 
             // Close button
@@ -75,11 +93,14 @@ Rectangle {
                 radius: 12
                 color: closeHover.hovered ? Theme.surfaceHover : "transparent"
 
-                MaterialIcon {
+                Text {
                     anchors.centerIn: parent
-                    iconName: "close"
-                    pixelSize: 16
+                    text: "close"
+                    font.family: "Material Symbols Rounded"
+                    font.pixelSize: 16
                     color: Theme.textDim
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                 }
 
                 HoverHandler { id: closeHover }
@@ -96,7 +117,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.minimumHeight: 160
-            radius: Theme.cornerRadius
+            radius: Theme.radiusMd
             color: Theme.bg
             border.color: Theme.border
             border.width: 1
@@ -111,7 +132,7 @@ Rectangle {
                 TextArea {
                     id: textEdit
                     text: root.recognizedText
-                    font.family: Theme.fontFamilyMono || "monospace"
+                    font.family: Theme.fontMono
                     font.pixelSize: 13
                     color: Theme.text
                     wrapMode: Text.Wrap
@@ -128,10 +149,28 @@ Rectangle {
                 spacing: 8
                 visible: root.busy
 
-                Spinner {
+                Item {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    spinning: root.busy
-                    size: 28
+                    width: 28
+                    height: 28
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "progress_activity"
+                        font.family: "Material Symbols Rounded"
+                        font.pixelSize: 28
+                        color: Theme.accent
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+
+                        RotationAnimator on rotation {
+                            from: 0
+                            to: 360
+                            duration: 900
+                            loops: Animation.Infinite
+                            running: root.busy
+                        }
+                    }
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -148,22 +187,19 @@ Rectangle {
                 visible: !root.busy && root.errorMessage !== ""
                 text: root.errorMessage
                 font.family: Theme.fontFamily
-                font.pixelSize: 12
-                color: Theme.warning
+                font.pixelSize: 13
+                color: Theme.error
             }
         }
 
-        // Footer: Char count & Actions
+        // Footer: Status and Action Buttons
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
 
+            // Character count
             Text {
-                text: {
-                    var len = textEdit.text.length
-                    var words = textEdit.text.trim().length > 0 ? textEdit.text.trim().split(/\s+/).length : 0
-                    return len + " chars • " + words + " words"
-                }
+                text: root.recognizedText.length > 0 ? (root.recognizedText.length + " chars · " + root.recognizedText.trim().split(/\s+/).length + " words") : ""
                 font.family: Theme.fontFamily
                 font.pixelSize: 11
                 color: Theme.textDim
@@ -184,10 +220,13 @@ Rectangle {
                     id: transRow
                     anchors.centerIn: parent
                     spacing: 6
-                    MaterialIcon {
-                        iconName: "translate"
-                        pixelSize: 14
+                    Text {
+                        text: "translate"
+                        font.family: "Material Symbols Rounded"
+                        font.pixelSize: 14
                         color: Theme.text
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
                     Text {
                         text: "Translate"
@@ -217,10 +256,13 @@ Rectangle {
                     id: copyRow
                     anchors.centerIn: parent
                     spacing: 6
-                    MaterialIcon {
-                        iconName: "content_copy"
-                        pixelSize: 14
+                    Text {
+                        text: "content_copy"
+                        font.family: "Material Symbols Rounded"
+                        font.pixelSize: 14
                         color: Theme.accentText
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
                     Text {
                         text: "Copy Text"

@@ -109,14 +109,16 @@ cmd_launch() {
     # Fallback to relative script path if running in dev mode
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [[ -f "${script_dir}/screenshot/screenshot.qml" ]]; then
-      qml_path="${script_dir}/screenshot/screenshot.qml"
-    elif [[ -f "/etc/xdg/quickshell/screenshot/screenshot.qml" ]]; then
-      qml_path="/etc/xdg/quickshell/screenshot/screenshot.qml"
+    if [[ -f "${script_dir}/bar/screenshot.qml" ]]; then
+      qml_path="${script_dir}/bar/screenshot.qml"
+    elif [[ -f "/etc/xdg/quickshell/bar/screenshot.qml" ]]; then
+      qml_path="/etc/xdg/quickshell/bar/screenshot.qml"
     fi
   fi
 
   if [[ -n "$qml_path" && -f "$qml_path" ]]; then
+    export QT_SCALE_FACTOR=1
+    export QT_AUTO_SCREEN_SCALE_FACTOR=0
     exec quickshell -p "$qml_path"
   else
     echo "Error: screenshot.qml not found at $qml_path" >&2

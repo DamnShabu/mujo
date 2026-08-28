@@ -1,8 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "../bar/theme"
-import "../bar/components"
+import "../../theme"
 
 Item {
     id: root
@@ -183,6 +182,34 @@ Item {
         }
     }
 
+    // Tool button component
+    component PalButton: Rectangle {
+        id: pbtn
+        property string toolId: ""
+        property string iconName: ""
+        property string toolTip: ""
+        width: 28
+        height: 28
+        radius: 14
+        color: root.activeTool === toolId ? Theme.accent : (pbtnHover.hovered ? Theme.surfaceHover : "transparent")
+
+        Text {
+            anchors.centerIn: parent
+            text: pbtn.iconName
+            font.family: "Material Symbols Rounded"
+            font.pixelSize: 16
+            color: root.activeTool === pbtn.toolId ? Theme.accentText : Theme.text
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+        HoverHandler { id: pbtnHover }
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.activeTool = pbtn.toolId
+        }
+    }
+
     // Annotation Tools Palette Bar (top of selection)
     Rectangle {
         id: toolPalette
@@ -201,30 +228,6 @@ Item {
             id: palRow
             anchors.centerIn: parent
             spacing: 4
-
-            component PalButton: Rectangle {
-                id: pbtn
-                property string toolId: ""
-                property string iconName: ""
-                property string toolTip: ""
-                width: 28
-                height: 28
-                radius: 14
-                color: root.activeTool === toolId ? Theme.accent : (pbtnHover.hovered ? Theme.surfaceHover : "transparent")
-
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    iconName: pbtn.iconName
-                    pixelSize: 16
-                    color: root.activeTool === pbtn.toolId ? Theme.accentText : Theme.text
-                }
-                HoverHandler { id: pbtnHover }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.activeTool = pbtn.toolId
-                }
-            }
 
             PalButton { toolId: "pen"; iconName: "edit"; toolTip: "Pen" }
             PalButton { toolId: "arrow"; iconName: "arrow_outward"; toolTip: "Arrow" }
@@ -262,11 +265,14 @@ Item {
                 height: 28
                 radius: 14
                 color: undoHover.hovered ? Theme.surfaceHover : "transparent"
-                MaterialIcon {
+                Text {
                     anchors.centerIn: parent
-                    iconName: "undo"
-                    pixelSize: 16
+                    text: "undo"
+                    font.family: "Material Symbols Rounded"
+                    font.pixelSize: 16
                     color: root.strokes.length > 0 ? Theme.text : Theme.textDim
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                 }
                 HoverHandler { id: undoHover }
                 MouseArea {
