@@ -15,5 +15,6 @@ ShortcutsPanel ShortcutsPanel.qml
 WeatherPanel WeatherPanel.qml
 AiPanel AiPanel.qml
 SystemPanel SystemPanel.qml
+HealthPanel HealthPanel.qml
 WallhavenDetailModal WallhavenDetailModal.qml
 WallpaperEngineDetailModal WallpaperEngineDetailModal.qml

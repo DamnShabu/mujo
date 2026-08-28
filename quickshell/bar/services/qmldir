@@ -16,3 +16,4 @@ CrashWatcher CrashWatcher.qml
 IdleService IdleService.qml
 singleton DesktopGrid DesktopGrid.qml
 singleton DesktopFiles DesktopFiles.qml
+singleton SentinelService SentinelService.qml

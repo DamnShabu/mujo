@@ -18,8 +18,59 @@ Commands:
   backup [run|status]      System backup status and snapshot triggers
   overrides <subcommand>   Local NixOS override drop-ins (list/enable/disable/add/remove/show)
   shelf <subcommand>       Staging shelf management (list/add/remove/clear/toggle/open)
+  screenshot [subcommand]  Screenshot tool with OCR & Translation
+  crash <subcommand>       Multi-source crash stream, AI diagnosis, and auto-fixes
+  sentinel <subcommand>    Process sentinel: runaway CPU/RAM/GPU & zombie killer
+  clean <subcommand>       System cleaner: Nix store GC, journal vacuum, cache & ZRAM
+  health [summary|check]   Overall system health & vitals score
   idle-guard <audio|charging>  Exit 0 if idle actions should be inhibited (used by swayidle)
   help                      Show this help
+EOF
+  exit 1
+}
+
+crash_usage() {
+  cat >&2 <<EOF
+Usage: mujo crash <command> [args...]
+
+Commands:
+  stream                    Stream normalized crash events as JSON lines (coredump, unit, oom, gpu)
+  info <type> <id>          Get sanitized crash details and stacktrace / log context
+  diagnose <type> <id>      Run AI root-cause analysis and return structured fix recipes (JSON)
+  fix <action> [target]     Execute safe crash fix action (restart-unit, clear-cache, rollback-gen)
+EOF
+  exit 1
+}
+
+sentinel_usage() {
+  cat >&2 <<EOF
+Usage: mujo sentinel <command> [args...]
+
+Commands:
+  scan                      Scan running processes, CPU, RAM, GPU, zombies (JSON)
+  reap                      Silently reap harmless zombie and defunct processes (JSON)
+  action <cmd> <pid> [val]  Send process signal (kill, term, stop, cont, renice)
+EOF
+  exit 1
+}
+
+clean_usage() {
+  cat >&2 <<EOF
+Usage: mujo clean <command> [args...]
+
+Commands:
+  scan                      Calculate reclaimable disk & memory space across all modules (JSON)
+  apply <nix|journal|caches|memory|all>  Execute modular system cleanup
+EOF
+  exit 1
+}
+
+health_usage() {
+  cat >&2 <<EOF
+Usage: mujo health [summary]
+
+Commands:
+  summary                   Unified system health, vitals, sentinel anomalies & cleaner stats (JSON)
 EOF
   exit 1
 }
@@ -2200,6 +2251,407 @@ case "${CMD}" in
         ;;
       *) echo "Usage: mujo power-profile get|set <profile>" >&2; exit 1 ;;
     esac
+    ;;
+
+  screenshot)
+    if command -v mujo-screenshot >/dev/null 2>&1; then
+      exec mujo-screenshot "$@"
+    else
+      SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      if [[ -f "${SCRIPT_DIR}/mujo-screenshot.sh" ]]; then
+        exec "${SCRIPT_DIR}/mujo-screenshot.sh" "$@"
+      else
+        echo "mujo-screenshot is not available." >&2
+        exit 1
+      fi
+    fi
+    ;;
+
+  crash)
+    [[ $# -ge 1 ]] || crash_usage
+    SUB="$1"; shift
+    case "${SUB}" in
+      stream)
+        # Event-driven stream of normalized JSON crash events
+        journalctl -q -f -n 0 -o json | jq --unbuffered -c '
+          if type == "object" then
+            if .MESSAGE_ID? == "fc2e22bc6ee647b6b90729ab34a250b1" then
+              {
+                type: "coredump",
+                comm: (.COREDUMP_COMM // ._COMM // "app"),
+                pid: (.COREDUMP_PID // ._PID // ""),
+                id: (.COREDUMP_PID // .COREDUMP_COMM // "coredump"),
+                signal: (.COREDUMP_SIGNAL // "SEGV"),
+                summary: "Application dumped core",
+                timestamp: ((.__REALTIME_TIMESTAMP // 0 | tonumber) / 1000)
+              }
+            elif (._SYSTEMD_UNIT? != null and (.UNIT_RESULT? == "failed" or .JOB_RESULT? == "failed")) or .MESSAGE_ID? == "be3217bafd1e4ee99b1c707e63d7e2b1" then
+              {
+                type: "unit",
+                comm: (._SYSTEMD_USER_UNIT // ._SYSTEMD_UNIT // "service"),
+                pid: (._PID // ""),
+                id: (._SYSTEMD_USER_UNIT // ._SYSTEMD_UNIT // "unit"),
+                signal: "FAILED",
+                summary: "Systemd service entered failed state",
+                timestamp: ((.__REALTIME_TIMESTAMP // 0 | tonumber) / 1000)
+              }
+            elif (.MESSAGE? | type == "string" and (. | test("Out of memory: Killed process|systemd-oomd"))) then
+              {
+                type: "oom",
+                comm: "oom-killer",
+                pid: (if .MESSAGE | test("Killed process ([0-9]+)") then (.MESSAGE | capture("Killed process (?<p>[0-9]+)") | .p) else "" end),
+                id: "oom",
+                signal: "SIGKILL",
+                summary: "Process terminated by Out-of-Memory killer",
+                timestamp: ((.__REALTIME_TIMESTAMP // 0 | tonumber) / 1000)
+              }
+            elif (.MESSAGE? | type == "string" and (. | test("amdgpu.*GPU reset|amdgpu.*ring.*timeout"))) then
+              {
+                type: "gpu",
+                comm: "amdgpu",
+                pid: "",
+                id: "gpu",
+                signal: "GPU_RESET",
+                summary: "AMD GPU driver reset / ring timeout detected",
+                timestamp: ((.__REALTIME_TIMESTAMP // 0 | tonumber) / 1000)
+              }
+            else empty end
+          else empty end'
+        ;;
+      info)
+        TYPE="${1:-coredump}"; ID="${2:-}"
+        case "${TYPE}" in
+          coredump)
+            RAW="$(coredumpctl info ${ID} 2>/dev/null || coredumpctl info 2>/dev/null || echo "(no coredump info)")"
+            SANITIZED="$(printf '%s\n' "${RAW}" | awk '
+              /^[[:space:]]*Environment:/ { env=1; print "    Environment: (hidden)"; next }
+              env && /^[[:space:]]+\S/ { next }
+              env && !/^[[:space:]]/ { env=0 }
+              { print }
+            ' | head -c 8000)"
+            COMM="$(printf '%s\n' "${SANITIZED}" | grep -E '^[[:space:]]*Executable:' | head -1 | awk '{print $2}' | xargs -r basename || echo "app")"
+            PID="$(printf '%s\n' "${SANITIZED}" | grep -E '^[[:space:]]*PID:' | head -1 | awk '{print $2}' || echo "")"
+            SIGNAL="$(printf '%s\n' "${SANITIZED}" | grep -E '^[[:space:]]*Signal:' | head -1 | awk '{print $2}' || echo "SEGV")"
+            jq -n --arg type "coredump" --arg id "${ID}" --arg comm "${COMM:-app}" --arg pid "${PID}" --arg sig "${SIGNAL}" --arg raw "${SANITIZED}" \
+              '{type:$type, id:$id, comm:$comm, pid:$pid, signal:$sig, raw:$raw}'
+            ;;
+          unit)
+            STATUS="$(systemctl --user status "${ID}" 2>/dev/null || systemctl status "${ID}" 2>/dev/null || echo "(no service status)")"
+            LOGS="$(journalctl --user -u "${ID}" -n 30 --no-pager -o cat 2>/dev/null || journalctl -u "${ID}" -n 30 --no-pager -o cat 2>/dev/null || echo "")"
+            RAW="=== Service Status ===\n${STATUS}\n\n=== Recent Logs ===\n${LOGS}"
+            jq -n --arg type "unit" --arg id "${ID}" --arg comm "${ID}" --arg raw "${RAW}" \
+              '{type:$type, id:$id, comm:$comm, pid:"", signal:"FAILED", raw:$raw}'
+            ;;
+          oom)
+            LOGS="$(journalctl -n 50 --no-pager --grep "oom|Out of memory" -o cat 2>/dev/null || echo "(no OOM logs)")"
+            jq -n --arg type "oom" --arg id "oom" --arg comm "oom-killer" --arg raw "${LOGS}" \
+              '{type:$type, id:$id, comm:$comm, pid:"", signal:"SIGKILL", raw:$raw}'
+            ;;
+          gpu)
+            LOGS="$(dmesg 2>/dev/null | grep -iE "amdgpu|drm|fence|timeout|reset" | tail -n 40 || journalctl -k -n 40 --no-pager -o cat 2>/dev/null || echo "(no GPU logs)")"
+            jq -n --arg type "gpu" --arg id "gpu" --arg comm "amdgpu" --arg raw "${LOGS}" \
+              '{type:$type, id:$id, comm:$comm, pid:"", signal:"GPU_RESET", raw:$raw}'
+            ;;
+          *)
+            echo "Unknown crash type: ${TYPE}" >&2; exit 1
+            ;;
+        esac
+        ;;
+      diagnose)
+        TYPE="${1:-coredump}"; ID="${2:-}"
+        INFO_JSON="$(mujo crash info "${TYPE}" "${ID}")"
+        RAW_TEXT="$(printf '%s' "${INFO_JSON}" | jq -r '.raw // empty')"
+        COMM="$(printf '%s' "${INFO_JSON}" | jq -r '.comm // "application"')"
+        
+        SYSTEM_PROMPT='You are a Linux system reliability & crash diagnostic AI. Analyze the sanitized crash info and return ONLY a valid JSON object matching this schema:
+{
+  "summary": "1-2 sentence plain-language explanation of why it crashed",
+  "rootCause": "Direct technical cause (e.g. SIGSEGV null pointer dereference, VRAM exhaustion, unit failed dependency)",
+  "fixes": [
+    { "id": "restart_unit", "title": "Restart Service", "action": "restart-unit", "target": "<unitName>" },
+    { "id": "clear_cache", "title": "Clear App Cache", "action": "clear-cache", "target": "<appName>" },
+    { "id": "rollback_gen", "title": "Rollback Generation", "action": "rollback-gen", "target": "<number>" }
+  ],
+  "investigateCmd": "command to run in terminal for inspection"
+}'
+        USER_MSG="Crash type: ${TYPE}, Target: ${COMM}\n\nCrash Log:\n${RAW_TEXT}"
+        
+        PAYLOAD="$(jq -n --arg sys "${SYSTEM_PROMPT}" --arg user "${USER_MSG}" \
+          '[{role:"system", content:$sys}, {role:"user", content:$user}]')"
+        
+        AI_OUT="$(printf '%s' "${PAYLOAD}" | mujo ai chat 2>/dev/null || echo "")"
+        if printf '%s' "${AI_OUT}" | jq . >/dev/null 2>&1; then
+          printf '%s\n' "${AI_OUT}"
+        else
+          EXTRACTED="$(printf '%s' "${AI_OUT}" | sed -n '/```json/,/```/p' | sed '1d;$d')"
+          if printf '%s' "${EXTRACTED}" | jq . >/dev/null 2>&1; then
+            printf '%s\n' "${EXTRACTED}"
+          else
+            jq -n --arg s "${AI_OUT:-Process terminated unexpectedly.}" --arg comm "${COMM}" \
+              '{summary:$s, rootCause:"Abnormal process termination", fixes:[{id:"clear_cache", title:"Clear App Cache", action:"clear-cache", target:$comm}], investigateCmd:"coredumpctl info"}'
+          fi
+        fi
+        ;;
+      fix)
+        [[ $# -ge 1 ]] || { echo "Usage: mujo crash fix <action> [target]" >&2; exit 1; }
+        ACTION="$1"; TARGET="${2:-}"
+        case "${ACTION}" in
+          restart-unit)
+            [[ -n "${TARGET}" ]] || { echo "Missing target unit" >&2; exit 1; }
+            if systemctl --user restart "${TARGET}" 2>/dev/null; then
+              echo "Restarted user service ${TARGET}"
+            else
+              pkexec systemctl restart "${TARGET}"
+            fi
+            ;;
+          clear-cache)
+            [[ -n "${TARGET}" ]] || { echo "Missing target app" >&2; exit 1; }
+            SAFE_NAME="$(basename "${TARGET}")"
+            if [[ -d "${HOME}/.cache/${SAFE_NAME}" ]]; then
+              rm -rf "${HOME}/.cache/${SAFE_NAME}"
+              echo "Purged ~/.cache/${SAFE_NAME}"
+            else
+              echo "No cache directory for ${SAFE_NAME}"
+            fi
+            ;;
+          rollback-gen)
+            [[ "${TARGET}" =~ ^[0-9]+$ ]] || { echo "Invalid generation number" >&2; exit 1; }
+            pkexec sh -c "nix-env --switch-generation ${TARGET} -p /nix/var/nix/profiles/system && /nix/var/nix/profiles/system/bin/switch-to-configuration switch"
+            ;;
+          kill)
+            [[ "${TARGET}" =~ ^[0-9]+$ ]] || { echo "Invalid pid" >&2; exit 1; }
+            kill -15 "${TARGET}" 2>/dev/null || kill -9 "${TARGET}" 2>/dev/null
+            echo "Terminated process ${TARGET}"
+            ;;
+          *)
+            echo "Unknown fix action: ${ACTION}" >&2; exit 1
+            ;;
+        esac
+        ;;
+      *) crash_usage ;;
+    esac
+    ;;
+
+  sentinel)
+    [[ $# -ge 1 ]] || sentinel_usage
+    SUB="$1"; shift
+    case "${SUB}" in
+      scan)
+        CARD="$(ls -d /sys/class/drm/card* 2>/dev/null | grep -E 'card[0-9]+$' | head -1 || echo '')"
+        GPU_BUSY="null"; VRAM_USED="null"; VRAM_TOTAL="null"
+        if [[ -n "${CARD}" && -d "${CARD}/device" ]]; then
+          [[ -r "${CARD}/device/gpu_busy_percent" ]] && GPU_BUSY="$(cat "${CARD}/device/gpu_busy_percent" 2>/dev/null || echo null)"
+          if [[ -r "${CARD}/device/mem_info_vram_used" ]]; then
+            VU="$(cat "${CARD}/device/mem_info_vram_used" 2>/dev/null || echo 0)"
+            VT="$(cat "${CARD}/device/mem_info_vram_total" 2>/dev/null || echo 0)"
+            VRAM_USED=$(( VU / 1048576 ))
+            VRAM_TOTAL=$(( VT / 1048576 ))
+          fi
+        fi
+
+        PROCS_JSON="$(ps -eo pid=,ppid=,stat=,rss=,%cpu=,%mem=,comm= --sort=-%cpu | head -n 35 | awk '
+          BEGIN { printf "["; first=1 }
+          {
+            if (!first) printf ","
+            first=0
+            pid=$1; ppid=$2; stat=$3; rss=int($4/1024); cpu=$5; mem=$6;
+            $1=$2=$3=$4=$5=$6="";
+            sub(/^[ \t]+/, "", $0);
+            gsub(/"/, "\\\"", $0);
+            printf "{\"pid\":%d,\"ppid\":%d,\"stat\":\"%s\",\"rssMb\":%d,\"cpu\":%.1f,\"mem\":%.1f,\"comm\":\"%s\"}", pid, ppid, stat, rss, cpu, mem, $0
+          }
+          END { printf "]\n" }
+        ')"
+
+        jq -n \
+          --argjson procs "${PROCS_JSON}" \
+          --arg gpu_busy "${GPU_BUSY}" \
+          --arg vram_used "${VRAM_USED}" \
+          --arg vram_total "${VRAM_TOTAL}" '
+          ($procs | map(select(.stat | startswith("Z")))) as $zombies |
+          ($procs | map(select(.cpu >= 70 and (.comm != "quickshell" and .comm != "niri" and .comm != ".nixos-test-dri")) | . + {type: "cpu_runaway", label: "CPU Runaway"})) as $cpuRunaways |
+          ($procs | map(select((.mem >= 25 or .rssMb >= 3500) and (.comm != ".nixos-test-dri")) | . + {type: "mem_hog", label: "Memory Hog"})) as $memHogs |
+          ($procs | map(select((.stat | startswith("D")) and .ppid != 2 and .pid != 2) | . + {type: "d_state", label: "Uninterruptible Disk Wait"})) as $dState |
+          ($zombies | map(. + {type: "zombie", label: "Defunct Zombie"})) as $taggedZombies |
+          ($cpuRunaways + $memHogs + $taggedZombies + $dState | unique_by(.pid)) as $anomalies |
+          (100 - (($zombies | length) * 10) - (($cpuRunaways | length) * 15) - (($memHogs | length) * 15)) as $rawScore |
+          (if $rawScore < 10 then 10 elif $rawScore > 100 then 100 else $rawScore end) as $score |
+          {
+            healthScore: $score,
+            status: (if $score >= 85 then "optimal" elif $score >= 60 then "warning" else "critical" end),
+            zombieCount: ($zombies | length),
+            anomalyCount: ($anomalies | length),
+            anomalies: $anomalies,
+            topCpu: ($procs | sort_by(-.cpu) | .[0:6]),
+            topMem: ($procs | sort_by(-.rssMb) | .[0:6]),
+            gpu: {
+              busyPercent: ($gpu_busy | if . == "null" then null else tonumber end),
+              vramUsedMb: ($vram_used | if . == "null" then null else tonumber end),
+              vramTotalMb: ($vram_total | if . == "null" then null else tonumber end)
+            }
+          }'
+        ;;
+      reap)
+        REAPED=0
+        PIDS=()
+        while read -r pid ppid; do
+          [[ -n "${pid}" ]] || continue
+          if kill -CHLD "${ppid}" 2>/dev/null; then
+            REAPED=$(( REAPED + 1 ))
+            PIDS+=("${pid}")
+          fi
+        done < <(ps -eo pid=,ppid=,stat= | awk '$3 ~ /^Z/ {print $1, $2}')
+        jq -n --argjson count "${REAPED}" --argjson pids "$(printf '%s\n' "${PIDS[@]}" | jq -R . | jq -s 'map(select(. != "") | tonumber)')" \
+          '{reapedCount:$count, pids:$pids}'
+        ;;
+      action)
+        [[ $# -ge 2 ]] || { echo "Usage: mujo sentinel action <kill|term|stop|cont|renice> <pid> [val]" >&2; exit 1; }
+        ACT="$1"; PID="$2"; VAL="${3:--10}"
+        [[ "${PID}" =~ ^[0-9]+$ ]] || { echo "Invalid pid" >&2; exit 1; }
+        case "${ACT}" in
+          kill) kill -9 "${PID}" ;;
+          term) kill -15 "${PID}" ;;
+          stop) kill -STOP "${PID}" ;;
+          cont) kill -CONT "${PID}" ;;
+          renice) renice -n "${VAL}" -p "${PID}" ;;
+          *) echo "Unknown action: ${ACT}" >&2; exit 1 ;;
+        esac
+        echo "Executed ${ACT} on PID ${PID}"
+        ;;
+      *) sentinel_usage ;;
+    esac
+    ;;
+
+  clean)
+    [[ $# -ge 1 ]] || clean_usage
+    SUB="$1"; shift
+    case "${SUB}" in
+      scan)
+        GEN_COUNT="$(ls -1d /nix/var/nix/profiles/system-*-link 2>/dev/null | wc -l || echo 0)"
+        NIX_RECLAIM_MB=$(( GEN_COUNT > 1 ? (GEN_COUNT - 1) * 850 : 0 ))
+
+        J_RAW="$(journalctl --disk-usage 2>/dev/null || echo '')"
+        J_MB=0
+        if [[ "${J_RAW}" =~ ([0-9.]+)G ]]; then
+          J_MB="$(awk "BEGIN {print int(${BASH_REMATCH[1]} * 1024)}")"
+        elif [[ "${J_RAW}" =~ ([0-9.]+)M ]]; then
+          J_MB="$(awk "BEGIN {print int(${BASH_REMATCH[1]})}")"
+        fi
+        J_RECLAIM_MB=$(( J_MB > 100 ? J_MB - 100 : 0 ))
+
+        THUMB_MB="$(du -sm "${HOME}/.cache/thumbnails" 2>/dev/null | cut -f1 || echo 0)"
+        TRASH_MB="$(du -sm "${HOME}/.local/share/Trash" 2>/dev/null | cut -f1 || echo 0)"
+        SHADER_MB="$(du -sm "${HOME}/.cache/mesa_shader_cache" 2>/dev/null | cut -f1 || echo 0)"
+        CACHE_TOT_MB=$(( ${THUMB_MB:-0} + ${TRASH_MB:-0} + ${SHADER_MB:-0} ))
+
+        Z_ORIG="$(cat /sys/block/zram0/orig_data_size 2>/dev/null || echo 0)"
+        Z_COMPR="$(cat /sys/block/zram0/compr_data_size 2>/dev/null || echo 0)"
+        Z_ORIG_MB=$(( Z_ORIG / 1048576 ))
+        Z_COMPR_MB=$(( Z_COMPR / 1048576 ))
+
+        TOT_RECLAIM_MB=$(( NIX_RECLAIM_MB + J_RECLAIM_MB + CACHE_TOT_MB ))
+
+        jq -n \
+          --argjson genCount "${GEN_COUNT}" \
+          --argjson nixReclaim "${NIX_RECLAIM_MB}" \
+          --argjson journalMb "${J_MB}" \
+          --argjson journalReclaim "${J_RECLAIM_MB}" \
+          --argjson thumbMb "${THUMB_MB:-0}" \
+          --argjson trashMb "${TRASH_MB:-0}" \
+          --argjson shaderMb "${SHADER_MB:-0}" \
+          --argjson cacheTotMb "${CACHE_TOT_MB}" \
+          --argjson zramOrigMb "${Z_ORIG_MB}" \
+          --argjson zramComprMb "${Z_COMPR_MB}" \
+          --argjson totalReclaim "${TOT_RECLAIM_MB}" '
+          {
+            nix: {
+              generations: $genCount,
+              reclaimableMb: $nixReclaim,
+              label: "\($genCount) generations stored"
+            },
+            journal: {
+              sizeMb: $journalMb,
+              reclaimableMb: $journalReclaim,
+              label: "\($journalMb) MB logs recorded"
+            },
+            caches: {
+              totalMb: $cacheTotMb,
+              reclaimableMb: $cacheTotMb,
+              thumbnailsMb: $thumbMb,
+              trashMb: $trashMb,
+              shaderMb: $shaderMb
+            },
+            memory: {
+              zramOrigMb: $zramOrigMb,
+              zramComprMb: $zramComprMb
+            },
+            totalReclaimableMb: $totalReclaim
+          }'
+        ;;
+      apply)
+        TARGET="${1:-all}"
+        case "${TARGET}" in
+          nix)
+            echo ">>> Cleaning old Nix generations and optimising store..."
+            pkexec nix-collect-garbage -d && pkexec nix-store --optimise
+            echo "✓ Nix store cleaned and deduplicated"
+            ;;
+          journal)
+            echo ">>> Vacuuming systemd journals..."
+            journalctl --user --vacuum-time=7d 2>/dev/null || true
+            pkexec journalctl --vacuum-time=7d --vacuum-size=100M
+            echo "✓ Journals vacuumed to <=100MB"
+            ;;
+          caches)
+            echo ">>> Purging disposable application and thumbnail caches..."
+            rm -rf "${HOME}/.cache/thumbnails"/* "${HOME}/.local/share/Trash"/* "${HOME}/.cache/mesa_shader_cache"/* 2>/dev/null || true
+            echo "✓ User thumbnail, trash, and shader caches cleared"
+            ;;
+          memory)
+            echo ">>> Compacting ZRAM memory and reclaiming page cache..."
+            if [[ -w /sys/block/zram0/compact ]]; then
+              echo 1 > /sys/block/zram0/compact 2>/dev/null || true
+            fi
+            sync
+            pkexec sysctl -w vm.drop_caches=3 2>/dev/null || true
+            echo "✓ Memory compacted and inactive cache dropped"
+            ;;
+          all)
+            echo ">>> Executing full system optimization..."
+            rm -rf "${HOME}/.cache/thumbnails"/* "${HOME}/.local/share/Trash"/* "${HOME}/.cache/mesa_shader_cache"/* 2>/dev/null || true
+            journalctl --user --vacuum-time=7d 2>/dev/null || true
+            pkexec journalctl --vacuum-time=7d --vacuum-size=100M 2>/dev/null || true
+            pkexec nix-collect-garbage -d 2>/dev/null || true
+            pkexec nix-store --optimise 2>/dev/null || true
+            if [[ -w /sys/block/zram0/compact ]]; then echo 1 > /sys/block/zram0/compact 2>/dev/null || true; fi
+            sync
+            pkexec sysctl -w vm.drop_caches=3 2>/dev/null || true
+            echo "✓ Full system optimization complete"
+            ;;
+          *) echo "Usage: mujo clean apply <nix|journal|caches|memory|all>" >&2; exit 1 ;;
+        esac
+        ;;
+      *) clean_usage ;;
+    esac
+    ;;
+
+  health)
+    SENTINEL="$("$0" sentinel scan 2>/dev/null || echo '{}')"
+    CLEAN="$("$0" clean scan 2>/dev/null || echo '{}')"
+    SCORE="$(printf '%s' "${SENTINEL}" | jq -r '.healthScore // 100')"
+    STATUS="$(printf '%s' "${SENTINEL}" | jq -r '.status // "optimal"')"
+    jq -n \
+      --argjson sentinel "${SENTINEL}" \
+      --argjson clean "${CLEAN}" \
+      --arg score "${SCORE}" \
+      --arg status "${STATUS}" '
+      {
+        score: ($score | tonumber),
+        status: $status,
+        sentinel: $sentinel,
+        cleaner: $clean,
+        timestamp: (now * 1000 | round)
+      }'
     ;;
 
   help|-h|--help) usage ;;

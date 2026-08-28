@@ -28,9 +28,9 @@ Item {
     // Each entry: {id, visible, expanded}. Unknown ids are dropped; missing
     // default ids are appended. There is no drag-reorder UI yet, so the stored
     // order equals the default order — the schema already supports reordering.
-    readonly property var defOrder: ["clock", "weather", "system", "battery", "recent", "notifications", "media", "toggles", "backup", "machines", "update", "ai"]
+    readonly property var defOrder: ["clock", "health", "system", "weather", "battery", "recent", "notifications", "media", "toggles", "backup", "machines", "update", "ai"]
     readonly property var defExpanded: ({
-        clock: true, weather: true, system: true, battery: true, recent: true,
+        clock: true, health: true, weather: true, system: true, battery: true, recent: true,
         notifications: true, media: true, toggles: true,
         backup: false, machines: false, update: false, ai: false
     })
@@ -83,18 +83,19 @@ Item {
     readonly property var shownIds: showAll ? visibleIds : visibleIds.slice(0, Math.max(1, grid.columns) * 2)
 
     function titleFor(id) {
-        return ({ clock: "Clock", weather: "Weather", system: "System", battery: "Battery",
+        return ({ clock: "Clock", health: "Health & Care", weather: "Weather", system: "System", battery: "Battery",
                   recent: "Recent apps", notifications: "Notifications", media: "Media",
                   toggles: "Quick toggles", backup: "Backup", machines: "Machines",
                   update: "System updates", ai: "AI" })[id] || id
     }
     function compFor(id) {
-        return id === "clock" ? clockCard : id === "weather" ? weatherCard
-             : id === "system" ? systemCard : id === "battery" ? batteryCard
-             : id === "recent" ? recentCard : id === "notifications" ? notifsCard
-             : id === "media" ? mediaCard : id === "toggles" ? togglesCard
-             : id === "backup" ? backupCard : id === "machines" ? machinesCard
-             : id === "update" ? updateCard : id === "ai" ? aiCard : null
+        return id === "clock" ? clockCard : id === "health" ? healthCard
+             : id === "weather" ? weatherCard : id === "system" ? systemCard
+             : id === "battery" ? batteryCard : id === "recent" ? recentCard
+             : id === "notifications" ? notifsCard : id === "media" ? mediaCard
+             : id === "toggles" ? togglesCard : id === "backup" ? backupCard
+             : id === "machines" ? machinesCard : id === "update" ? updateCard
+             : id === "ai" ? aiCard : null
     }
 
     // ── Shared inline components (must be declared at file-root level) ────────
@@ -770,6 +771,59 @@ Item {
                 Text { text: aic.testing ? "Checking provider…" : "Ask AI about your desktop"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.fillWidth: true }
             }
             actions: DialogButton { text: "Open AI"; primary: true; onClicked: SettingsBus.go("ai") }
+        }
+    }
+
+    // 13 — System Health & Optimizer. Live Sentinel telemetry, health score, and quick action.
+    Component {
+        id: healthCard
+        DashboardCard {
+            id: htc
+            width: parent ? parent.width : implicitWidth
+            title: "Health & Care"; icon: "health_and_safety"
+            expanded: root.isExpanded("health"); onExpandedChanged: root.setExpanded("health", expanded)
+            onHideRequested: root.setVisible("health", false)
+
+            badge: CountPill {
+                label: SentinelService.healthScore >= 85 ? "OPTIMAL" : (SentinelService.healthScore >= 60 ? "ATTENTION" : "CRITICAL")
+                tint: SentinelService.healthScore >= 85 ? Theme.success : (SentinelService.healthScore >= 60 ? Theme.warning : Theme.error)
+            }
+
+            RowLayout {
+                Layout.fillWidth: true; spacing: 12
+                MaterialIcon {
+                    iconName: "monitor_heart"
+                    pixelSize: 32
+                    color: SentinelService.healthScore >= 85 ? Theme.success : (SentinelService.healthScore >= 60 ? Theme.warning : Theme.error)
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 2
+                    Text {
+                        text: SentinelService.healthScore + " / 100 Health Score"
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeHeading
+                        font.bold: true
+                    }
+                    Text {
+                        text: (SentinelService.anomalies.length > 0 ? (SentinelService.anomalies.length + " anomaly · ") : "") +
+                              (SentinelService.zombieCount > 0 ? (SentinelService.zombieCount + " zombie · ") : "") +
+                              "Sentinel active"
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+                }
+            }
+
+            actions: RowLayout {
+                spacing: 8
+                DialogButton {
+                    text: "Open Health"
+                    primary: true
+                    onClicked: SettingsBus.go("health")
+                }
+            }
         }
     }
 }

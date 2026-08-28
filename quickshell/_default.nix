@@ -17,7 +17,19 @@
   mujo = pkgs.runCommand "mujo" {nativeBuildInputs = [pkgs.makeWrapper];} ''
     install -Dm755 ${./mujo.sh} $out/bin/mujo
     wrapProgram $out/bin/mujo \
-      --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.jq pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.curl pkgs.findutils pkgs.procps pkgs.git pkgs.util-linux pkgs.tmux pkgs.pulseaudio pkgs.power-profiles-daemon pkgs.cliphist pkgs.wl-clipboard pkgs.xdg-utils]}
+      --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.jq pkgs.gawk pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.curl pkgs.findutils pkgs.procps pkgs.git pkgs.util-linux pkgs.tmux pkgs.pulseaudio pkgs.power-profiles-daemon pkgs.cliphist pkgs.wl-clipboard pkgs.xdg-utils pkgs.grim pkgs.imagemagick pkgs.tesseract pkgs.translate-shell pkgs.libnotify pkgs.quickshell]}
+  '';
+
+  # Standalone Screenshot tool with OCR and Translation
+  mujo-screenshot = pkgs.runCommand "mujo-screenshot" {nativeBuildInputs = [pkgs.makeWrapper];} ''
+    mkdir -p $out/share/quickshell
+    cp -r ${./bar} $out/share/quickshell/bar
+    cp -r ${./screenshot} $out/share/quickshell/screenshot
+    install -Dm755 ${./mujo-screenshot.sh} $out/libexec/mujo-screenshot.sh
+    makeWrapper $out/libexec/mujo-screenshot.sh $out/bin/mujo-screenshot \
+      --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.quickshell pkgs.grim pkgs.imagemagick pkgs.tesseract pkgs.translate-shell pkgs.wl-clipboard pkgs.libnotify pkgs.jq pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.procps pkgs.findutils pkgs.curl pkgs.wtype]} \
+      --set QML2_IMPORT_PATH "${pkgs.lib.makeSearchPath "lib/qt-6/qml" (with pkgs.qt6; [qtmultimedia qtdeclarative qtwayland qt5compat] ++ [pkgs.quickshell])}" \
+      --set MUJO_SCREENSHOT_QML "$out/share/quickshell/screenshot/screenshot.qml"
   '';
 
   # Keyring CRUD over the Secret Service (gnome-keyring) for the Settings

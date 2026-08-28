@@ -91,6 +91,22 @@ ShellRoot {
     // Crash detection + assistance (WP-09) — one live instance.
     CrashWatcher {}
 
+    // Interactive AI Crash Recovery Modal
+    CrashFixModal { id: crashFixModal }
+
+    IpcHandler {
+        target: "crashFix"
+        function open(dataStr: string): void { crashFixModal.open(dataStr) }
+        function close(): void { crashFixModal.close() }
+    }
+
+    IpcHandler {
+        target: "sentinel"
+        function scan(): void { SentinelService.refresh() }
+        function reap(): void { SentinelService.reap() }
+        function kill(pid: int): void { SentinelService.kill(pid) }
+    }
+
     // Idle rules engine (WP-13) — owns the swayidle process.
     IdleService {}
 

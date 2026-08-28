@@ -173,8 +173,8 @@
           "XF86MonBrightnessUp".spawn-sh = "${pkgs.brightnessctl}/bin/brightnessctl s 5%+";
           "XF86MonBrightnessDown".spawn-sh = "${pkgs.brightnessctl}/bin/brightnessctl s 5%-";
 
-          # screenshots: region/OCR via QuickSnip
-          "Mod+Shift+S".spawn-sh = "quicksnip";
+          # screenshots: region/OCR/translation via Mujō Screenshot
+          "Mod+Shift+S".spawn-sh = "mujo screenshot";
           "Mod+Ctrl+S".screenshot-window = _: {};
           "Mod+Ctrl+Shift+S".screenshot-screen = _: {};
 
