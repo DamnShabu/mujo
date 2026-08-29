@@ -49,6 +49,16 @@ cmd_crop() {
     echo "Invalid dimensions: ${w}x${h}" >&2
     return 1
   fi
+  # An offset outside the capture only makes `magick -crop` *warn* — it still
+  # exits 0 and writes a 1x1 placeholder, which cmd_save then cheerfully files
+  # away and announces as a screenshot. Refuse instead, so a coordinate bug is
+  # a visible failure rather than a folder of blank PNGs.
+  local rw rh
+  read -r rw rh < <(magick identify -format '%w %h\n' "$RAW_SHOT")
+  if ((x < 0 || y < 0 || x >= rw || y >= rh)); then
+    echo "Selection ${w}x${h}+${x}+${y} lies outside the ${rw}x${rh} capture" >&2
+    return 1
+  fi
   magick "$RAW_SHOT" -crop "${w}x${h}+${x}+${y}" +repage "$CROPPED_SHOT"
   echo "$CROPPED_SHOT"
 }
@@ -89,6 +99,49 @@ cmd_ocr() {
     echo "$text" | wl-copy || true
   fi
   echo "$text"
+}
+
+# Same crop and preprocessing as cmd_ocr — both are geometry-preserving, so the
+# boxes tesseract reports are in cropped-image pixels and the overlay can place
+# them by scaling against the selection rectangle. Emits one object per text
+# line so the translation can be painted where the original text sits:
+#
+#   {"w":700,"h":260,"lines":[{"x":23,"y":36,"w":185,"h":31,"text":"…"}, …]}
+#
+# tesseract's TSV puts the box on the level-4 (line) row and the words on level-5
+# rows underneath it. Rather than correlate the two, take only the words and
+# union their boxes per (block, par, line) — same rectangle, one pass.
+cmd_ocr_lines() {
+  local x="$1" y="$2" w="$3" h="$4"
+  cmd_crop "$x" "$y" "$w" "$h" >/dev/null
+  magick "$CROPPED_SHOT" -colorspace Gray -normalize -sharpen 0x1 "$OCR_PREPROC"
+  local lang cw ch
+  lang=$(get_config "ocrLanguages" "eng+ukr")
+  read -r cw ch < <(magick identify -format '%w %h\n' "$OCR_PREPROC")
+  tesseract "$OCR_PREPROC" stdout -l "$lang" tsv 2>/dev/null |
+    jq -c -R -s --argjson cw "$cw" --argjson ch "$ch" '
+      [ split("\n")[]
+        | select(length > 0)
+        | split("\t")
+        | select(length > 11 and .[0] == "5")
+        | select((.[11] | gsub("\\s"; "")) != "")
+        | select((.[10] | tonumber) >= 40)
+        | { key: (.[2] + "/" + .[3] + "/" + .[4]),
+            word: (.[5] | tonumber),
+            x: (.[6] | tonumber), y: (.[7] | tonumber),
+            w: (.[8] | tonumber), h: (.[9] | tonumber),
+            text: .[11] }
+      ]
+      | group_by(.key)
+      | map(sort_by(.word)
+        | { x:    (map(.x) | min),
+            y:    (map(.y) | min),
+            w:    ((map(.x + .w) | max) - (map(.x) | min)),
+            h:    ((map(.y + .h) | max) - (map(.y) | min)),
+            text: (map(.text) | join(" ")) })
+      | sort_by(.y, .x)
+      | { w: $cw, h: $ch, lines: . }
+    '
 }
 
 cmd_translate() {
@@ -163,13 +216,14 @@ case "${1:-launch}" in
   copy) cmd_copy "$2" "$3" "$4" "$5" ;;
   save) cmd_save "$2" "$3" "$4" "$5" ;;
   ocr) cmd_ocr "$2" "$3" "$4" "$5" ;;
+  ocr-lines) cmd_ocr_lines "$2" "$3" "$4" "$5" ;;
   translate) cmd_translate "$2" "${@:3}" ;;
   config-get) get_config "$2" "${3:-}" ;;
   config-set) set_config "$2" "$3" ;;
   close) cmd_close ;;
   launch|open) cmd_launch ;;
   *)
-    echo "Usage: $0 {launch|open|close|freeze|crop|copy|save|ocr|translate|config-get|config-set}" >&2
+    echo "Usage: $0 {launch|open|close|freeze|crop|copy|save|ocr|ocr-lines|translate|config-get|config-set}" >&2
     exit 1
     ;;
 esac

@@ -25,23 +25,50 @@ Item {
     property bool isDragging: false
     property bool hasSelection: selWidth > 5 && selHeight > 5
 
-    readonly property int globalSelX: activeScreenX + selX
-    readonly property int globalSelY: activeScreenY + selY
+    // grim writes one image spanning the bounding box of every output, so its
+    // pixel (0,0) is the top-left-most output corner — not compositor (0,0).
+    // Niri hands out whatever origin it likes (a dual-monitor stack here sits at
+    // 3610,1330), so screen coordinates have to be rebased onto the frame before
+    // they can index into it. Without this, `magick -crop` was handed an offset
+    // past the right edge of the capture and answered with a 1x1 placeholder.
+    readonly property point frameOrigin: {
+        const list = Quickshell.screens
+        let ox = 0
+        let oy = 0
+        for (let i = 0; i < list.length; i++) {
+            if (i === 0 || list[i].x < ox)
+                ox = list[i].x
+            if (i === 0 || list[i].y < oy)
+                oy = list[i].y
+        }
+        return Qt.point(ox, oy)
+    }
+
+    readonly property int frameSelX: activeScreenX - frameOrigin.x + selX
+    readonly property int frameSelY: activeScreenY - frameOrigin.y + selY
 
     // Modals & Tools state
     property bool showOcrCard: false
-    property bool showTranslateCard: false
     property bool showAnnotations: false
 
     property string ocrResultText: ""
     property bool ocrBusy: false
     property string ocrError: ""
 
-    property string transSourceText: ""
-    property string transResultText: ""
+    // Translation is painted onto the selection rather than shown in a window,
+    // so its state is a list of placed lines instead of a blob of result text.
+    property bool showTranslation: false
+    property var translationLines: []
     property string transTargetLang: "en"
     property bool transBusy: false
     property string transError: ""
+
+    // The OCR pass behind the current translation: source lines with their boxes
+    // plus the crop they were measured in. Kept so a language change re-runs only
+    // the translate call, not tesseract.
+    property var srcLines: []
+    property int srcWidth: 0
+    property int srcHeight: 0
 
     function open() {
         imageTimestamp = String(Date.now())
@@ -73,15 +100,21 @@ Item {
         selHeight = 0
         isDragging = false
         showOcrCard = false
-        showTranslateCard = false
         showAnnotations = false
         ocrBusy = false
-        transBusy = false
         ocrError = ""
-        transError = ""
         ocrResultText = ""
-        transResultText = ""
-        transSourceText = ""
+        clearTranslation()
+    }
+
+    function clearTranslation() {
+        showTranslation = false
+        translationLines = []
+        srcLines = []
+        srcWidth = 0
+        srcHeight = 0
+        transBusy = false
+        transError = ""
     }
 
     // Initial load: fetch configured default target language
@@ -143,6 +176,43 @@ Item {
         }
     }
 
+    // OCR that keeps the boxes, so the translation can be placed on the words it
+    // came from. The backend emits compact JSON (`jq -c`), so this is one line.
+    Process {
+        id: ocrLinesProc
+        running: false
+        property string accumulatedOutput: ""
+        stdout: SplitParser {
+            onRead: function(line) {
+                ocrLinesProc.accumulatedOutput += line
+            }
+        }
+        onExited: function(code) {
+            if (code !== 0) {
+                root.transBusy = false
+                root.transError = "Could not read text in the selection."
+                return
+            }
+            var data = null
+            try {
+                data = JSON.parse(ocrLinesProc.accumulatedOutput)
+            } catch (e) {
+                root.transBusy = false
+                root.transError = "Could not read text in the selection."
+                return
+            }
+            root.srcLines = data.lines || []
+            root.srcWidth = data.w || 0
+            root.srcHeight = data.h || 0
+            if (root.srcLines.length === 0) {
+                root.transBusy = false
+                root.transError = "No readable text detected in selection."
+                return
+            }
+            root.runTranslate()
+        }
+    }
+
     Process {
         id: transProc
         running: false
@@ -154,51 +224,94 @@ Item {
         }
         onExited: function(code) {
             root.transBusy = false
-            if (code === 0) {
-                root.transResultText = transProc.accumulatedOutput.trim()
-            } else {
+            if (code !== 0) {
                 root.transError = "Translation failed."
+                return
             }
+            root.placeTranslation(transProc.accumulatedOutput)
         }
     }
 
     function doCopy() {
         if (!hasSelection) return
-        copyProc.command = ["mujo-screenshot", "copy", Math.round(globalSelX), Math.round(globalSelY), Math.round(selWidth), Math.round(selHeight)]
+        copyProc.command = ["mujo-screenshot", "copy", Math.round(frameSelX), Math.round(frameSelY), Math.round(selWidth), Math.round(selHeight)]
         copyProc.running = true
     }
 
     function doSave() {
         if (!hasSelection) return
-        saveProc.command = ["mujo-screenshot", "save", Math.round(globalSelX), Math.round(globalSelY), Math.round(selWidth), Math.round(selHeight)]
+        saveProc.command = ["mujo-screenshot", "save", Math.round(frameSelX), Math.round(frameSelY), Math.round(selWidth), Math.round(selHeight)]
         saveProc.running = true
     }
 
     function doOcr() {
         if (!hasSelection) return
         root.showOcrCard = true
-        root.showTranslateCard = false
+        root.showTranslation = false
         root.ocrBusy = true
         root.ocrError = ""
         root.ocrResultText = ""
         ocrProc.accumulatedOutput = ""
         ocrProc.cb = null
-        ocrProc.command = ["mujo-screenshot", "ocr", Math.round(globalSelX), Math.round(globalSelY), Math.round(selWidth), Math.round(selHeight)]
+        ocrProc.command = ["mujo-screenshot", "ocr", Math.round(frameSelX), Math.round(frameSelY), Math.round(selWidth), Math.round(selHeight)]
         ocrProc.running = true
     }
 
-    function doTranslate(text, targetLang) {
-        if (!text || text.trim() === "") return
-        root.showTranslateCard = true
+    // Ctrl+T / toolbar: OCR the selection with boxes, then translate every line
+    // in one call. `trans -b` answers newline-for-newline, so the results zip
+    // back onto the boxes by index.
+    function doTranslate() {
+        if (!hasSelection) return
         root.showOcrCard = false
-        root.transBusy = true
+        root.showAnnotations = false
+        root.showTranslation = true
+        root.translationLines = []
         root.transError = ""
-        root.transSourceText = text
-        root.transResultText = ""
-        root.transTargetLang = targetLang || root.transTargetLang
+        root.transBusy = true
+        ocrLinesProc.accumulatedOutput = ""
+        ocrLinesProc.command = ["mujo-screenshot", "ocr-lines", Math.round(frameSelX), Math.round(frameSelY), Math.round(selWidth), Math.round(selHeight)]
+        ocrLinesProc.running = true
+    }
+
+    // Re-translates the OCR result already in hand — used when the language
+    // changes, so switching targets costs one network call and no tesseract pass.
+    function runTranslate() {
+        if (root.srcLines.length === 0) return
+        var joined = root.srcLines.map(function(l) { return l.text }).join("\n")
+        root.translationLines = []
+        root.transError = ""
+        root.transBusy = true
         transProc.accumulatedOutput = ""
-        transProc.command = ["mujo-screenshot", "translate", root.transTargetLang, text]
+        transProc.command = ["mujo-screenshot", "translate", root.transTargetLang, joined]
         transProc.running = true
+    }
+
+    function setTargetLang(lang) {
+        if (!lang || lang === root.transTargetLang) return
+        root.transTargetLang = lang
+        if (root.showTranslation)
+            root.runTranslate()
+    }
+
+    function placeTranslation(result) {
+        var out = result.split("\n")
+        if (out.length === root.srcLines.length) {
+            root.translationLines = root.srcLines.map(function(l, i) {
+                return { x: l.x, y: l.y, w: l.w, h: l.h, text: out[i] }
+            })
+            return
+        }
+        // `trans` merged or split lines, so index N no longer means line N.
+        // Pinning text to the wrong words is worse than not pinning it: fall back
+        // to one plate over the whole selection. Same path covers a selection
+        // whose text OCR could not break into lines.
+        root.translationLines = [{
+            x: 0,
+            y: 0,
+            w: root.srcWidth,
+            h: root.srcHeight,
+            text: result.trim()
+        }]
     }
 
     // ─── Multi-Monitor Fullscreen Overlays ───────────────────────────────────
@@ -231,20 +344,20 @@ Item {
 
                 Keys.onPressed: function(event) {
                     if (event.key === Qt.Key_Escape) {
-                        if (root.showOcrCard || root.showTranslateCard) {
+                        if (root.showOcrCard || root.showTranslation) {
                             root.showOcrCard = false
-                            root.showTranslateCard = false
+                            root.clearTranslation()
                         } else {
                             root.close()
                         }
                         event.accepted = true
                     } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                        if (root.hasSelection && !root.showOcrCard && !root.showTranslateCard) {
+                        if (root.hasSelection && !root.showOcrCard && !root.showTranslation) {
                             root.doCopy()
                         }
                         event.accepted = true
                     } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_C) {
-                        if (root.hasSelection && !root.showOcrCard && !root.showTranslateCard) {
+                        if (root.hasSelection && !root.showOcrCard && !root.showTranslation) {
                             root.doCopy()
                         }
                         event.accepted = true
@@ -259,25 +372,7 @@ Item {
                         }
                         event.accepted = true
                     } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_T) {
-                        if (root.hasSelection) {
-                            root.showTranslateCard = true
-                            root.showOcrCard = false
-                            root.transBusy = true
-                            root.transError = ""
-                            root.ocrBusy = true
-                            root.ocrResultText = ""
-                            ocrProc.accumulatedOutput = ""
-                            ocrProc.command = ["mujo-screenshot", "ocr", Math.round(globalSelX), Math.round(globalSelY), Math.round(selWidth), Math.round(selHeight)]
-                            ocrProc.cb = function() {
-                                if (ocrProc.accumulatedOutput.trim() !== "") {
-                                    root.doTranslate(ocrProc.accumulatedOutput.trim(), root.transTargetLang)
-                                } else {
-                                    root.transBusy = false
-                                    root.transError = "No text detected to translate."
-                                }
-                            }
-                            ocrProc.running = true
-                        }
+                        root.doTranslate()
                         event.accepted = true
                     } else if (event.key === Qt.Key_A) {
                         root.showAnnotations = !root.showAnnotations
@@ -289,8 +384,8 @@ Item {
             // Frozen background frame
             Image {
                 id: bgImage
-                x: -(screenWindow.screen ? screenWindow.screen.x : 0)
-                y: -(screenWindow.screen ? screenWindow.screen.y : 0)
+                x: -((screenWindow.screen ? screenWindow.screen.x : 0) - root.frameOrigin.x)
+                y: -((screenWindow.screen ? screenWindow.screen.y : 0) - root.frameOrigin.y)
                 source: root.rawImagePath
                 asynchronous: false
                 cache: false
@@ -340,7 +435,7 @@ Item {
                 id: dragArea
                 anchors.fill: parent
                 cursorShape: Qt.CrossCursor
-                enabled: !root.showOcrCard && !root.showTranslateCard
+                enabled: !root.showOcrCard && !root.showTranslation
 
                 property int startX: 0
                 property int startY: 0
@@ -378,7 +473,7 @@ Item {
                 selY: root.selY
                 selWidth: root.selWidth
                 selHeight: root.selHeight
-                resizable: !root.isDragging && !root.showOcrCard && !root.showTranslateCard
+                resizable: !root.isDragging && !root.showOcrCard && !root.showTranslation
 
                 onMoved: function(nx, ny) {
                     root.selX = nx
@@ -415,29 +510,14 @@ Item {
                 selWidth: root.selWidth
                 selHeight: root.selHeight
                 annotateActive: root.showAnnotations
+                translateActive: root.showTranslation
+                targetLang: root.transTargetLang
 
                 onCopyRequested: root.doCopy()
                 onSaveRequested: root.doSave()
                 onOcrRequested: root.doOcr()
-                onTranslateRequested: {
-                    if (root.hasSelection) {
-                        root.showTranslateCard = true
-                        root.showOcrCard = false
-                        root.transBusy = true
-                        root.transError = ""
-                        ocrProc.accumulatedOutput = ""
-                        ocrProc.command = ["mujo-screenshot", "ocr", Math.round(globalSelX), Math.round(globalSelY), Math.round(selWidth), Math.round(selHeight)]
-                        ocrProc.cb = function() {
-                            if (ocrProc.accumulatedOutput.trim() !== "") {
-                                root.doTranslate(ocrProc.accumulatedOutput.trim(), root.transTargetLang)
-                            } else {
-                                root.transBusy = false
-                                root.transError = "No text detected to translate."
-                            }
-                        }
-                        ocrProc.running = true
-                    }
-                }
+                onTranslateRequested: root.doTranslate()
+                onLanguageSelected: function(lang) { root.setTargetLang(lang) }
                 onAnnotateToggled: root.showAnnotations = !root.showAnnotations
                 onPinRequested: root.doCopy()
                 onCancelRequested: root.close()
@@ -457,34 +537,23 @@ Item {
                     copyProc.running = true
                 }
                 onTranslateRequested: function(text) {
-                    root.doTranslate(text, root.transTargetLang)
+                    root.showOcrCard = false
+                    root.doTranslate()
                 }
             }
 
-            // ─── Translation Card Modal ──────────────────────────────────────────
-            TranslateCard {
-                visible: root.showTranslateCard
-                anchors.centerIn: parent
-                sourceText: root.transSourceText
-                translatedText: root.transResultText
-                targetLang: root.transTargetLang
+            // ─── In-place Translation Plates ─────────────────────────────────────
+            TranslationOverlay {
+                visible: root.showTranslation
+                selX: root.selX
+                selY: root.selY
+                selWidth: root.selWidth
+                selHeight: root.selHeight
+                sourceWidth: root.srcWidth
+                sourceHeight: root.srcHeight
+                lines: root.translationLines
                 busy: root.transBusy
                 errorMessage: root.transError
-
-                onCloseRequested: root.showTranslateCard = false
-                onCopyRequested: function(text) {
-                    copyProc.command = ["wl-copy", text]
-                    copyProc.running = true
-                }
-                onCopyBothRequested: function(orig, trans) {
-                    var combined = "Original:\n" + orig + "\n\nTranslation:\n" + trans
-                    copyProc.command = ["wl-copy", combined]
-                    copyProc.running = true
-                }
-                onLanguageChanged: function(lang) {
-                    root.transTargetLang = lang
-                    root.doTranslate(root.transSourceText, lang)
-                }
             }
         }
     }

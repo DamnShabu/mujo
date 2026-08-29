@@ -37,11 +37,17 @@ Item {
 
     // Selecting an agent is one action across two stores: ai.provider/ai.agent
     // in settings.json, and llm-default.json (shared with the bar widget).
-    Process { id: useProc; property string agentId: ""; command: ["mujo", "ai", "use", agentId] }
+    Process {
+        id: useProc
+        command: ["mujo", "ai", "use", ""]
+        onExited: (code) => {
+            if (code === 0) AI.refreshAgents()
+        }
+    }
     function useAgent(id) {
         root.bset("ai.provider", "agent")
         root.bset("ai.agent", id)
-        useProc.agentId = id
+        useProc.command = ["mujo", "ai", "use", id]
         useProc.running = true
     }
 
@@ -150,7 +156,7 @@ Item {
                         delegate: DisplayChip {
                             required property var modelData
                             label: modelData.name
-                            selected: root.usingAgent && root.activeAgentId === modelData.id
+                            selected: root.usingAgent && (root.activeAgentId === modelData.id || SettingsBus.get("ai.agent", "") === modelData.id)
                             onClicked: root.useAgent(modelData.id)
                         }
                     }
