@@ -92,19 +92,28 @@ ColumnLayout {
             implicitWidth: clrLabel.implicitWidth + 18
             implicitHeight: 26
             radius: Theme.radiusSm
-            color: clrHh.hovered ? Theme.surfaceHover : Theme.surface
-            border.color: clrHh.hovered ? Theme.borderInteractive : Theme.borderStrong
+            color: clrMa.pressed ? Theme.surfaceActive : (clrMa.containsMouse ? Theme.surfaceHover : Theme.surface)
+            border.color: clrMa.containsMouse ? Theme.borderInteractive : Theme.borderStrong
+
+            scale: Anim.microInteractions ? (clrMa.pressed ? 0.94 : 1.0) : 1.0
+            Behavior on scale { NumberAnimation { duration: Anim.d(Anim.fast) } }
+            Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
             Text {
                 id: clrLabel
                 anchors.centerIn: parent
                 text: "Clear all"
-                color: clrHh.hovered ? Theme.text : Theme.textSecondary
+                color: clrMa.containsMouse ? Theme.text : Theme.textSecondary
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
             }
-            HoverHandler { id: clrHh; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: Notifications.clearHistory() }
+            MouseArea {
+                id: clrMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: Notifications.clearHistory()
+            }
         }
     }
 
@@ -313,25 +322,55 @@ ColumnLayout {
                             Item { Layout.fillWidth: true }
 
                             // Clear Group Button
-                            MaterialIcon {
+                            Rectangle {
                                 visible: grpHh.hovered
-                                iconName: "delete_sweep"
-                                pixelSize: 14
-                                color: clrGrpHh.hovered ? Theme.error : Theme.textDim
+                                implicitWidth: 20
+                                implicitHeight: 20
+                                radius: Theme.radiusSm
+                                color: clrGrpMa.containsMouse ? Theme.withAlpha(Theme.error, 0.2) : "transparent"
                                 Layout.alignment: Qt.AlignVCenter
-                                HoverHandler { id: clrGrpHh; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: Notifications.clearAppHistory(grp.modelData.appName) }
+
+                                MaterialIcon {
+                                    anchors.centerIn: parent
+                                    iconName: "delete_sweep"
+                                    pixelSize: 14
+                                    color: clrGrpMa.containsMouse ? Theme.error : Theme.textDim
+                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                }
+                                MouseArea {
+                                    id: clrGrpMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    preventStealing: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: Notifications.clearAppHistory(grp.modelData.appName)
+                                }
                             }
 
                             // Mute App Button
-                            MaterialIcon {
+                            Rectangle {
                                 visible: grpHh.hovered
-                                iconName: "volume_off"
-                                pixelSize: 14
-                                color: muteGrpHh.hovered ? Theme.warning : Theme.textDim
+                                implicitWidth: 20
+                                implicitHeight: 20
+                                radius: Theme.radiusSm
+                                color: muteGrpMa.containsMouse ? Theme.withAlpha(Theme.warning, 0.2) : "transparent"
                                 Layout.alignment: Qt.AlignVCenter
-                                HoverHandler { id: muteGrpHh; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: Notifications.muteApp(grp.modelData.appName, true) }
+
+                                MaterialIcon {
+                                    anchors.centerIn: parent
+                                    iconName: "volume_off"
+                                    pixelSize: 14
+                                    color: muteGrpMa.containsMouse ? Theme.warning : Theme.textDim
+                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                }
+                                MouseArea {
+                                    id: muteGrpMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    preventStealing: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: Notifications.muteApp(grp.modelData.appName, true)
+                                }
                             }
 
                             // Chevron toggle
@@ -343,8 +382,13 @@ ColumnLayout {
                             }
                         }
 
-                        TapHandler {
-                            onTapped: {
+                        MouseArea {
+                            id: grpMa
+                            anchors.fill: parent
+                            z: -1
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
                                 var e = Object.assign({}, root.expanded)
                                 e[grp.modelData.appName] = !grp.isExpanded
                                 root.expanded = e
@@ -402,13 +446,28 @@ ColumnLayout {
                                             font.pixelSize: Theme.fontSizeLabel
                                         }
 
-                                        MaterialIcon {
-                                            iconName: "close"
-                                            pixelSize: 14
-                                            color: dismissHover.hovered ? Theme.error : Theme.textDim
+                                        Rectangle {
+                                            implicitWidth: 20
+                                            implicitHeight: 20
+                                            radius: Theme.radiusSm
+                                            color: dismissMa.containsMouse ? Theme.withAlpha(Theme.error, 0.2) : "transparent"
                                             Layout.alignment: Qt.AlignVCenter
-                                            HoverHandler { id: dismissHover; cursorShape: Qt.PointingHandCursor }
-                                            TapHandler { onTapped: Notifications.removeHistory(rec.id) }
+
+                                            MaterialIcon {
+                                                anchors.centerIn: parent
+                                                iconName: "close"
+                                                pixelSize: 14
+                                                color: dismissMa.containsMouse ? Theme.error : Theme.textDim
+                                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                            }
+                                            MouseArea {
+                                                id: dismissMa
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                preventStealing: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: Notifications.removeHistory(rec.id)
+                                            }
                                         }
                                     }
 
@@ -424,6 +483,46 @@ ColumnLayout {
                                         elide: Text.ElideRight
                                         textFormat: Text.StyledText
                                         onLinkActivated: function(link) { Qt.openUrlExternally(link) }
+                                    }
+
+                                    // Attached image preview in history
+                                    Loader {
+                                        id: histImgLoader
+                                        Layout.fillWidth: true
+                                        readonly property string resolvedImg: Notifications.resolveImage(rec.image)
+                                        active: resolvedImg !== ""
+                                        visible: active && item !== null && item.hasLoaded
+
+                                        sourceComponent: Component {
+                                            Item {
+                                                id: histImgItem
+                                                width: histImgLoader.width
+                                                property bool hasLoaded: histImg.status === Image.Ready
+                                                implicitHeight: hasLoaded ? Math.min(100, Math.max(50, histImg.implicitWidth > 0
+                                                    ? Math.round(histImg.implicitHeight * itemCol.width / histImg.implicitWidth)
+                                                    : 70)) : 0
+
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    radius: Theme.radiusSm
+                                                    color: Theme.bg
+                                                    border.color: Theme.border
+                                                    border.width: 1
+                                                    clip: true
+
+                                                    Image {
+                                                        id: histImg
+                                                        anchors.fill: parent
+                                                        anchors.margins: 2
+                                                        source: histImgLoader.resolvedImg
+                                                        fillMode: Image.PreserveAspectFit
+                                                        smooth: true
+                                                        asynchronous: true
+                                                        visible: status === Image.Ready
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
 
                                     // Progress bar if recorded
@@ -446,17 +545,29 @@ ColumnLayout {
                         }
 
                         // Expand / Collapse +N items
-                        Text {
+                        Rectangle {
                             visible: grp.modelData.items.length > 3
-                            text: grp.isExpanded ? "Show less" : ("+" + (grp.modelData.items.length - 3) + " more")
-                            color: Theme.accent
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
+                            implicitWidth: moreTxt.implicitWidth + 12
+                            implicitHeight: 22
+                            radius: Theme.radiusSm
+                            color: moreMa.containsMouse ? Theme.surfaceHover : "transparent"
                             Layout.leftMargin: 4
-                            HoverHandler { id: moreHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler {
-                                onTapped: {
+
+                            Text {
+                                id: moreTxt
+                                anchors.centerIn: parent
+                                text: grp.isExpanded ? "Show less" : ("+" + (grp.modelData.items.length - 3) + " more")
+                                color: Theme.accent
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: true
+                            }
+                            MouseArea {
+                                id: moreMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
                                     var e = Object.assign({}, root.expanded)
                                     e[grp.modelData.appName] = !grp.isExpanded
                                     root.expanded = e

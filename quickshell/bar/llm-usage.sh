@@ -21,6 +21,7 @@
 # detected provider.
 set -euo pipefail
 
+PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un 2>/dev/null || echo "yurii")}/bin:${HOME}/.nix-profile/bin:${PATH}"
 HOME_DIR="${HOME}"
 DEFAULT_FILE="${HOME_DIR}/.config/qsshell/llm-default.json"
 
@@ -373,7 +374,7 @@ antigravity_tokens() {
       | (if $weight > 0
          then reduce ($e.models | to_entries[]) as $m (.;
                 .model[pretty($m.key)] += (($t * $m.value / $weight) | floor))
-         else . end)
+         else .model["Gemini 3.7 Flash"] += $t end)
       | if $ts == null then .
         else reduce range(0; $days | length) as $i (.;
                if ($ts >= $days[$i].start and $ts < $days[$i].end)
@@ -574,9 +575,15 @@ providers="$(
   } | jq -s '.'
 )"
 
-# Persisted "default"/active provider selection (written by the widget tabs).
+# Persisted "default"/active provider selection (checked from settings.json and llm-default.json).
+SETTINGS_FILE="${HOME_DIR}/.config/qsshell/settings.json"
 selected=""
-[[ -f "${DEFAULT_FILE}" ]] && selected="$(jq -r '.default // empty' "${DEFAULT_FILE}" 2>/dev/null || true)"
+if [[ -f "${SETTINGS_FILE}" ]]; then
+  selected="$(jq -r '.ai.agent // empty' "${SETTINGS_FILE}" 2>/dev/null || true)"
+fi
+if [[ -z "${selected}" && -f "${DEFAULT_FILE}" ]]; then
+  selected="$(jq -r '.default // empty' "${DEFAULT_FILE}" 2>/dev/null || true)"
+fi
 
 jq -n --argjson providers "${providers:-[]}" --arg selected "${selected}" '
   ($providers | map(.id)) as $ids |

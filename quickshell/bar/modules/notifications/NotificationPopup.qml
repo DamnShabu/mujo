@@ -47,14 +47,14 @@ PanelWindow {
         id: toastCol
         width: 390
         spacing: 10
-        anchors.top: win.atBottom ? undefined : parent.top
-        anchors.bottom: win.atBottom ? parent.bottom : undefined
-        anchors.left: win.atRight ? undefined : parent.left
-        anchors.right: win.atRight ? parent.right : undefined
-        anchors.leftMargin: 14
-        anchors.rightMargin: 14
-        anchors.topMargin: win.atBottom ? 0 : (Theme.barHeight + Theme.barMargin * 2 + 10)
-        anchors.bottomMargin: win.atBottom ? 14 : 0
+        // Positioned with x/y, not anchors: `anchors.top: cond ? parent.top : undefined`
+        // does not release the opposite anchor when `corner` changes after settings
+        // load, so both vertical anchors stayed live and drove the column height
+        // negative — which collapsed the input mask below and made the whole
+        // overlay click-through (no hover, no click, no swipe).
+        x: win.atRight ? parent.width - width - 14 : 14
+        y: win.atBottom ? parent.height - height - 14
+                        : Theme.barHeight + Theme.barMargin * 2 + 10
 
         Repeater {
             id: toastRepeater
@@ -65,14 +65,31 @@ PanelWindow {
                 required property var modelData
                 readonly property var rec: modelData.rec
                 width: toastCol.width
-                height: toastCard.height
+                height: toastCard.height + 4
 
                 // Swipe-to-dismiss displacement
                 property real dragX: 0
                 property bool isDragging: false
                 property bool swipedOut: false
 
-                onIsDraggingChanged: {
+                // Rich media (album art, screenshots). One cheap 32px probe decode gives the
+                // aspect ratio, which decides whether the image reads as a square thumbnail
+                // beside the text or as a wide banner below it.
+                readonly property string mediaSource: Notifications.resolveImage(rec.image)
+                readonly property bool mediaReady: mediaProbe.status === Image.Ready
+                readonly property real mediaAspect: mediaProbe.implicitHeight > 0
+                    ? mediaProbe.implicitWidth / mediaProbe.implicitHeight : 1
+                readonly property bool mediaWide: mediaAspect > 1.6
+
+                Image {
+                    id: mediaProbe
+                    source: delegateRoot.mediaSource
+                    sourceSize.width: 32        // aspect ratio only; never painted
+                    asynchronous: true
+                    visible: false
+                }
+
+                function checkGlobalDragging() {
                     var dragging = false
                     for (var i = 0; i < toastRepeater.count; i++) {
                         var it = toastRepeater.itemAt(i)
@@ -84,9 +101,19 @@ PanelWindow {
                     win.anyDragging = dragging
                 }
 
+                onIsDraggingChanged: checkGlobalDragging()
+
+                function dismissWithAnim(direction) {
+                    if (swipedOut) return
+                    swipedOut = true
+                    var dir = direction !== undefined ? direction : (win.atRight ? 1 : -1)
+                    dismissAnim.targetX = dir > 0 ? (toastCol.width + 120) : -(toastCol.width + 120)
+                    dismissAnim.start()
+                }
+
                 // Entrance animation
                 Component.onCompleted: {
-                    if (delegateRoot.rec.id === Notifications.lastPushedId)
+                    if (delegateRoot.rec && delegateRoot.rec.id === Notifications.lastPushedId)
                         enterAnim.start()
                 }
 
@@ -102,7 +129,7 @@ PanelWindow {
                     NumberAnimation {
                         target: delegateRoot
                         property: "dragX"
-                        from: win.atRight ? 80 : -80; to: 0
+                        from: win.atRight ? 90 : -90; to: 0
                         duration: Anim.d(Anim.enter)
                         easing.type: Anim.easeEnter
                     }
@@ -116,17 +143,17 @@ PanelWindow {
                         target: delegateRoot
                         property: "dragX"
                         to: dismissAnim.targetX
-                        duration: Anim.d(Anim.fast)
-                        easing.type: Easing.OutQuad
+                        duration: Anim.d(160)
+                        easing.type: Easing.OutCubic
                     }
                     NumberAnimation {
                         target: toastCard
                         property: "opacity"
                         to: 0
-                        duration: Anim.d(Anim.fast)
-                        easing.type: Easing.OutQuad
+                        duration: Anim.d(160)
+                        easing.type: Easing.OutCubic
                     }
-                    onFinished: Notifications.dismissPopup(delegateRoot.rec.id)
+                    onFinished: Notifications.closePopup(delegateRoot.rec.id)
                 }
 
                 // Return spring animation when released below threshold
@@ -135,43 +162,70 @@ PanelWindow {
                     target: delegateRoot
                     property: "dragX"
                     to: 0
-                    duration: Anim.d(Anim.standard)
+                    duration: Anim.d(180)
                     easing.type: Anim.easeStandard
                 }
 
-                // MultiEffect elevation drop shadow
-                Rectangle {
-                    id: shadowSrc
-                    anchors.fill: toastCard
-                    radius: toastCard.radius
-                    color: "#000000"
-                    visible: false
-                    layer.enabled: true
-                }
+                // Swipe-to-dismiss drag area attached to stationary delegateRoot
+                MouseArea {
+                    id: cardSwipeArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
 
-                MultiEffect {
-                    anchors.fill: shadowSrc
-                    source: shadowSrc
-                    autoPaddingEnabled: true
-                    shadowEnabled: true
-                    shadowColor: "#000000"
-                    shadowBlur: 0.7
-                    shadowVerticalOffset: 4
-                    shadowOpacity: 0.5
-                    opacity: toastCard.opacity
-                    x: toastCard.x
-                    rotation: toastCard.rotation
+                    property real startX: 0
+                    property bool isSwiping: false
+
+                    onPressed: function(mouse) {
+                        startX = mouse.x
+                        isSwiping = false
+                        returnAnim.stop()
+                    }
+
+                    onPositionChanged: function(mouse) {
+                        if (pressed) {
+                            var diff = mouse.x - startX
+                            if (!isSwiping && Math.abs(diff) > 5) {
+                                isSwiping = true
+                                delegateRoot.isDragging = true
+                            }
+                            if (isSwiping) {
+                                delegateRoot.dragX = diff
+                            }
+                        }
+                    }
+
+                    onReleased: function(mouse) {
+                        if (isSwiping) {
+                            delegateRoot.isDragging = false
+                            isSwiping = false
+                            if (Math.abs(delegateRoot.dragX) > 60) {
+                                delegateRoot.dismissWithAnim(delegateRoot.dragX > 0 ? 1 : -1)
+                            } else {
+                                returnAnim.start()
+                            }
+                        } else {
+                            Notifications.invokeDefault(delegateRoot.rec.id)
+                        }
+                    }
+
+                    onCanceled: {
+                        delegateRoot.isDragging = false
+                        isSwiping = false
+                        returnAnim.start()
+                    }
                 }
 
                 Rectangle {
                     id: toastCard
+                    z: 1
                     width: parent.width
                     height: cardLayout.implicitHeight + 24
                     radius: Theme.radiusLg
                     color: Theme.bg
                     x: delegateRoot.dragX
-                    rotation: (delegateRoot.dragX / toastCol.width) * 3
-                    opacity: delegateRoot.swipedOut ? 0.0 : Math.max(0.15, 1.0 - Math.abs(delegateRoot.dragX) / 260)
+                    rotation: (delegateRoot.dragX / toastCol.width) * 3.5
+                    opacity: delegateRoot.swipedOut ? 0.0 : Math.max(0.12, 1.0 - (Math.abs(delegateRoot.dragX) / (toastCol.width * 0.75)))
 
                     border.color: delegateRoot.rec.urgency === "critical"
                                 ? Theme.error
@@ -189,7 +243,7 @@ PanelWindow {
                         height: 1
                         radius: Theme.radiusLg
                         color: delegateRoot.rec.urgency === "critical"
-                             ? Theme.withAlpha(Theme.error, 0.4)
+                             ? Theme.withAlpha(Theme.error, 0.45)
                              : Theme.withAlpha("#ffffff", 0.08)
                     }
 
@@ -201,35 +255,6 @@ PanelWindow {
                         border.color: Theme.withAlpha(Theme.error, Anim.breath(0.2, 0.6))
                         border.width: 2
                         visible: delegateRoot.rec.urgency === "critical" && Anim.ambient
-                    }
-
-                    // Swipe gesture handler
-                    DragHandler {
-                        id: swipeHandler
-                        target: null
-                        xAxis.enabled: true
-                        yAxis.enabled: false
-                        grabPermissions: PointerHandler.CanTakeOverFromAnything
-
-                        onActiveChanged: {
-                            delegateRoot.isDragging = active
-                            if (!active) {
-                                if (Math.abs(delegateRoot.dragX) > 85) {
-                                    delegateRoot.swipedOut = true
-                                    dismissAnim.targetX = delegateRoot.dragX > 0 ? (toastCol.width + 120) : -(toastCol.width + 120)
-                                    dismissAnim.start()
-                                } else {
-                                    returnAnim.start()
-                                }
-                            } else {
-                                returnAnim.stop()
-                            }
-                        }
-                        onTranslationChanged: {
-                            if (active) {
-                                delegateRoot.dragX = translation.x
-                            }
-                        }
                     }
 
                     // Auto-dismiss Timer
@@ -244,12 +269,11 @@ PanelWindow {
                             expiry.remaining -= expiry.interval
                             if (expiry.remaining <= 0) {
                                 running = false
-                                delegateRoot.swipedOut = true
-                                dismissAnim.targetX = win.atRight ? (toastCol.width + 120) : -(toastCol.width + 120)
-                                dismissAnim.start()
+                                delegateRoot.dismissWithAnim(win.atRight ? 1 : -1)
                             }
                         }
                     }
+
                     HoverHandler { id: toastHover }
 
                     ColumnLayout {
@@ -262,7 +286,7 @@ PanelWindow {
                         }
                         spacing: 8
 
-                        // ── 1. Header: App identity, urgency badge, actions ──
+                        // ── 1. Header: App identity, time, snooze & close actions ──
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
@@ -356,60 +380,120 @@ PanelWindow {
 
                             // Snooze Button
                             Rectangle {
-                                implicitWidth: 24
-                                implicitHeight: 24
+                                implicitWidth: 26
+                                implicitHeight: 26
                                 radius: Theme.radiusSm
-                                color: snzHh.hovered ? Theme.surfaceHover : "transparent"
-                                border.color: snzHh.hovered ? Theme.borderStrong : "transparent"
+                                color: snzMa.pressed ? Theme.surfaceActive : (snzMa.containsMouse ? Theme.surfaceHover : "transparent")
+                                border.color: snzMa.containsMouse ? Theme.borderStrong : "transparent"
                                 border.width: 1
                                 Layout.alignment: Qt.AlignVCenter
+
+                                scale: Anim.microInteractions ? (snzMa.pressed ? 0.92 : (snzMa.containsMouse ? 1.05 : 1.0)) : 1.0
+                                Behavior on scale { NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Anim.easeStandard } }
+                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
                                 MaterialIcon {
                                     anchors.centerIn: parent
                                     iconName: "schedule"
-                                    pixelSize: 14
-                                    color: snzHh.hovered ? Theme.accent : Theme.textDim
+                                    pixelSize: 15
+                                    color: snzMa.containsMouse ? Theme.accent : Theme.textDim
+                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
                                 }
-                                HoverHandler { id: snzHh; cursorShape: Qt.PointingHandCursor }
-                                TapHandler {
-                                    gesturePolicy: TapHandler.ReleaseWithinBounds
-                                    onTapped: Notifications.snooze(delegateRoot.rec.id, 5)
+                                MouseArea {
+                                    id: snzMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    preventStealing: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        delegateRoot.dismissWithAnim()
+                                        Notifications.snooze(delegateRoot.rec.id, 5)
+                                    }
                                 }
                             }
 
                             // Close Button
                             Rectangle {
-                                implicitWidth: 24
-                                implicitHeight: 24
+                                implicitWidth: 26
+                                implicitHeight: 26
                                 radius: Theme.radiusSm
-                                color: clsHh.hovered ? Theme.withAlpha(Theme.error, 0.18) : "transparent"
-                                border.color: clsHh.hovered ? Theme.withAlpha(Theme.error, 0.4) : "transparent"
+                                color: clsMa.pressed ? Theme.withAlpha(Theme.error, 0.3) : (clsMa.containsMouse ? Theme.withAlpha(Theme.error, 0.18) : "transparent")
+                                border.color: clsMa.containsMouse ? Theme.withAlpha(Theme.error, 0.45) : "transparent"
                                 border.width: 1
                                 Layout.alignment: Qt.AlignVCenter
+
+                                scale: Anim.microInteractions ? (clsMa.pressed ? 0.92 : (clsMa.containsMouse ? 1.05 : 1.0)) : 1.0
+                                Behavior on scale { NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Anim.easeStandard } }
+                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
                                 MaterialIcon {
                                     anchors.centerIn: parent
                                     iconName: "close"
-                                    pixelSize: 14
-                                    color: clsHh.hovered ? Theme.error : Theme.textDim
+                                    pixelSize: 15
+                                    color: clsMa.containsMouse ? Theme.error : Theme.textDim
+                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
                                 }
-                                HoverHandler { id: clsHh; cursorShape: Qt.PointingHandCursor }
-                                TapHandler {
-                                    gesturePolicy: TapHandler.ReleaseWithinBounds
-                                    onTapped: Notifications.closePopup(delegateRoot.rec.id)
+                                MouseArea {
+                                    id: clsMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    preventStealing: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: delegateRoot.dismissWithAnim()
                                 }
                             }
                         }
 
-                        // ── 2. Content: Summary & Formatted Body ──
-                        Item {
+                        // ── 2. Content: media thumbnail + summary & body ──
+                        RowLayout {
                             Layout.fillWidth: true
-                            implicitHeight: textContentCol.implicitHeight
+                            spacing: 10
+
+                            // Square-ish art sits beside the text, so the card keeps a steady
+                            // height instead of swinging with whatever the app sent.
+                            Item {
+                                id: thumbSlot
+                                visible: delegateRoot.mediaReady && !delegateRoot.mediaWide
+                                Layout.preferredWidth: 56
+                                Layout.preferredHeight: 56
+                                Layout.alignment: Qt.AlignTop
+
+                                Image {
+                                    id: thumbImg
+                                    anchors.fill: parent
+                                    source: thumbSlot.visible ? delegateRoot.mediaSource : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    sourceSize.width: 112
+                                    sourceSize.height: 112
+                                    asynchronous: true
+                                    smooth: true
+                                    visible: false          // painted through the mask below
+                                }
+
+                                Rectangle {
+                                    id: thumbMask
+                                    anchors.fill: parent
+                                    radius: Theme.radiusMd
+                                    visible: false
+                                    layer.enabled: true
+                                }
+
+                                // Genuine rounded corners. `clip` only ever cuts a rectangle, which is
+                                // why the old banner left square corners poking out of its rounded frame.
+                                MultiEffect {
+                                    anchors.fill: parent
+                                    source: thumbImg
+                                    maskEnabled: true
+                                    maskSource: thumbMask
+                                }
+                            }
 
                             ColumnLayout {
                                 id: textContentCol
-                                anchors.left: parent.left
-                                anchors.right: parent.right
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
                                 spacing: 4
 
                                 Text {
@@ -434,58 +518,49 @@ PanelWindow {
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontSizeSmall
                                     wrapMode: Text.WordWrap
-                                    maximumLineCount: 4
+                                    maximumLineCount: 5
                                     elide: Text.ElideRight
                                     textFormat: Text.StyledText
                                     onLinkActivated: function(link) { Qt.openUrlExternally(link) }
                                 }
                             }
-
-                            HoverHandler { id: textHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler {
-                                gesturePolicy: TapHandler.ReleaseWithinBounds
-                                onTapped: Notifications.invokeDefault(delegateRoot.rec.id)
-                            }
                         }
 
-                        // ── 3. Rich Image Banner / Thumbnail ──
+                        // ── 3. Wide media banner ──
+                        // Inset by cardLayout's padding rather than bled to the card edge: flush
+                        // corners are square and collide with the card's own radius. No MouseArea
+                        // here either — the old one swallowed presses, so a swipe that started on
+                        // the image never began.
                         Item {
-                            id: richImgContainer
+                            id: bannerSlot
+                            visible: delegateRoot.mediaReady && delegateRoot.mediaWide
                             Layout.fillWidth: true
-                            readonly property string resolvedImg: Notifications.resolveImage(delegateRoot.rec.image)
-                            visible: resolvedImg !== "" && richImg.status !== Image.Error
-                            implicitHeight: visible ? (richImg.status === Image.Ready ? Math.min(160, Math.max(80, richImg.implicitHeight > 0 ? (richImg.implicitHeight * (toastCol.width - 24) / Math.max(1, richImg.implicitWidth)) : 120)) : 110) : 0
+                            Layout.preferredHeight: Math.min(150, Math.round(width / Math.max(0.1, delegateRoot.mediaAspect)))
 
-                            Behavior on implicitHeight {
-                                NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Easing.OutCubic }
+                            Image {
+                                id: bannerImg
+                                anchors.fill: parent
+                                source: bannerSlot.visible ? delegateRoot.mediaSource : ""
+                                fillMode: Image.PreserveAspectCrop
+                                sourceSize.width: 780
+                                asynchronous: true
+                                smooth: true
+                                visible: false          // painted through the mask below
                             }
 
                             Rectangle {
+                                id: bannerMask
                                 anchors.fill: parent
                                 radius: Theme.radiusMd
-                                color: Theme.surface
-                                border.color: Theme.border
-                                border.width: 1
-                                clip: true
-
-                                Image {
-                                    id: richImg
-                                    anchors.fill: parent
-                                    source: richImgContainer.resolvedImg
-                                    fillMode: Image.PreserveAspectCrop
-                                    smooth: true
-                                    asynchronous: true
-                                    opacity: status === Image.Ready ? 1 : 0
-                                    Behavior on opacity {
-                                        NumberAnimation { duration: Anim.d(Anim.fast) }
-                                    }
-                                }
+                                visible: false
+                                layer.enabled: true
                             }
 
-                            HoverHandler { id: imgHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler {
-                                gesturePolicy: TapHandler.ReleaseWithinBounds
-                                onTapped: Notifications.invokeDefault(delegateRoot.rec.id)
+                            MultiEffect {
+                                anchors.fill: parent
+                                source: bannerImg
+                                maskEnabled: true
+                                maskSource: bannerMask
                             }
                         }
 
@@ -550,21 +625,29 @@ PanelWindow {
                             Rectangle {
                                 implicitWidth: 32; implicitHeight: 32
                                 radius: Theme.radiusSm
-                                color: replyBtnHh.hovered ? Theme.accent : Theme.accentDim
+                                color: replyMa.pressed ? Theme.accent : (replyMa.containsMouse ? Theme.accentDim : Theme.surface)
                                 border.color: Theme.accent
                                 border.width: 1
                                 Layout.alignment: Qt.AlignVCenter
+
+                                scale: Anim.microInteractions ? (replyMa.pressed ? 0.92 : (replyMa.containsMouse ? 1.05 : 1.0)) : 1.0
+                                Behavior on scale { NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Anim.easeStandard } }
+                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
                                 MaterialIcon {
                                     anchors.centerIn: parent
                                     iconName: "arrow_upward"
                                     pixelSize: 16
-                                    color: replyBtnHh.hovered ? Theme.accentText : Theme.accent
+                                    color: replyMa.containsMouse ? Theme.accentText : Theme.accent
+                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
                                 }
-                                HoverHandler { id: replyBtnHh; cursorShape: Qt.PointingHandCursor }
-                                TapHandler {
-                                    gesturePolicy: TapHandler.ReleaseWithinBounds
-                                    onTapped: {
+                                MouseArea {
+                                    id: replyMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    preventStealing: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
                                         if (replyInput.text.trim() !== "") {
                                             Notifications.sendReply(delegateRoot.rec.id, replyInput.text.trim())
                                             replyInput.text = ""
@@ -588,10 +671,12 @@ PanelWindow {
                                     implicitWidth: actRow.implicitWidth + 20
                                     implicitHeight: 28
                                     radius: Theme.radiusSm
-                                    color: actHh.hovered ? (actHh.pressed ? Theme.surfaceActive : Theme.surfaceHover) : Theme.surface
-                                    border.color: actHh.hovered ? Theme.borderInteractive : Theme.borderStrong
+                                    color: actMa.pressed ? Theme.surfaceActive : (actMa.containsMouse ? Theme.surfaceHover : Theme.surface)
+                                    border.color: actMa.containsMouse ? Theme.borderInteractive : Theme.borderStrong
                                     border.width: 1
 
+                                    scale: Anim.microInteractions ? (actMa.pressed ? 0.96 : (actMa.containsMouse ? 1.02 : 1.0)) : 1.0
+                                    Behavior on scale { NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Anim.easeStandard } }
                                     Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
                                     Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
@@ -602,17 +687,21 @@ PanelWindow {
 
                                         Text {
                                             text: actBtn.modelData.text || "Action"
-                                            color: actHh.hovered ? Theme.accent : Theme.text
+                                            color: actMa.containsMouse ? Theme.accent : Theme.text
                                             font.family: Theme.fontFamily
                                             font.pixelSize: Theme.fontSizeSmall
                                             font.bold: true
+                                            Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
                                         }
                                     }
 
-                                    HoverHandler { id: actHh; cursorShape: Qt.PointingHandCursor }
-                                    TapHandler {
-                                        gesturePolicy: TapHandler.ReleaseWithinBounds
-                                        onTapped: Notifications.invokeAction(delegateRoot.rec.id, actBtn.modelData)
+                                    MouseArea {
+                                        id: actMa
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        preventStealing: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: Notifications.invokeAction(delegateRoot.rec.id, actBtn.modelData)
                                     }
                                 }
                             }
@@ -623,4 +712,5 @@ PanelWindow {
         }
     }
 }
+
 

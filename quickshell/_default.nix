@@ -7,7 +7,7 @@
   # models — for a tool whose configured default is `eng+ukr`
   # (mujo-screenshot.sh). Restrict it to the language surface the UI actually
   # offers: the nine translation targets in
-  # bar/modules/screenshot/TranslateCard.qml, plus ukr (the OCR default), rus,
+  # bar/modules/screenshot/FloatingToolbar.qml, plus ukr (the OCR default), rus,
   # and osd (orientation/script detection). 1014 MB -> 276 MB, and nothing the
   # user can pick stops working.
   tesseract = pkgs.tesseract.override {
