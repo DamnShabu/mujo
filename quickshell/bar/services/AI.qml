@@ -56,12 +56,24 @@ QtObject {
         function onSettingsChanged(key) { if (key.indexOf("ai.") === 0) ai.refreshAgents() }
     }
 
-    // Open the active agent interactively in a terminal, seeded with `prompt`.
+    // Open the active (or requested) agent interactively in a terminal, seeded with `prompt`.
     // The launcher's "Open <agent>" palette entry; unlike ask(), this is the
     // user's own session, so no read-only restriction applies.
-    function openInTerminal(prompt) {
-        var a = ai.activeAgent
-        if (!a || !a.available) return false
+    function openInTerminal(prompt, agentId) {
+        var a = null
+        var targetId = agentId || SettingsBus.get("ai.agent", "") || (ai.activeAgent ? ai.activeAgent.id : "")
+        for (var i = 0; i < (ai.agents || []).length; i++) {
+            if (ai.agents[i].id === targetId && ai.agents[i].available) {
+                a = ai.agents[i]
+                break
+            }
+        }
+        if (!a) a = ai.activeAgent
+        if (!a || !a.available) {
+            var fallbackCmd = targetId === "opencode" ? ["opencode", "run", "-i"] : (targetId === "antigravity" || targetId === "agy" ? ["agy", "-i"] : ["claude"])
+            Launch.terminal(fallbackCmd, targetId ? (targetId.charAt(0).toUpperCase() + targetId.slice(1)) : "Claude Code", "neurology")
+            return true
+        }
         var argv = (a.term || []).slice()
         if (argv.length === 0) return false
         if (prompt && prompt.trim() !== "") argv.push(prompt)

@@ -32,14 +32,31 @@ Item {
     // Scan lifecycle
     property bool loaded: false
     property string loadError: ""
-    readonly property bool loading: usageLoad.running
+    property string activeTabId: ""
 
     // Resolved selected provider ID (synced with settings.json ai.agent and llm-default.json)
     readonly property string selectedId: {
+        if (root.activeTabId !== "") return root.activeTabId
         var agent = SettingsBus.get("ai.agent", "")
         if (agent && agent !== "") return agent
         if (root.defaultId && root.defaultId !== "") return root.defaultId
         return root.providers.length > 0 ? root.providers[0].id : ""
+    }
+
+    Process {
+        id: persistDefault
+        command: ["mujo", "ai", "use", ""]
+        onExited: (code) => {
+            if (code === 0) AI.refreshAgents()
+        }
+    }
+
+    function selectProvider(id) {
+        root.activeTabId = id
+        persistDefault.command = ["mujo", "ai", "use", id]
+        persistDefault.running = true
+        SettingsBus.set("ai.provider", "agent")
+        SettingsBus.set("ai.agent", id)
     }
 
     readonly property var selectedProvider: {
@@ -247,7 +264,7 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: (mouse) => {
                 if (mouse.button === Qt.RightButton) {
-                    AI.openInTerminal()
+                    AI.openInTerminal("", root.selectedId)
                 } else {
                     PopupCoordinator.toggle(root.popupId)
                 }
@@ -425,7 +442,7 @@ Item {
                             iconName: "terminal"
                             Tooltip { text: "Launch terminal session" }
                             onClicked: {
-                                AI.openInTerminal()
+                                AI.openInTerminal("", root.selectedId)
                                 PopupCoordinator.close(root.popupId)
                             }
                         }
@@ -437,6 +454,62 @@ Item {
                             opacity: root.loading ? 1 : 0
                             spinning: opacity > 0
                             Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast) } }
+                        }
+                    }
+
+                    // ---- Provider Switcher Tabs (Claude, Antigravity, OpenCode) ----
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 2
+                        spacing: 6
+                        visible: root.providers.length > 1
+
+                        Repeater {
+                            model: root.providers
+                            delegate: Rectangle {
+                                id: tabBtn
+                                required property var modelData
+                                readonly property bool selected: tabBtn.modelData.id === root.selectedId
+                                Layout.fillWidth: true
+                                implicitHeight: 32
+                                radius: Theme.radiusSm
+                                color: selected ? Theme.accentDim : (tabMa.containsMouse ? Theme.surfaceHover : Theme.surface)
+                                border.color: selected ? Theme.accent : (tabMa.containsMouse ? Theme.borderStrong : Theme.border)
+                                border.width: 1
+
+                                scale: Anim.microInteractions ? (tabMa.pressed ? 0.95 : 1.0) : 1.0
+                                Behavior on scale { NumberAnimation { duration: Anim.d(Anim.fast) } }
+                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 6
+                                    MaterialIcon {
+                                        iconName: tabBtn.modelData.icon || "smart_toy"
+                                        pixelSize: 15
+                                        color: tabBtn.selected ? Theme.accent : Theme.textSecondary
+                                        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                    }
+                                    Text {
+                                        text: tabBtn.modelData.name
+                                        color: tabBtn.selected ? Theme.accent : Theme.textSecondary
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.bold: tabBtn.selected
+                                        elide: Text.ElideRight
+                                        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: tabMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.selectProvider(tabBtn.modelData.id)
+                                }
+                            }
                         }
                     }
 
@@ -711,7 +784,7 @@ Item {
                             primary: true
                             Layout.fillWidth: true
                             onClicked: {
-                                AI.openInTerminal()
+                                AI.openInTerminal("", root.selectedId)
                                 PopupCoordinator.close(root.popupId)
                             }
                         }

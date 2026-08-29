@@ -21,6 +21,7 @@
 # detected provider.
 set -euo pipefail
 
+PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un 2>/dev/null || echo "yurii")}/bin:${HOME}/.nix-profile/bin:${PATH}"
 HOME_DIR="${HOME}"
 DEFAULT_FILE="${HOME_DIR}/.config/qsshell/llm-default.json"
 

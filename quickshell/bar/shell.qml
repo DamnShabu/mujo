@@ -178,9 +178,6 @@ ShellRoot {
         function clear(): void { Shelf.clear() }
     }
 
-    // Right-click context menu on the empty desktop (per screen, below windows).
-    DesktopMenu {}
-
     // Draggable, persistent desktop widgets (clock/weather/system), per screen.
     // Config: ~/.config/qsshell/widgets.json (managed by `mujo widgets`).
     DesktopWidgets {}
@@ -196,11 +193,11 @@ ShellRoot {
             screen: modelData
 
             WlrLayershell.namespace: "qs-scrim"
-            // Sit *below* the bar (Top) and its popups, but above the wallpaper
-            // (Background). If the scrim shared the bar's layer it would re-commit
-            // on top each time it became visible and swallow the next click —
-            // that's what forced multiple clicks to switch/close menus.
-            WlrLayershell.layer: WlrLayer.Bottom
+            // Sits on the Top layer (above normal client windows) with margins
+            // excluding the bar itself. Because it does not overlap the bar, clicks
+            // on the bar reach it directly without being swallowed, while clicks
+            // on any open window or empty desktop dismiss the open popup immediately.
+            WlrLayershell.layer: WlrLayer.Top
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
@@ -210,6 +207,11 @@ ShellRoot {
                 bottom: true
                 left: true
                 right: true
+            }
+
+            margins {
+                top: !Theme.barBottom ? (Theme.barHeight + Theme.barMargin * 2) : 0
+                bottom: Theme.barBottom ? (Theme.barHeight + Theme.barMargin * 2) : 0
             }
 
             visible: PopupCoordinator.hasActivePopup
