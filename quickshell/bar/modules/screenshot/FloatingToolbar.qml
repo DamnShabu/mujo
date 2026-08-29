@@ -11,14 +11,31 @@ Rectangle {
     property int selWidth: 0
     property int selHeight: 0
     property bool annotateActive: false
+    property bool translateActive: false
+    property string targetLang: "en"
 
     signal copyRequested()
     signal saveRequested()
     signal ocrRequested()
     signal translateRequested()
+    signal languageSelected(string lang)
     signal annotateToggled()
     signal pinRequested()
     signal cancelRequested()
+
+    // Moved here from the old TranslateCard: with the translation drawn in place
+    // there is no results window left to hang a language picker off.
+    readonly property var supportedLangs: [
+        { code: "en", name: "English" },
+        { code: "uk", name: "Ukrainian" },
+        { code: "de", name: "German" },
+        { code: "es", name: "Spanish" },
+        { code: "fr", name: "French" },
+        { code: "ja", name: "Japanese" },
+        { code: "pl", name: "Polish" },
+        { code: "it", name: "Italian" },
+        { code: "zh", name: "Chinese" }
+    ]
 
     visible: selWidth > 10 && selHeight > 10
     z: 9998
@@ -157,8 +174,98 @@ Rectangle {
         // Translate
         ToolButton {
             iconName: "translate"
-            toolTipText: "Translate Text (Ctrl+T)"
+            toolTipText: "Translate in place (Ctrl+T)"
+            isToggled: root.translateActive
             onClicked: root.translateRequested()
+        }
+
+        // Target language chip
+        Rectangle {
+            id: langChip
+            property bool open: false
+
+            width: langLabel.implicitWidth + 20
+            height: 26
+            radius: 13
+            Layout.alignment: Qt.AlignVCenter
+            color: langChip.open || langHover.hovered ? Theme.surfaceHover : "transparent"
+            border.color: Theme.border
+            border.width: 1
+
+            Text {
+                id: langLabel
+                anchors.centerIn: parent
+                text: root.targetLang.toUpperCase()
+                font.family: Theme.fontFamily
+                font.pixelSize: 11
+                font.bold: true
+                color: Theme.text
+            }
+
+            HoverHandler { id: langHover }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: langChip.open = !langChip.open
+            }
+
+            // Drops upward: the toolbar already sits below the selection, and a
+            // downward list would fall off the bottom of the screen.
+            Rectangle {
+                visible: langChip.open
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.top
+                anchors.bottomMargin: 8
+                width: 130
+                height: langList.implicitHeight + 8
+                radius: Theme.radiusSm
+                color: Theme.bg
+                border.color: Theme.borderStrong
+                border.width: 1
+                z: 99999
+
+                Column {
+                    id: langList
+                    anchors.fill: parent
+                    anchors.margins: 4
+
+                    Repeater {
+                        model: root.supportedLangs
+
+                        Rectangle {
+                            required property var modelData
+                            width: parent.width
+                            height: 26
+                            radius: Theme.radiusSm
+                            color: itemHover.hovered ? Theme.surfaceHover
+                                 : (modelData.code === root.targetLang ? Theme.withAlpha(Theme.accent, 0.15)
+                                                                       : "transparent")
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: parent.left
+                                anchors.leftMargin: 8
+                                text: modelData.name
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 12
+                                color: modelData.code === root.targetLang ? Theme.accent : Theme.text
+                            }
+
+                            HoverHandler { id: itemHover }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    langChip.open = false
+                                    root.languageSelected(modelData.code)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Divider

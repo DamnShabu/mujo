@@ -1342,7 +1342,7 @@ case "${CMD}" in
 
       locations)
         [[ $# -ge 1 ]] || { echo "Usage: mujo weather locations <query>" >&2; exit 1; }
-        GEO="$(curl -fsSL --max-time 15 -G "https://geocoding-api.open-meteo.com/v1/search" \
+        GEO="$(curl -fsSL --connect-timeout 2 --max-time 5 -G "https://geocoding-api.open-meteo.com/v1/search" \
           --data-urlencode "name=$1" --data-urlencode "count=5" 2>/dev/null)"
         jq -c '[.results[]? | {name, admin1, country, latitude, longitude}]' <<<"${GEO:-{\}}" 2>/dev/null || echo '[]'
         ;;
@@ -1361,13 +1361,13 @@ case "${CMD}" in
         CITY="${NAME}"
         if [[ -z "${LAT}" || -z "${LON}" ]]; then
           if [[ -n "${NAME}" ]]; then
-            GEO="$(curl -fsSL --max-time 15 -G "https://geocoding-api.open-meteo.com/v1/search" --data-urlencode "name=${NAME}" --data-urlencode "count=1" 2>/dev/null)"
+            GEO="$(curl -fsSL --connect-timeout 2 --max-time 5 -G "https://geocoding-api.open-meteo.com/v1/search" --data-urlencode "name=${NAME}" --data-urlencode "count=1" 2>/dev/null)"
             LAT="$(jq -r '.results[0].latitude // empty' <<<"${GEO}")"
             LON="$(jq -r '.results[0].longitude // empty' <<<"${GEO}")"
             CITY="$(jq -r '.results[0].name // empty' <<<"${GEO}")"
           fi
           if [[ -z "${LAT}" || -z "${LON}" ]]; then
-            IP="$(curl -fsSL --max-time 15 "http://ip-api.com/json" 2>/dev/null)"
+            IP="$(curl -fsSL --connect-timeout 2 --max-time 5 "http://ip-api.com/json" 2>/dev/null)"
             LAT="$(jq -r '.lat // empty' <<<"${IP}")"
             LON="$(jq -r '.lon // empty' <<<"${IP}")"
             CITY="$(jq -r '.city // empty' <<<"${IP}")"
@@ -1377,7 +1377,7 @@ case "${CMD}" in
           echo '{"error":"could not resolve location"}'; exit 1
         fi
         if [[ "$(wjq '.weather.units // "metric"')" == "imperial" ]]; then TUNIT="fahrenheit"; WUNIT="mph"; else TUNIT="celsius"; WUNIT="kmh"; fi
-        FC="$(curl -fsSL --max-time 20 -G "https://api.open-meteo.com/v1/forecast" \
+        FC="$(curl -fsSL --connect-timeout 2 --max-time 8 -G "https://api.open-meteo.com/v1/forecast" \
           --data-urlencode "latitude=${LAT}" --data-urlencode "longitude=${LON}" \
           --data-urlencode "current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m" \
           --data-urlencode "daily=temperature_2m_max,temperature_2m_min,weather_code" \
@@ -2049,6 +2049,10 @@ case "${CMD}" in
         mkdir -p "$(dirname "${AI_DEFAULT_FILE}")"
         jq -n --arg d "$1" '{default: $d}' > "${AI_DEFAULT_FILE}.tmp.$$" \
           && mv -f "${AI_DEFAULT_FILE}.tmp.$$" "${AI_DEFAULT_FILE}"
+        if [[ -f "${SETTINGS_CONF}" ]]; then
+          jq --arg a "$1" '.ai = (.ai // {}) | .ai.agent = $a | .ai.provider = "agent"' "${SETTINGS_CONF}" > "${SETTINGS_CONF}.tmp.$$" \
+            && mv -f "${SETTINGS_CONF}.tmp.$$" "${SETTINGS_CONF}"
+        fi
         ;;
       chat)
         MSGS="$(cat)"
@@ -2586,13 +2590,7 @@ case "${CMD}" in
         USER_SYS_PID="$(pgrep -u "$(id -u)" -x systemd 2>/dev/null | head -1 || echo 1)"
         STEAM_RUNNING="$(pgrep -u "$(id -u)" -x steam 2>/dev/null | head -1 || echo '')"
 
-        # Stale/Orphaned VMs (QEMU processes reparented to systemd/init)
-        ORPHAN_VMS="$(ps -eo pid=,ppid=,comm=,args= | awk -v usys="${USER_SYS_PID}" '
-          (($3 ~ /qemu/ || $4 ~ /qemu-system/) && ($2 == 1 || $2 == usys)) { print $1 }
-        ')"
-        ORPHAN_VMS_JSON="$(printf '%s\n' "${ORPHAN_VMS}" | jq -Rs '[split("\n")[] | select(. != "") | tonumber]')"
-
-        # Orphaned helpers (e.g. steamwebhelper running with no steam parent process)
+        # Stale/Orphaned helper processes (e.g. steamwebhelper running with no steam parent process)
         ORPHAN_HELPERS="$(ps -eo pid=,ppid=,comm=,args= | awk -v usys="${USER_SYS_PID}" -v steam="${STEAM_RUNNING}" '
           ($3 ~ /steamwebhelper/ && steam == "" && ($2 == 1 || $2 == usys)) { print $1 }
         ')"
@@ -2601,14 +2599,13 @@ case "${CMD}" in
         SCAN_JSON="$(
           jq -n \
             --argjson procs "${PROCS_JSON}" \
-            --argjson orphanVms "${ORPHAN_VMS_JSON}" \
             --argjson orphanHelpers "${ORPHAN_HELPERS_JSON}" \
             --arg gpu_busy "${GPU_BUSY}" \
             --arg vram_used "${VRAM_USED}" \
             --arg vram_total "${VRAM_TOTAL}" '
             def is_exempt: .comm | test("(^|\\.)(quickshell|niri|agy|claude|opencode|codex|gemini|pi|kitty|ghostty|foot|alacritty|wezterm|zen|firefox|chromium|chrome|brave|systemd|dbus-daemon|wireplumber|pipewire|Xwayland|qemu|qemu-system|nixos-test|nix-test|bash|sh|fish|zsh|ps|awk|jq|sed|grep|rg|ripgrep|rtk|git|nix|nix-daemon)(-|$|\\.)");
             ($procs | map(select(.stat | startswith("Z")))) as $zombies |
-            ($procs | map(select((.stat | startswith("Z") | not) and (.pid as $p | ($orphanVms + $orphanHelpers | index($p) != null))) | . + {type: "orphaned_process", label: "Orphaned Process"})) as $orphans |
+            ($procs | map(select((.stat | startswith("Z") | not) and (.pid as $p | ($orphanHelpers | index($p) != null))) | . + {type: "orphaned_process", label: "Orphaned Process"})) as $orphans |
             ($procs | map(select((.stat | startswith("Z") | not) and .cpu >= 70 and (is_exempt | not)) | . + {type: "cpu_runaway", label: "CPU Runaway"})) as $cpuRunaways |
             ($procs | map(select((.stat | startswith("Z") | not) and (.mem >= 25 or .rssMb >= 3500) and (is_exempt | not)) | . + {type: "mem_hog", label: "Memory Hog"})) as $memHogs |
             ($procs | map(select((.stat | startswith("Z") | not) and (.stat | startswith("D")) and .ppid != 2 and .pid != 2) | . + {type: "d_state", label: "Uninterruptible Disk Wait"})) as $dState |
@@ -2781,7 +2778,7 @@ case "${CMD}" in
           fi
         done < <(ps -eo pid=,ppid=,stat= | awk '$3 ~ /^Z/ {print $1, $2}')
 
-        # 2. Terminate orphaned / reparented VMs and dead helpers
+        # 2. Terminate dead helpers (e.g. steamwebhelper running with no steam parent process)
         USER_SYS_PID="$(pgrep -u "$(id -u)" -x systemd 2>/dev/null | head -1 || echo 1)"
         STEAM_RUNNING="$(pgrep -u "$(id -u)" -x steam 2>/dev/null | head -1 || echo '')"
         while read -r opid; do
@@ -2790,7 +2787,6 @@ case "${CMD}" in
           REAPED=$(( REAPED + 1 ))
           PIDS+=("${opid}")
         done < <(ps -eo pid=,ppid=,comm=,args= | awk -v usys="${USER_SYS_PID}" -v steam="${STEAM_RUNNING}" '
-          (($3 ~ /qemu/ || $4 ~ /qemu-system/) && ($2 == 1 || $2 == usys)) { print $1 }
           ($3 ~ /steamwebhelper/ && steam == "" && ($2 == 1 || $2 == usys)) { print $1 }
         ')
 
@@ -2963,9 +2959,7 @@ case "${CMD}" in
         SANDBOX_DISPLAY_READY=false
         if [[ -n "${SANDBOX_PID}" && -d "/proc/${SANDBOX_PID}" ]]; then
           SANDBOX_STATUS="running"
-          # Opening the socket proves nothing: QEMU accepts on 5920 from the
-          # moment it starts. Read the RFB banner so "display ready" is honest.
-          if timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/5920; read -r -n 3 -u 3 b; [[ $b == RFB ]]' 2>/dev/null; then
+          if timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/5920 && exec 3>&-' 2>/dev/null; then
             SANDBOX_DISPLAY_READY=true
           fi
         fi
@@ -3469,13 +3463,13 @@ EOF
         VM_NAME="$1"
         
         if [[ "${VM_NAME}" == "mujo-sandbox" || "${VM_NAME}" == "sandbox" ]]; then
-          if timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/5920; read -r -n 3 -u 3 b; [[ $b == RFB ]]' 2>/dev/null; then
+          if timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/5920 && exec 3>&-' 2>/dev/null; then
             if command -v remote-viewer >/dev/null 2>&1; then
-              remote-viewer "vnc://127.0.0.1:5920" --title="Mujō Sandbox (AI Workspace)" 9>&- >/dev/null 2>&1 &
-              echo "Connected remote-viewer to Sandbox display (vnc://127.0.0.1:5920)"
+              remote-viewer "spice://127.0.0.1:5920" --title="Mujō Sandbox (AI Workspace)" 9>&- >/dev/null 2>&1 &
+              echo "Connected remote-viewer to Sandbox display (spice://127.0.0.1:5920)"
             elif command -v spicy >/dev/null 2>&1; then
               spicy -h 127.0.0.1 -p 5920 --title="Mujō Sandbox (AI Workspace)" 9>&- >/dev/null 2>&1 &
-              echo "Connected viewer to Sandbox display (127.0.0.1:5920)"
+              echo "Connected viewer to Sandbox display (spice://127.0.0.1:5920)"
             fi
           else
             echo "Sandbox display server (port 5920) is still initializing, please wait a moment..."

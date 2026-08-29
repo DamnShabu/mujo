@@ -77,7 +77,8 @@ ColumnLayout {
 
     DropArea {
         id: viewDrop
-        anchors.fill: parent
+        Layout.fillWidth: true
+        Layout.fillHeight: true
         keys: ["text/uri-list", "text/plain", "text/x-moz-url"]
         onDropped: (e) => {
             if (e.hasUrls) {

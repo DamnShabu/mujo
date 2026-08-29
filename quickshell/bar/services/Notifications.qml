@@ -76,7 +76,7 @@ QtObject {
     // Resolve system icon path for a notification record
     function resolveIcon(rec) {
         if (!rec) return ""
-        var icon = rec.icon || ""
+        var icon = (rec.icon || "").trim()
         // 1. Direct path / URI in icon or image
         if (icon && (icon.indexOf("/") === 0 || icon.indexOf("file://") === 0 || icon.indexOf("image://") === 0 || icon.indexOf("http://") === 0 || icon.indexOf("https://") === 0))
             return icon
@@ -90,14 +90,9 @@ QtObject {
         return ""
     }
 
-    // Resolve rich banner image path or URI
+    // Resolve rich banner image path or URI (only actual image files/URLs, never theme icon lookups)
     function resolveImage(img) {
-        if (!img || typeof img !== "string" || img === "") return ""
-        if (img.indexOf("/") === 0 || img.indexOf("file://") === 0 || img.indexOf("image://") === 0 || img.indexOf("http://") === 0 || img.indexOf("https://") === 0)
-            return img
-        if (Quickshell.hasThemeIcon(img))
-            return Quickshell.iconPath(img)
-        return ""
+        return mgr._isRealImg(img) ? img.trim() : ""
     }
 
     // ── Sound alerts (PipeWire / system sounds) ──────────────────────────────
@@ -158,12 +153,30 @@ QtObject {
         return { defaultAction: def, actions: list }
     }
 
+    function _isRealImg(str) {
+        if (!str || typeof str !== "string") return false
+        var s = str.trim()
+        if (s.indexOf("image://icon/") === 0 || s.indexOf("image://icon?") === 0) return false
+        // Quickshell serves inline `image-data` hints from its own image provider
+        // (image://qsimage/<id>/<n>). Those are real pixels, not a themed icon name;
+        // dropping them here is what pushed album art into the 22px app-icon slot.
+        if (s.indexOf("image://") === 0) return true
+        return s.indexOf("/") === 0 || s.indexOf("file://") === 0 || s.indexOf("http://") === 0 || s.indexOf("https://") === 0 || s.indexOf("data:") === 0
+    }
+
     function _ingest(n) {
         var app = n.appName || "Notification"
         var urgencyStr = mgr.urgencyName(n.urgency)
         var acts = mgr._separateActions(n.actions)
         var imgHint = (n.hints && (n.hints["image-path"] || n.hints["image_path"] || n.hints["image-data"] || n.hints["image_data"])) || ""
         var iconHint = (n.hints && (n.hints["icon_data"] || n.hints["app-icon"])) || ""
+        
+        var richImage = ""
+        if (mgr._isRealImg(imgHint)) {
+            richImage = (typeof imgHint === "string" ? imgHint.trim() : "")
+        } else if (mgr._isRealImg(n.image)) {
+            richImage = (typeof n.image === "string" ? n.image.trim() : "")
+        }
 
         var rec = {
             id: mgr._seq++,
@@ -171,8 +184,8 @@ QtObject {
             appName: app,
             summary: n.summary || "",
             body: n.body || "",
-            image: n.image || imgHint,
-            icon: n.appIcon || iconHint,
+            image: richImage,
+            icon: n.appIcon || iconHint || (n.image && !richImage ? n.image : ""),
             desktopEntry: n.desktopEntry || "",
             urgency: urgencyStr,
             time: Date.now(),
@@ -185,10 +198,16 @@ QtObject {
         // Connect live property changes on tracked notification
         var updateCallback = function () {
             var liveImgHint = (n.hints && (n.hints["image-path"] || n.hints["image_path"] || n.hints["image-data"] || n.hints["image_data"])) || ""
+            var liveRichImg = ""
+            if (mgr._isRealImg(liveImgHint)) {
+                liveRichImg = (typeof liveImgHint === "string" ? liveImgHint.trim() : "")
+            } else if (mgr._isRealImg(n.image)) {
+                liveRichImg = (typeof n.image === "string" ? n.image.trim() : "")
+            }
             rec.summary = n.summary || ""
             rec.body = n.body || ""
-            rec.image = n.image || liveImgHint
-            rec.icon = n.appIcon || ""
+            rec.image = liveRichImg
+            rec.icon = n.appIcon || (n.image && !liveRichImg ? n.image : "")
             rec.progress = mgr._progress(n)
             mgr._updateLiveRecord(rec)
         }
@@ -308,7 +327,13 @@ QtObject {
     function dismissPopup(id) { mgr.popups = mgr.popups.filter(function (p) { return p.id !== id }) }
     function closePopup(id) {
         var p = mgr.popups.filter(function (x) { return x.id === id })[0]
-        if (p && p.ref) p.ref.dismiss()
+        if (p && p.ref) {
+            try {
+                if (typeof p.ref.dismiss === "function") p.ref.dismiss()
+            } catch (e) {
+                console.warn("Notifications: failed to dismiss ref", e)
+            }
+        }
         mgr.dismissPopup(id)
     }
     function invokeAction(id, action) {

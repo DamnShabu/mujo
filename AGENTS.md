@@ -92,9 +92,13 @@ Also `secrets.vaultwarden.sshKeys.*` and `secrets.vaultwarden.gpgKeys.*`.
 Three agents run against this repo — Claude Code, Antigravity (`agy` + the IDE build) and
 opencode — and they are configured to see the same things:
 
-- **Rules**: `.agents/rules/*.md` is read by all three (`~/.agents` is persisted in
-  `nixos/core/general.nix`). `rtk.md` there mandates prefixing shell commands with `rtk`, a
-  proxy that compresses command output before it reaches the model.
+- **`.agents/` is the single agent tree.** `.agents/rules/*.md` is read by all three
+  (`~/.agents` is persisted in `nixos/core/general.nix`); `rtk.md` there mandates prefixing
+  shell commands with `rtk`, a proxy that compresses command output before it reaches the
+  model. `.agents/skills/*` holds every repo skill (`graphify`, `handoff`,
+  `testing-sandbox`) — `.claude/skills` and `.opencode/skills` are symlinks to it, so a
+  skill is added once. `.claude/` and `.opencode/` keep nothing but their own tool config
+  (`settings*.json`, `opencode.json`, `plugins/`).
 - **MCP**: host-wide servers (`nixos`, `sandbox`) are declared once in
   `nixos/apps/_ai-mcp.nix` and rendered into each tool's own format by
   `nixos/apps/opencode.nix` and `nixos/apps/antigravity-cli.nix`. Checked-in

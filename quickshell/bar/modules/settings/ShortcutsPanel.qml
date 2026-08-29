@@ -22,9 +22,15 @@ Item {
     }
 
     function humanize(a) {
-        // "focus-workspace w9" → "Focus workspace w9"; strip store paths.
-        var s = a.replace(/\/nix\/store\/[^ ]+\//g, "")
-        s = s.replace(/-/g, " ").trim()
+        // "focus-workspace 9" → "Focus workspace 9"; strip store paths.
+        // Only the leading action name is kebab-case. Everything after the
+        // first space is the command the bind spawns, where a hyphen is a real
+        // flag — de-kebabbing the whole string turned "qs -p …" into "qs  p …"
+        // and "set-column-width -5%" into "Set column width  5%".
+        var s = a.replace(/\/nix\/store\/[^ ]+\//g, "").trim()
+        var i = s.indexOf(" ")
+        var head = (i < 0 ? s : s.slice(0, i)).replace(/-/g, " ")
+        s = (head + (i < 0 ? "" : s.slice(i))).trim()
         return s.charAt(0).toUpperCase() + s.slice(1)
     }
 
