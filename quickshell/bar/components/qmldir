@@ -26,3 +26,4 @@ BarAura BarAura.qml
 BaseWidget BaseWidget.qml
 
 DesktopIcon DesktopIcon.qml
+MujoFlickable MujoFlickable.qml

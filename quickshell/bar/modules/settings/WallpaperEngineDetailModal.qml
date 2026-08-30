@@ -328,13 +328,11 @@ Rectangle {
                 }
 
                 // Metadata Sidebar
-                Flickable {
+                MujoFlickable {
                     Layout.fillHeight: true
                     Layout.preferredWidth: 320
                     Layout.minimumWidth: 290
                     contentHeight: sidebarCol.implicitHeight
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
 
                     ColumnLayout {
                         id: sidebarCol
@@ -548,12 +546,10 @@ Rectangle {
                                 border.color: Theme.border
                                 clip: true
 
-                                Flickable {
+                                MujoFlickable {
                                     anchors.fill: parent
                                     anchors.margins: 10
                                     contentHeight: descText.implicitHeight
-                                    clip: true
-                                    boundsBehavior: Flickable.StopAtBounds
 
                                     Text {
                                         id: descText

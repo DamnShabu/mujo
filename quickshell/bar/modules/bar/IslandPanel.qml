@@ -25,16 +25,15 @@ Item {
     function removeAt(i) { var a = modules.slice(); a.splice(i, 1); setModules(a) }
     function add(name) { var a = modules.slice(); if (a.indexOf(name) < 0) { a.push(name); setModules(a) } }
 
-    Flickable {
+    MujoFlickable {
         anchors.fill: parent
-        anchors.margins: 24
-        contentHeight: mainCol.implicitHeight + 30
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
+        contentHeight: mainCol.implicitHeight + 48
 
         ColumnLayout {
             id: mainCol
-            width: parent.width
+            x: 24
+            y: 24
+            width: parent.width - 48
             spacing: 16
 
             // ── Hero Banner ───────────────────────────────────────────────────
