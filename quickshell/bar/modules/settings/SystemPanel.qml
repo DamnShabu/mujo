@@ -188,7 +188,7 @@ Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     clip: true
                     model: root.logLines
-                    boundsBehavior: Flickable.StopAtBounds
+                    boundsBehavior: Flickable.DragAndOvershootBounds
                     onCountChanged: positionViewAtEnd()
                     delegate: Text {
                         required property var modelData
@@ -250,11 +250,12 @@ Item {
 
             SectionLabel { text: "Generations" }
             ListView {
+                id: genList
                 Layout.fillWidth: true; Layout.fillHeight: true
                 clip: true
                 model: root.gens
                 spacing: 3
-                boundsBehavior: Flickable.StopAtBounds
+                boundsBehavior: Flickable.DragAndOvershootBounds
                 delegate: Rectangle {
                     required property var modelData
                     width: ListView.view.width

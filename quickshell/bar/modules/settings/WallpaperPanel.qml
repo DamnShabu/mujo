@@ -484,12 +484,10 @@ Item {
                         clip: true
                         z: 100
 
-                        Flickable {
+                        MujoFlickable {
                             anchors.fill: parent
                             anchors.margins: 4
                             contentHeight: suggestionCol.implicitHeight
-                            clip: true
-                            boundsBehavior: Flickable.StopAtBounds
 
                             ColumnLayout {
                                 id: suggestionCol
@@ -1186,12 +1184,10 @@ Item {
                         clip: true
                         z: 100
 
-                        Flickable {
+                        MujoFlickable {
                             anchors.fill: parent
                             anchors.margins: 4
                             contentHeight: weSuggestionCol.implicitHeight
-                            clip: true
-                            boundsBehavior: Flickable.StopAtBounds
 
                             ColumnLayout {
                                 id: weSuggestionCol
@@ -1937,6 +1933,42 @@ Item {
                 cellWidth: (width - (width % 180)) / Math.max(1, Math.floor(width / 180))
                 cellHeight: cellWidth * 0.62 + 6
                 model: root.localList
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                flickDeceleration: 1800
+                maximumFlickVelocity: 3500
+
+                property real targetContentY: contentY
+
+                NumberAnimation {
+                    id: libScrollAnim
+                    target: libGrid
+                    property: "contentY"
+                    duration: Anim.d(Anim.enter)
+                    easing.type: Easing.OutCubic
+                }
+
+                WheelHandler {
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                    onWheel: function(event) {
+                        libGrid.cancelFlick()
+                        var maxContentY = Math.max(0, libGrid.contentHeight - libGrid.height)
+                        var delta = (event.angleDelta.y !== 0) ? -event.angleDelta.y : -event.pixelDelta.y
+                        var step = delta * 1.2
+                        var currentTarget = libScrollAnim.running ? libGrid.targetContentY : libGrid.contentY
+                        var nextTarget = Math.max(0, Math.min(maxContentY, currentTarget + step))
+                        libGrid.targetContentY = nextTarget
+                        libScrollAnim.stop()
+                        libScrollAnim.duration = Anim.d(Anim.enter)
+                        libScrollAnim.to = nextTarget
+                        libScrollAnim.start()
+                        event.accepted = true
+                    }
+                }
+
+                onMovementStarted: libScrollAnim.stop()
+                onFlickStarted: libScrollAnim.stop()
+                onMovementEnded: libGrid.targetContentY = libGrid.contentY
+                onFlickEnded: libGrid.targetContentY = libGrid.contentY
 
                 delegate: Item {
                     required property var modelData
@@ -2000,8 +2032,9 @@ Item {
                 cellWidth: Math.floor((width - 6) / Math.max(1, Math.floor((width - 6) / 230)))
                 cellHeight: cellWidth * 0.62 + 8
                 model: Wallhaven.resultsModel
-                boundsBehavior: Flickable.StopAtBounds
-                flickDeceleration: 3000
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                flickDeceleration: 1800
+                maximumFlickVelocity: 3500
 
                 property real targetContentY: contentY
 
@@ -2282,8 +2315,9 @@ Item {
                 cellHeight: cellWidth * 0.62 + 8
                 model: WallpaperEngine.activeSource === "installed" ? WallpaperEngine.installedModel : WallpaperEngine.resultsModel
                 readonly property var currentWeModel: model
-                boundsBehavior: Flickable.StopAtBounds
-                flickDeceleration: 3000
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                flickDeceleration: 1800
+                maximumFlickVelocity: 3500
 
                 property real targetContentY: contentY
 

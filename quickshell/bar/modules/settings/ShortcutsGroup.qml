@@ -7,8 +7,10 @@ import "../../components"
 // Keyboard shortcuts — parsed live from the running niri config (the same
 // bindings niri actually uses), with a local filter. Read-only reference; the
 // bindings themselves are defined in the NixOS niri configuration.
-Item {
+ColumnLayout {
     id: root
+    Layout.fillWidth: true
+    spacing: 14
 
     property var binds: []
     property string filter: ""
@@ -57,38 +59,28 @@ Item {
     }
     Component.onCompleted: bindsProc.running = true
 
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 26
-        spacing: 16
+    MujoCard {
+        title: "Keyboard shortcuts"
+        iconName: "keyboard_command_key"
+        badgeText: root.binds.length + " BINDS"
 
-        MujoHero {
-            brand: "shortcuts"
-            title: "Keyboard Shortcuts"
-            subtitle: "Global window management and application bindings parsed dynamically from the live Niri session."
-            badgeText: root.binds.length + " BINDS"
-            badgeColor: Theme.accent
-
-            TextField {
-                Layout.preferredWidth: 200
-                placeholder: "Filter shortcuts…"
-                onTextChanged: root.filter = text
-            }
+        actions: TextField {
+            Layout.preferredWidth: 200
+            placeholder: "Filter shortcuts…"
+            onTextChanged: root.filter = text
         }
 
-        ListView {
-            id: list
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-            spacing: 6
+        // The page owns the scroll, so this is a plain Repeater rather than a
+        // ListView — a virtualised view inside a scrolling column has no
+        // height to virtualise against.
+        Repeater {
             model: root.shown
             delegate: Rectangle {
                 required property var modelData
-                width: list.width
+                Layout.fillWidth: true
                 implicitHeight: 42
                 radius: Theme.radiusSm
-                color: Theme.surface
+                color: Theme.bg
                 border.color: Theme.border
                 RowLayout {
                     anchors.fill: parent
@@ -111,7 +103,7 @@ Item {
                                 required property var modelData
                                 implicitWidth: kc.implicitWidth + 14; implicitHeight: 22
                                 radius: Theme.radiusSm
-                                color: Theme.bg
+                                color: Theme.surface
                                 border.color: Theme.borderStrong
                                 Text {
                                     id: kc
@@ -126,14 +118,16 @@ Item {
                     }
                 }
             }
-            Text {
-                anchors.centerIn: parent
-                visible: root.shown.length === 0
-                text: root.binds.length === 0 ? "Reading shortcuts…" : "No shortcuts match the filter."
-                color: Theme.textDim
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeBody
-            }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: root.shown.length === 0
+            horizontalAlignment: Text.AlignHCenter
+            text: root.binds.length === 0 ? "Reading shortcuts…" : "No shortcuts match the filter."
+            color: Theme.textDim
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeBody
         }
     }
 }

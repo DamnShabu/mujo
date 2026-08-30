@@ -29,7 +29,7 @@ The mujō desktop for Niri/Wayland: floating grouped top bar, overlay launcher, 
 
 ```
 shell.qml       desktop shell entrypoint (bar, launcher, overlays, prompts)
-settings.qml    standalone settings app entrypoint
+settings.qml    standalone settings app entrypoint — a frame; see SETTINGS APP
 llm-usage.sh    AI-assistant token usage scanner
 theme/          Theme.qml (design tokens), Anim.qml (motion), Brand.qml (identity)
 components/     shared UI primitives
@@ -48,6 +48,7 @@ qs -p ./test-icons.qml            # icon-theme resolution self-check — prints 
 qs -p ./test-grid.qml             # DesktopGrid occupancy self-check — prints PASS/FAIL, then exits
 qs -p ./test-notifications.qml    # notification daemon & popup self-check — prints PASS/FAIL, then exits
 qs -p ./test-shelf.qml            # staging shelf state & icon resolution self-check — prints PASS/FAIL, then exits
+qs -p ./test-settings-ui.qml      # settings row binding & routing self-check — prints PASS/FAIL
 qs -p ./test-desktop.qml          # icon placement vs. a widget, against the real ~/Desktop
 qs list --all                     # active instances
 qs kill -i <id>                   # terminate one
@@ -68,3 +69,15 @@ qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle
    ```
    Same-directory types need no import.
 4. Persist any new config path by declaring it in the owning NixOS module (see root `AGENTS.md` → **CORE CONSTRAINTS**).
+
+## SETTINGS APP
+
+`settings.qml` is only a frame: the window, the five sidebar categories, and the omni-search index — all data. The machinery lives in `modules/settings/`:
+
+- **`SettingsLayout.qml`** — 260px sidebar (brand, `/` omni-search, categories with a sliding glider and count badges) and the content pane. Owns routing: `SettingsBus.onNavigate` and `~/.config/qsshell/settings-target` (what `mujo settings <key>` writes) both go through `route()`, which resolves a category key, a panel key, or a key a category claims in `keys: [...]`.
+- **`SettingsPage.qml`** — one category page: hero plus a scrolling column of `MujoCard`s. **Navigation stops here.** Level 1 is the sidebar category, level 2 is a card. No sub-pages, no modal overlays — an "open X" affordance becomes an inline card (`visible:` on the card), the way VM provisioning did.
+- **`SettingRow.qml`** — one store-backed setting: `path` + `kind` (`toggle` | `slider` | `segment` | `text`). Anything with a bespoke control uses `MujoSettingRow` directly and fills its default control slot.
+- **`<Domain>Group.qml`** — the cards of one domain: a plain `ColumnLayout`, no scroll and no hero of its own, dropped into a page.
+- **`<Domain>Panel.qml`** — not migrated yet: owns its Flickable and hero, and appears on that category's in-page chip rail. Migrating a category means splitting its panels into `*Group.qml` files, adding a `<Category>Page.qml`, and swapping the category's `panels:` for `page:` + `keys:`.
+
+Pages and panels **stay alive once visited** so scroll position survives switching category. Anything that polls must therefore bind `running: root.visible` rather than `running: true` — an invisible parent propagates `visible: false` to its children, so that stops the timer when the category is off screen.

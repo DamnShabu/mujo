@@ -147,6 +147,7 @@ Item {
                     clip: true
                     spacing: 6
                     model: root.managedRows
+                    boundsBehavior: Flickable.DragAndOvershootBounds
                     delegate: Rectangle {
                         required property var modelData
                         width: managedList.width
@@ -201,6 +202,7 @@ Item {
                     clip: true
                     spacing: 6
                     model: root.currentRows
+                    boundsBehavior: Flickable.DragAndOvershootBounds
                     delegate: Rectangle {
                         required property var modelData
                         width: currentList.width

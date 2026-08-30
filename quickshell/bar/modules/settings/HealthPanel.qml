@@ -76,16 +76,15 @@ Item {
         if (root.runningOp) opProc.running = false
     }
 
-    Flickable {
+    MujoFlickable {
         anchors.fill: parent
-        anchors.margins: 24
-        contentHeight: col.implicitHeight
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
+        contentHeight: col.implicitHeight + 48
 
         ColumnLayout {
             id: col
-            width: parent.width
+            x: 24
+            y: 24
+            width: parent.width - 48
             spacing: 20
 
             MujoHero {
@@ -220,7 +219,7 @@ Item {
                         Layout.fillWidth: true; Layout.fillHeight: true
                         clip: true
                         model: root.logLines
-                        boundsBehavior: Flickable.StopAtBounds
+                        boundsBehavior: Flickable.DragAndOvershootBounds
                         onCountChanged: positionViewAtEnd()
                         delegate: Text {
                             required property var modelData
@@ -450,13 +449,14 @@ Item {
 
                 // Problematic Process Table
                 ListView {
+                    id: probList
                     Layout.fillWidth: true
                     implicitHeight: Math.min(360, count * 56)
                     clip: true
                     visible: SentinelService.problematicProcesses.length > 0
                     model: SentinelService.problematicProcesses
                     spacing: 6
-                    boundsBehavior: Flickable.StopAtBounds
+                    boundsBehavior: Flickable.DragAndOvershootBounds
                     delegate: Rectangle {
                         required property var modelData
                         width: ListView.view.width
@@ -578,12 +578,13 @@ Item {
 
                 // Process Table
                 ListView {
+                    id: topCpuList
                     Layout.fillWidth: true
                     implicitHeight: Math.min(260, count * 42)
                     clip: true
                     model: SentinelService.topCpu
                     spacing: 4
-                    boundsBehavior: Flickable.StopAtBounds
+                    boundsBehavior: Flickable.DragAndOvershootBounds
                     delegate: Rectangle {
                         required property var modelData
                         width: ListView.view.width

@@ -208,16 +208,15 @@ Item {
     }
 
     // ── Main Scroll View ──────────────────────────────────────────────────────
-    Flickable {
+    MujoFlickable {
         anchors.fill: parent
-        anchors.margins: 24
-        contentHeight: mainCol.implicitHeight + 30
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
+        contentHeight: mainCol.implicitHeight + 48
 
         ColumnLayout {
             id: mainCol
-            width: parent.width
+            x: 24
+            y: 24
+            width: parent.width - 48
             spacing: 16
 
             // ── Dynamic Hero Banner ───────────────────────────────────────────

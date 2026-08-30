@@ -4,12 +4,14 @@ import Quickshell.Io
 import "../../theme"
 import "../../components"
 
-// Keyring / credentials manager over the Secret Service (gnome-keyring), via the
+// Keyring / credentials over the Secret Service (gnome-keyring), via the
 // mujo-keyring helper. Lists stored items with their service/account, lets you
 // add and remove, and reveals a secret only on explicit request (masked by
 // default). No custom credential store — this is the native desktop keyring.
-Item {
+ColumnLayout {
     id: root
+    Layout.fillWidth: true
+    spacing: 14
 
     property var items: []
     property string error: ""
@@ -78,81 +80,21 @@ Item {
         addProc.running = true
     }
 
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 26
-        spacing: 18
+    MujoCard {
+        title: "Stored credentials"
+        iconName: "key"
+        badgeText: root.error !== "" ? "LOCKED" : (root.items.length + " KEYS")
+        badgeColor: root.error !== "" ? Theme.warning : Theme.accent
 
-        MujoHero {
-            brand: "keyring"
-            title: "Keyring & Secrets"
-            subtitle: "Hardware-backed credentials stored in the system keyring. Secrets stay hidden until revealed."
-            badgeText: (root.error !== "" ? "LOCKED" : (root.items.length + " KEYS"))
-            badgeColor: root.error !== "" ? Theme.warning : Theme.accent
-            activeState: root.revealedId !== ""
-        }
-
-        // ── Add form ─────────────────────────────────────────────────────────
-        Rectangle {
-            Layout.fillWidth: true
-            radius: Theme.radiusMd
-            color: Theme.surface
-            border.color: Theme.border
-            implicitHeight: addCol.implicitHeight + 24
-
-            ColumnLayout {
-                id: addCol
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                spacing: 10
-                SectionLabel { text: "Add credential" }
-                // One 2-column grid for the four fields, with the button on its
-                // own row: sharing a row with the button made the second row's
-                // fields narrower, so the form's column edge zig-zagged.
-                GridLayout {
-                    Layout.fillWidth: true
-                    columns: 2
-                    columnSpacing: 8
-                    rowSpacing: 10
-                    TextField { Layout.fillWidth: true; placeholder: "Label *"; text: root.fLabel; onTextChanged: root.fLabel = text }
-                    TextField { Layout.fillWidth: true; placeholder: "Service"; text: root.fService; onTextChanged: root.fService = text }
-                    TextField { Layout.fillWidth: true; placeholder: "Account / username"; text: root.fAccount; onTextChanged: root.fAccount = text }
-                    TextField {
-                        id: secretField
-                        Layout.fillWidth: true
-                        placeholder: "Secret *"
-                        password: true
-                        onAccepted: root.addItem(text)
-                    }
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-                    Item { Layout.fillWidth: true }
-                    DialogButton {
-                        text: "Add"
-                        primary: true
-                        enabled: root.fLabel.trim() !== "" && secretField.text !== ""
-                        onClicked: root.addItem(secretField.text)
-                    }
-                }
-            }
-        }
-
-        // ── List ─────────────────────────────────────────────────────────────
-        ListView {
-            id: list
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-            spacing: 8
+        Repeater {
             model: root.items
 
             delegate: Rectangle {
                 required property var modelData
-                width: list.width
+                Layout.fillWidth: true
                 implicitHeight: 58
                 radius: Theme.radiusMd
-                color: Theme.surface
+                color: Theme.bg
                 border.color: Theme.border
 
                 RowLayout {
@@ -203,16 +145,52 @@ Item {
                     }
                 }
             }
+        }
 
-            // empty / error state
-            Text {
-                anchors.centerIn: parent
-                visible: root.items.length === 0
-                horizontalAlignment: Text.AlignHCenter
-                text: root.error !== "" ? root.error : "No stored credentials yet."
-                color: Theme.textDim
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeBody
+        Text {
+            Layout.fillWidth: true
+            visible: root.items.length === 0
+            horizontalAlignment: Text.AlignHCenter
+            text: root.error !== "" ? root.error : "No stored credentials yet."
+            color: Theme.textDim
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeBody
+        }
+    }
+
+    MujoCard {
+        title: "Add credential"
+        iconName: "add_circle"
+        expanded: false
+
+        // One 2-column grid for the four fields, with the button on its own
+        // row: sharing a row with the button made the second row's fields
+        // narrower, so the form's column edge zig-zagged.
+        GridLayout {
+            Layout.fillWidth: true
+            columns: 2
+            columnSpacing: 8
+            rowSpacing: 10
+            TextField { Layout.fillWidth: true; placeholder: "Label *"; text: root.fLabel; onTextChanged: root.fLabel = text }
+            TextField { Layout.fillWidth: true; placeholder: "Service"; text: root.fService; onTextChanged: root.fService = text }
+            TextField { Layout.fillWidth: true; placeholder: "Account / username"; text: root.fAccount; onTextChanged: root.fAccount = text }
+            TextField {
+                id: secretField
+                Layout.fillWidth: true
+                placeholder: "Secret *"
+                password: true
+                onAccepted: root.addItem(text)
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+            Item { Layout.fillWidth: true }
+            DialogButton {
+                text: "Add"
+                primary: true
+                enabled: root.fLabel.trim() !== "" && secretField.text !== ""
+                onClicked: root.addItem(secretField.text)
             }
         }
     }

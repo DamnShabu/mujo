@@ -115,16 +115,15 @@ Item {
         ToggleSwitch { Layout.alignment: Qt.AlignVCenter; checked: SettingsBus.get(skey, def); onToggled: function (c) { root.bset(skey, c) } }
     }
 
-    Flickable {
+    MujoFlickable {
         anchors.fill: parent
-        anchors.margins: 26
-        contentHeight: col.implicitHeight
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
+        contentHeight: col.implicitHeight + 48
 
         ColumnLayout {
             id: col
-            width: parent.width
+            x: 24
+            y: 24
+            width: parent.width - 48
             spacing: 22
 
             MujoHero {
