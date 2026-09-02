@@ -40,7 +40,11 @@ QtObject {
 
     // ── Sensitive Inventory Audit ────────────────────────────────────────────
     property bool inventoryAudited: false
-    property bool inventoryClean: true
+    property bool inventoryClean: false
+    // Distinct from "audited and not clean": the scan did not produce a result
+    // we can read. "Clean" is a positive claim about the user's disk and must
+    // never be the fallback for a scan that failed -- see inventoryProc.
+    property bool inventoryFailed: false
     property int inventoryFindingsCount: 0
     property string inventoryOutput: ""
 
@@ -196,14 +200,23 @@ QtObject {
                 try {
                     var d = JSON.parse(this.text)
                     security.inventoryAudited = true
+                    security.inventoryFailed = false
                     security.inventoryClean = d.clean || false
                     security.inventoryFindingsCount = d.findingsCount || 0
                     security.inventoryOutput = d.output || ""
                     security.statusUpdated()
                 } catch (e) {
+                    // Previously this reported clean: 0 findings -- so a scan
+                    // that crashed or printed nothing drew a green "no
+                    // unencrypted keys found on persistent storage". Saying the
+                    // disk is clean is the one thing a failed audit cannot do.
+                    console.warn("SecurityService: inventory scan produced no readable result:", e)
                     security.inventoryAudited = true
-                    security.inventoryClean = true
+                    security.inventoryFailed = true
+                    security.inventoryClean = false
                     security.inventoryFindingsCount = 0
+                    security.inventoryOutput = ""
+                    security.statusUpdated()
                 }
             }
         }
