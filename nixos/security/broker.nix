@@ -36,7 +36,11 @@
         text = ''
           GRANTS="${lib.concatStringsSep " " grants}"
 
-          IFS=$'\t' read -r domain key || exit 0
+          # systemd gives each connection its own instance of this service, and
+          # this one runs as root so it can read the vault. Without a deadline a
+          # client that connects and then says nothing holds a root process for
+          # as long as it likes.
+          IFS=$'\t' read -t 5 -r domain key || exit 0
           if [ -z "''${domain:-}" ] || [ -z "''${key:-}" ]; then
             echo "ERR malformed request"
             exit 0
