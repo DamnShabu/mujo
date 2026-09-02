@@ -453,7 +453,7 @@ Rectangle {
                                 }
                                 Item { Layout.fillWidth: true }
                                 Spinner {
-                                    visible: root.details === null && !root.wallpaperItem.is_local
+                                    visible: root.details === null && root.wallpaperItem !== null && !root.wallpaperItem.is_local
                                     implicitWidth: 14; implicitHeight: 14
                                 }
                             }

@@ -27,3 +27,4 @@ BaseWidget BaseWidget.qml
 
 DesktopIcon DesktopIcon.qml
 MujoFlickable MujoFlickable.qml
+MujoGridView MujoGridView.qml

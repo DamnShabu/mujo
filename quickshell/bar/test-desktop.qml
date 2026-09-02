@@ -16,9 +16,16 @@ ShellRoot {
 
     // A widget parked over the top-left region, exactly where icon
     // auto-placement wants to start.
-    Component.onCompleted: {
-        DesktopGrid.setBounds("TEST", 1920, 1080)
-        DesktopGrid.register("w:fake", "widget", 0, 2, 10, 6, "TEST")
+    // Quickshell connects Qt.exit() only once the config has finished
+    // loading, so a check that runs from Component.onCompleted prints its
+    // verdict and then hangs. One deferred tick puts it after load.
+    Timer {
+        interval: 0
+        running: true
+        onTriggered: {
+            DesktopGrid.setBounds("TEST", 1920, 1080)
+            DesktopGrid.register("w:fake", "widget", 0, 2, 10, 6, "TEST")
+        }
     }
 
     DesktopIcons {

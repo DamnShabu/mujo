@@ -8,6 +8,18 @@
 #   nix run .#mujo-screenshot -- ...   # or just run it on a NixOS host
 set -uo pipefail
 
+# tesseract is not on a bare NixOS PATH; it reaches this script through the
+# mujo-screenshot wrapper. Say so, rather than reporting the missing binary as
+# an OCR failure.
+missing=""
+for tool in tesseract magick jq; do
+  command -v "$tool" >/dev/null || missing="$missing $tool"
+done
+if [ -n "$missing" ]; then
+  echo "SKIP: not on PATH:$missing -- run via: nix run .#mujo-screenshot"
+  exit 0
+fi
+
 script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mujo-screenshot.sh"
 raw=/tmp/mujo-snip-raw.png
 
@@ -17,7 +29,7 @@ magick -size 700x260 xc:white -fill black -pointsize 34 \
   -draw "text 20,180 'And a third one below'" "$raw"
 
 out=$(bash "$script" ocr-lines 0 0 700 260) || {
-  echo "FAIL: ocr-lines exited non-zero"
+  echo "FAIL: ocr-lines exited non-zero; it printed: ${out:-<nothing>}"
   exit 1
 }
 

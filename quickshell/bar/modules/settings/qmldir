@@ -4,6 +4,11 @@ AppearancePanel AppearancePanel.qml
 AnimationsPanel AnimationsPanel.qml
 DesktopPanel DesktopPanel.qml
 WallpaperPanel WallpaperPanel.qml
+WallhavenControls WallhavenControls.qml
+WallpaperEngineControls WallpaperEngineControls.qml
+WallpaperLibraryGrid WallpaperLibraryGrid.qml
+WallhavenGrid WallhavenGrid.qml
+WallpaperEngineGrid WallpaperEngineGrid.qml
 NetworkPanel NetworkPanel.qml
 ApplicationsPanel ApplicationsPanel.qml
 NotificationsPanel NotificationsPanel.qml

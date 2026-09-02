@@ -44,16 +44,24 @@ Every directory carries a `qmldir`. Read it to see what a domain exposes rather 
 ```bash
 qs -p ./shell.qml                 # desktop shell from the working tree
 qs -p ./settings.qml              # settings app from the working tree
-qs -p ./test-icons.qml            # icon-theme resolution self-check — prints PASS/FAIL, then exits
-qs -p ./test-grid.qml             # DesktopGrid occupancy self-check — prints PASS/FAIL, then exits
-qs -p ./test-notifications.qml    # notification daemon & popup self-check — prints PASS/FAIL, then exits
-qs -p ./test-shelf.qml            # staging shelf state & icon resolution self-check — prints PASS/FAIL, then exits
-qs -p ./test-settings-ui.qml      # settings row binding & routing self-check — prints PASS/FAIL
+qs -p ./test-icons.qml            # icon-theme resolution
+qs -p ./test-grid.qml             # DesktopGrid occupancy
+qs -p ./test-notifications.qml    # notification daemon, icon resolver, grouping, history
+qs -p ./test-shelf.qml            # staging shelf state & icon resolution
+qs -p ./test-settings-ui.qml      # settings row binding & routing
+qs -p ./test-security-ui.qml      # SecurityService binding & the trust tab
 qs -p ./test-desktop.qml          # icon placement vs. a widget, against the real ~/Desktop
+qs -p ./test-wallpaper-panel.qml  # wallpaper panel components & TagQuery parsing
 qs list --all                     # active instances
 qs kill -i <id>                   # terminate one
 qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle
 ```
+
+Each `test-*.qml` prints one `PASS`/`FAIL` line and exits 0 or 1, so the whole
+set runs in a loop. **Put the checks in a `Timer { interval: 0 }`, not in
+`Component.onCompleted`** — Quickshell connects `Qt.exit()` only once the config
+has finished loading, so a check that exits from `onCompleted` prints its
+verdict and then hangs forever.
 
 **The live `qs-bar` service runs from the Nix store**, so working-tree edits reach it only after `nh os switch`. If a rebuild lands but the bar keeps old code, `systemctl --user restart qs-bar.service`.
 
