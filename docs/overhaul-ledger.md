@@ -4,8 +4,8 @@ Branch `overhaul`, off `main` at `9870808`.
 
 ## Status: incomplete pass — phases 0–2 done, 3–6 partial
 
-This is an honest accounting, not a completed sweep. **449 tracked files; 63 have
-a verdict below.** The remaining 386 were not read, and they carry no row rather
+This is an honest accounting, not a completed sweep. **449 tracked files; 71 have
+a verdict below.** The remaining 378 were not read, and they carry no row rather
 than a fabricated `CORRECT`. `CORRECT` in this ledger means the file was read and
 a specific property was checked; it is not a synonym for "not touched".
 
@@ -14,9 +14,9 @@ Nix module arguments and dead packages, and the phase 2 correctness/security pas
 over every trust boundary the brief names (`mujo-trustd`, the credential broker,
 `nixos/sandbox/mcp.py`, the tray relay) plus the threat-model cross-check.
 
-What is not: phase 3 (no large file was split), phase 4 (measured, nothing
-changed — see the decisions), phase 5 (the security tree is landed; the two
-default-off switches stay off, with reasons), and phase 6 for the 386 unreviewed
+What is not: phase 3 (no large file was split), phase 4 (one real fix; the
+big closure wins all cost a feature — see the decisions), phase 5 (landed; the two
+default-off switches stay off, with reasons), and phase 6 for the 378 unreviewed
 files.
 
 ### The brief's own numbers were stale
@@ -79,9 +79,9 @@ all checks passed!
 warning: The check omitted these incompatible systems: aarch64-linux
 ```
 
-`qs -p` was not run: no QML changed in this pass, and starting a second shell
-instance on the user's live session buys no information when the tree is
-byte-identical.
+`qs -p` on the live session was not used. The one QML change in this pass was
+verified in the sandbox VM instead, which is the sanctioned evidence path and
+does not put a second shell instance on the user's desktop.
 
 ### Deleted
 
@@ -201,7 +201,20 @@ largest remaining piece of the brief.
 
 ## Phase 4 — performance
 
-Measured; **nothing changed**, because every candidate costs a feature.
+One change taken, because it cost nothing:
+
+**`NetworkPanel.qml` polled `mullvad` forever once visited.** Settings panels
+stay alive after first display so scroll position survives switching category, so
+`quickshell/bar/AGENTS.md` requires anything that polls to bind
+`running: root.visible`. NetworkPanel was the only panel in `modules/settings/`
+using a bare `running: true`, and its `refresh()` starts four `Process`es — so
+opening the Network category once left four `mullvad` invocations firing every
+three seconds for the rest of the session, off screen, with nothing rendering the
+result. Now gated, with `triggeredOnStart` so it refreshes on show rather than up
+to 3s later. Verified in the sandbox: settings reaches "Configuration Loaded"
+clean and the bar renders unchanged.
+
+Everything else measured and **not** changed, because each costs a feature.
 
 Closure is 15.8 GiB, unchanged. Largest individual store paths:
 
@@ -261,6 +274,16 @@ Corrected against the code:
   and a new **SELF-CHECKS** section listing the seven offline checks — four of
   which were not mentioned anywhere.
 - `docs/threat-model.md` — see the cross-check table above.
+- `AGENTS.md` said "**Read colors from `self.theme…`**, never literals". Too
+  absolute to be true, and the codebase is right where the rule is wrong: of ~279
+  hex literals under `quickshell/bar/`, ~112 are black/white shadow and scrim
+  primitives, and most of the rest are *data* — brand colours in `theme/Brand.qml`
+  (Mullvad's yellow is not the user's accent), the accent swatches the user picks
+  from in `AppearancePanel.qml`, note colours in `NotesWidget.qml`. The rule now
+  says what it actually is: chrome from `Theme`, brand/palette/primitive literal.
+  A handful in the wallpaper detail modals (`#05070a`, `#181818`, `#ffca28`) are
+  genuine leaks; none has an exact `Theme` token, so closing them would change the
+  render and they were left alone.
 
 `README.md` was read and is accurate; it gets a stranger oriented in well under
 60 seconds.
@@ -301,7 +324,7 @@ Each is one line, each is actionable, none was taken unilaterally.
 
 ## File ledger
 
-63 of 449 files. Verdicts: `CHANGED` (diff + what it buys), `CORRECT` (the
+71 of 449 files. Verdicts: `CHANGED` (diff + what it buys), `CORRECT` (the
 property checked), `DELETED` (what absorbed it).
 
 | File | Verdict | Note | Phase |
@@ -370,8 +393,15 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/screenshot.qml` | CORRECT | an entrypoint like `shell.qml`, so its absence from a `qmldir` is right | 1 |
 | `nixos/hosts/main/disko.nix` | CORRECT | `randomEncryption` swap; the `noatime` comment records why `preload` left | 1 |
 | `modules/flake/theme.nix` | CORRECT | the single palette source the no-hardcoded-colour rule points at | 1 |
+| `quickshell/bar/modules/settings/NetworkPanel.qml` | CHANGED | `running: true` → `running: root.visible` + `triggeredOnStart`; it was the one panel in `modules/settings/` breaking the documented rule | 4 |
+| `quickshell/bar/theme/Brand.qml` | CORRECT | literal brand colours are right — a vendor's colour is not the user's theme; this file is why the absolute form of the rule is wrong | 6 |
+| `quickshell/bar/modules/settings/AppearancePanel.qml` | CORRECT | its hex literals are the accent swatches the user picks *from*, i.e. data | 6 |
+| `quickshell/bar/modules/desktop/NotesWidget.qml` | CORRECT | note colour themes are per-note data, not shell chrome | 6 |
+| `quickshell/bar/modules/settings/OverviewPanel.qml` | CORRECT | every timer gated on `root.active` (and on expansion where the work is expensive) | 4 |
+| `quickshell/bar/modules/settings/VmGroup.qml` | CORRECT | `running: root.visible` — the idiom NetworkPanel was missing | 4 |
+| `quickshell/bar/settings.qml` | CORRECT | loads to "Configuration Loaded" in the sandbox with no warnings | 4 |
 
-### Not reviewed — 386 files
+### Not reviewed — 378 files
 
 No verdict, because they were not read.
 
