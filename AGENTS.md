@@ -186,6 +186,7 @@ opencode — and they are configured to see the same things:
 | Security test suite layout | `docs/security-tests.md` §4 |
 | Performance budget | `docs/performance-budget.md` |
 | Security tests specification | `docs/security-tests.md` |
+| Overhaul ledger (per-file verdicts, open decisions) | `docs/overhaul-ledger.md` |
 | Machine-local overrides | `nixos/overrides/README.md` |
 | Issues & specs (`gh` in `DamnShabu/mujo`) | `docs/agents/issue-tracker.md` |
 | Domain docs (`CONTEXT.md`, `docs/adr/`) | `docs/agents/domain.md` |
