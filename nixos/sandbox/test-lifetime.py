@@ -23,7 +23,7 @@ MCP = Path(__file__).with_name("mcp.py")
 # atexit hook, and reads fd 0 to EOF, none of which survives being run twice in
 # one interpreter.
 HARNESS = '''
-import os, subprocess, sys, threading, time
+import os, socket, subprocess, sys, threading, time
 
 class FakeVM:
     """Just the slice of the driver's Machine API that mcp.py touches."""
@@ -52,6 +52,17 @@ class WedgedVM(FakeVM):
 
 MODE = sys.argv[1]
 os.environ["MUJO_SANDBOX_IDLE_SEC"] = "2"
+
+# Aim the port probe at a port this harness owns, so the check neither depends
+# on 5920 being free nor disturbs a real sandbox that happens to be running.
+hog = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+hog.bind(("0.0.0.0", 0))
+PROBE_PORT = hog.getsockname()[1]
+os.environ["MUJO_SANDBOX_SPICE_PORT_PROBE"] = str(PROBE_PORT)
+if MODE == "portbusy":
+    hog.listen(1)          # hold it: ensure_up() must refuse to boot
+else:
+    hog.close()            # free it: every other case needs a bootable VM
 vm_obj = WedgedVM() if MODE == "wedged" else FakeVM()
 g = {"machines": [vm_obj], "__name__": "__main__"}
 src = open(%(mcp)r).read()
@@ -95,6 +106,14 @@ else:
         detail = "booted=%%s crashed=%%d execs=%%d" %% (
             vm_obj.booted, vm_obj.crashed, vm_obj.execs)
 
+    elif MODE == "portbusy":
+        # A second sandbox must say so and stop, not hang in vm.start().
+        vm_obj.booted = False
+        os.write(w, CALL)
+        time.sleep(3)
+        ok = vm_obj.started == 0 and vm_obj.execs == 0
+        detail = "starts=%%d execs=%%d" %% (vm_obj.started, vm_obj.execs)
+
     elif MODE == "wedged":
         # The ten-hour VM: crash() never returns, so without a deadline the
         # watchdog blocks holding _vm_lock and the 4 GiB is never reclaimed.
@@ -123,6 +142,7 @@ CASES = {
     "active": "continuous use -> VM stays up",
     "reboot": "after idle teardown -> next call boots it again",
     "wedged": "monitor never answers -> QEMU is SIGKILLed anyway",
+    "portbusy": "SPICE port already held -> refuses instead of hanging",
 }
 
 

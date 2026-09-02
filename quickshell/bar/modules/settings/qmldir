@@ -11,6 +11,10 @@ WallhavenGrid WallhavenGrid.qml
 WallpaperEngineGrid WallpaperEngineGrid.qml
 NetworkPanel NetworkPanel.qml
 ApplicationsPanel ApplicationsPanel.qml
+ApplicationsIntegrationsTab ApplicationsIntegrationsTab.qml
+ApplicationsTrustTab ApplicationsTrustTab.qml
+ApplicationsFlatpaksTab ApplicationsFlatpaksTab.qml
+ApplicationsLauncherTab ApplicationsLauncherTab.qml
 NotificationsPanel NotificationsPanel.qml
 PersistencePanel PersistencePanel.qml
 WeatherPanel WeatherPanel.qml

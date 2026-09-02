@@ -6,6 +6,7 @@ LauncherFolderCard LauncherFolderCard.qml
 LauncherGrid LauncherGrid.qml
 LauncherGroupHeader LauncherGroupHeader.qml
 LauncherGroupsView LauncherGroupsView.qml
+LauncherGroupModals LauncherGroupModals.qml
 LauncherResult LauncherResult.qml
 CommandPalette CommandPalette.qml
 ClipboardList ClipboardList.qml

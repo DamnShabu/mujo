@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell.Io
 import "calc.js" as Calc
+import "Search.js" as Search
 import "../../theme"
 import "../../components"
 import "../../services"
@@ -61,99 +62,6 @@ Item {
         searchDebounce.restart()
     }
 
-    function fuzzySubsequenceScore(str, pattern) {
-        var sIdx = 0, pIdx = 0
-        var score = 0
-        var consecutive = 0
-        var prevMatchIdx = -1
-
-        while (sIdx < str.length && pIdx < pattern.length) {
-            if (str[sIdx] === pattern[pIdx]) {
-                score += 20
-                if (prevMatchIdx === sIdx - 1) {
-                    consecutive++
-                    score += consecutive * 15
-                } else {
-                    consecutive = 0
-                }
-                if (sIdx === 0 || str[sIdx - 1] === " " || str[sIdx - 1] === "-" || str[sIdx - 1] === "_") {
-                    score += 35
-                }
-                prevMatchIdx = sIdx
-                pIdx++
-            }
-            sIdx++
-        }
-        return pIdx === pattern.length ? Math.max(1, score) : -1
-    }
-
-    function scoreApp(app, q, isFav) {
-        if (!app || !app.name) return -1
-        if (!q) return isFav ? 10000 : 1000
-
-        var name = app.name.toLowerCase()
-        var generic = (app.genericName || "").toLowerCase()
-        var comment = (app.comment || "").toLowerCase()
-        var exec = (app.execString || "").toLowerCase()
-        var id = (app.id || "").toLowerCase()
-
-        var s = -1
-
-        // 1. Exact Match on name
-        if (name === q) {
-            s = 10000
-        }
-        // 2. Prefix Match on name
-        else if (name.indexOf(q) === 0) {
-            s = 8500 + Math.max(0, 500 - (name.length - q.length) * 10)
-        }
-        // 3. Word boundary match on name (e.g. "code" in "Visual Studio Code")
-        else if (name.indexOf(" " + q) >= 0 || name.indexOf("-" + q) >= 0 || name.indexOf("_" + q) >= 0) {
-            var idx = Math.max(name.indexOf(" " + q), Math.max(name.indexOf("-" + q), name.indexOf("_" + q)))
-            s = 7200 - idx * 15
-        }
-        // 4. Generic name exact/prefix
-        else if (generic === q) {
-            s = 6800
-        } else if (generic.indexOf(q) === 0) {
-            s = 6300
-        } else if (generic.indexOf(" " + q) >= 0) {
-            s = 5800
-        }
-        // 5. Keyword match
-        else if (app.keywords) {
-            for (var k = 0; k < app.keywords.length; k++) {
-                var kw = String(app.keywords[k]).toLowerCase()
-                if (kw === q) { s = 5500; break }
-                if (kw.indexOf(q) === 0) { s = 5200; break }
-                if (kw.indexOf(q) > 0) { s = 4700; break }
-            }
-        }
-
-        // 6. Substring in Name
-        if (s < 0 && name.indexOf(q) >= 0) {
-            s = 4200 - name.indexOf(q) * 20
-        }
-
-        // 7. Subsequence Fuzzy Match in Name
-        if (s < 0) {
-            var fz = root.fuzzySubsequenceScore(name, q)
-            if (fz > 0) s = 3000 + fz
-        }
-
-        // 8. Generic / Comment / Exec / ID match
-        if (s < 0 && generic.indexOf(q) >= 0) {
-            s = 2200
-        }
-        if (s < 0 && (comment.indexOf(q) >= 0 || exec.indexOf(q) >= 0 || id.indexOf(q) >= 0)) {
-            s = 1200
-        }
-
-        if (s < 0) return -1
-        if (isFav) s += 2500
-        return s
-    }
-
     function doUpdateResults() {
         var q = searchField.text.trim().toLowerCase()
         root.answer = q === "" ? "" : (Calc.tryEvaluate(q) || "")
@@ -203,7 +111,7 @@ Item {
             for (var ai = 0; ai < g.apps.length; ai++) {
                 var appEntry = findAppById(g.apps[ai])
                 if (!appEntry || !appEntry.name || appEntry.noDisplay) continue
-                var s = root.scoreApp(appEntry, q, isFav(appEntry.id))
+                var s = Search.scoreApp(appEntry, q, isFav(appEntry.id))
                 if (s < 0) continue
                 appEntry._score = s
                 gApps.push(appEntry)
@@ -247,7 +155,7 @@ Item {
             var unApp = apps[i]
             if (!unApp || !unApp.name || unApp.noDisplay) continue
             if (groupedAppIds[unApp.id]) continue
-            var unScore = root.scoreApp(unApp, q, isFav(unApp.id))
+            var unScore = Search.scoreApp(unApp, q, isFav(unApp.id))
             if (unScore < 0) continue
             unApp._score = unScore
             ungroupedApps.push(unApp)

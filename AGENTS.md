@@ -46,7 +46,7 @@ in a row. Full list in `quickshell/bar/AGENTS.md` → RUNNING:
 
 ```bash
 cd quickshell/bar
-for t in icons grid notifications shelf settings-ui security-ui desktop wallpaper-panel; do
+for t in icons grid notifications shelf settings-ui security-ui desktop wallpaper-panel scroll; do
   qs -p "./test-$t.qml"
 done
 ```
@@ -91,7 +91,7 @@ modules/
 └── wrappers/     nix-wrapper-modules: fish, kitty, niri, environment (login shell + CLI toolset)
 
 quickshell/       _default.nix derivations (bar, mujo, mujo-keyring, cursor-tracker, unlock),
-                  mujo.sh CLI, C/Python helpers, bar/ (the shell)
+                  mujo.sh CLI + lib/ (its six largest subcommands), C/Python helpers, bar/ (the shell)
 
 tests/            security acceptance test suite (kernel, storage, vault, network, sandbox, microvm, trust, physical, recovery, redteam, performance);
                   lib.sh holds the shared assertions. These probe the running

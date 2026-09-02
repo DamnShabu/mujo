@@ -60,7 +60,11 @@ in {
   # qs-bar systemd unit and when spawned from a niri keybind / interactive shell.
   mujo = pkgs.runCommand "mujo" {nativeBuildInputs = [pkgs.makeWrapper];} ''
     install -Dm755 ${./mujo.sh} $out/bin/mujo
+    # The dispatcher sources its six largest subcommands from here.
+    mkdir -p $out/libexec/mujo/lib
+    cp ${./lib}/*.sh $out/libexec/mujo/lib/
     wrapProgram $out/bin/mujo \
+      --set MUJO_LIB $out/libexec/mujo/lib \
       --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.jq pkgs.gawk pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.curl pkgs.findutils pkgs.procps pkgs.git pkgs.util-linux pkgs.tmux pkgs.pulseaudio pkgs.power-profiles-daemon pkgs.cliphist pkgs.wl-clipboard pkgs.libnotify pkgs.xdg-utils pkgs.quickshell]}
   '';
 

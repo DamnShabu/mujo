@@ -1,14 +1,12 @@
 import QtQuick
 import "../theme"
+import "Scroll.js" as Scroll
 
 // MujoGridView (無常) — GridView with the shell's kinetic wheel scrolling.
 //
-// GridView derives from Flickable but cannot be built on MujoFlickable, so the
-// smooth-scroll block would otherwise be copied into every grid that wants it.
-// It lives here once instead. The curve is deliberately the simpler one the
-// wallpaper grids have always used, not MujoFlickable's accelerating variant —
-// grid cells are large, and matching the panel exactly is what keeps this a
-// refactor rather than a change in feel.
+// GridView derives from Flickable but cannot be built on MujoFlickable, so both
+// call the same Scroll.js instead: a grid then scrolls exactly like every other
+// surface, rather than on a curve of its own.
 GridView {
     id: grid
 
@@ -17,9 +15,18 @@ GridView {
     flickDeceleration: 1800
     maximumFlickVelocity: 3500
 
-    // Where the wheel animation is heading, so consecutive notches compound
-    // instead of restarting from wherever the current frame happens to be.
     property real targetContentY: contentY
+    property real targetContentX: contentX
+    property real _lastWheelTime: 0
+    property real _wheelMultiplier: 1.0
+
+    onMovementStarted: {
+        scrollAnim.stop()
+        targetContentY = contentY
+        _wheelMultiplier = 1.0
+    }
+    onFlickStarted: scrollAnim.stop()
+    onFlickEnded: targetContentY = contentY
 
     NumberAnimation {
         id: scrollAnim
@@ -27,24 +34,23 @@ GridView {
         property: "contentY"
         duration: Anim.d(Anim.enter)
         easing.type: Easing.OutCubic
-    }
-
-    WheelHandler {
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: function(event) {
-            grid.cancelFlick()
-            const maxContentY = Math.max(0, grid.contentHeight - grid.height)
-            const delta = (event.angleDelta.y !== 0) ? -event.angleDelta.y : -event.pixelDelta.y
-            const from = scrollAnim.running ? grid.targetContentY : grid.contentY
-            grid.scrollTo(Math.max(0, Math.min(maxContentY, from + delta * 1.2)), Anim.enter)
-            event.accepted = true
+        onFinished: {
+            grid.targetContentY = grid.contentY
+            grid._wheelMultiplier = 1.0
         }
     }
 
-    onMovementStarted: scrollAnim.stop()
-    onFlickStarted: scrollAnim.stop()
-    onMovementEnded: targetContentY = contentY
-    onFlickEnded: targetContentY = contentY
+    WheelHandler {
+        target: grid
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: function(event) {
+            // A grid only ever scrolls vertically here, so there is no second
+            // animation to hand over; a horizontal step would be a no-op.
+            const step = Scroll.wheelStep(grid, event, scrollAnim.running, false)
+            if (step === null || step.axis !== "y") return
+            grid.scrollTo(step.to, step.duration)
+        }
+    }
 
     function scrollTo(y, duration) {
         targetContentY = y
@@ -56,6 +62,6 @@ GridView {
 
     function scrollToTop() {
         cancelFlick()
-        scrollTo(0, Anim.slow)
+        scrollTo(0, Scroll.durationFor(contentY))
     }
 }
