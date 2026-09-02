@@ -5,6 +5,7 @@ import Quickshell.Widgets
 import "../../theme"
 import "../../components"
 import "../../services"
+import "Search.js" as Search
 
 // LauncherGroupsView: User-defined application groups manager & viewer for Mujo (無常).
 // Provides seamless group creation, renaming, deletion, application organization,
@@ -35,17 +36,6 @@ Item {
         return null
     }
 
-    // Modal dialog state: "" | "create" | "rename" | "delete" | "add-apps"
-    property string modalState: ""
-    property string modalGroupName: ""
-    property string modalGroupIcon: "folder"
-    property string modalFilterQuery: ""
-
-    readonly property var iconChoices: [
-        "folder", "code", "work", "sports_esports", "terminal",
-        "language", "music_note", "play_circle", "image", "palette",
-        "edit_note", "settings", "build", "bookmark", "star", "dashboard"
-    ]
 
     function isFav(id) { return root.favorites.indexOf(id) >= 0 }
     function toggleFav(id) {
@@ -70,87 +60,6 @@ Item {
         return null
     }
 
-    function fuzzySubsequenceScore(str, pattern) {
-        var sIdx = 0, pIdx = 0
-        var score = 0
-        var consecutive = 0
-        var prevMatchIdx = -1
-
-        while (sIdx < str.length && pIdx < pattern.length) {
-            if (str[sIdx] === pattern[pIdx]) {
-                score += 20
-                if (prevMatchIdx === sIdx - 1) {
-                    consecutive++
-                    score += consecutive * 15
-                } else {
-                    consecutive = 0
-                }
-                if (sIdx === 0 || str[sIdx - 1] === " " || str[sIdx - 1] === "-" || str[sIdx - 1] === "_") {
-                    score += 35
-                }
-                prevMatchIdx = sIdx
-                pIdx++
-            }
-            sIdx++
-        }
-        return pIdx === pattern.length ? Math.max(1, score) : -1
-    }
-
-    function scoreApp(entry, q, isFavorite) {
-        if (!entry || !entry.name) return -1
-        if (!q) return isFavorite ? 10000 : 1000
-
-        var name = entry.name.toLowerCase()
-        var generic = (entry.genericName || "").toLowerCase()
-        var comment = (entry.comment || "").toLowerCase()
-        var exec = (entry.execString || "").toLowerCase()
-        var id = (entry.id || "").toLowerCase()
-
-        var s = -1
-
-        if (name === q) {
-            s = 10000
-        } else if (name.indexOf(q) === 0) {
-            s = 8500 + Math.max(0, 500 - (name.length - q.length) * 10)
-        } else if (name.indexOf(" " + q) >= 0 || name.indexOf("-" + q) >= 0 || name.indexOf("_" + q) >= 0) {
-            var idx = Math.max(name.indexOf(" " + q), Math.max(name.indexOf("-" + q), name.indexOf("_" + q)))
-            s = 7200 - idx * 15
-        } else if (generic === q) {
-            s = 6800
-        } else if (generic.indexOf(q) === 0) {
-            s = 6300
-        } else if (generic.indexOf(" " + q) >= 0) {
-            s = 5800
-        } else if (entry.keywords) {
-            for (var k = 0; k < entry.keywords.length; k++) {
-                var kw = String(entry.keywords[k]).toLowerCase()
-                if (kw === q) { s = 5500; break }
-                if (kw.indexOf(q) === 0) { s = 5200; break }
-                if (kw.indexOf(q) > 0) { s = 4700; break }
-            }
-        }
-
-        if (s < 0 && name.indexOf(q) >= 0) {
-            s = 4200 - name.indexOf(q) * 20
-        }
-
-        if (s < 0) {
-            var fz = root.fuzzySubsequenceScore(name, q)
-            if (fz > 0) s = 3000 + fz
-        }
-
-        if (s < 0 && generic.indexOf(q) >= 0) {
-            s = 2200
-        }
-        if (s < 0 && (comment.indexOf(q) >= 0 || exec.indexOf(q) >= 0 || id.indexOf(q) >= 0)) {
-            s = 1200
-        }
-
-        if (s < 0) return -1
-        if (isFavorite) s += 2500
-        return s
-    }
-
     // Get applications belonging to the active group (filtered by search query if non-empty, favorites first)
     readonly property var currentGroupApps: {
         if (!root.currentGroup || !root.currentGroup.apps) return []
@@ -161,7 +70,7 @@ Item {
             var e = root.entryById(appIds[i])
             if (!e || !e.name) continue
             var fav = root.isFav(e.id)
-            var s = root.scoreApp(e, q, fav)
+            var s = Search.scoreApp(e, q, fav)
             if (s < 0) continue
             e._score = s
             out.push(e)
@@ -179,7 +88,7 @@ Item {
     readonly property var availableAppsToAdd: {
         var a = (DesktopEntries.applications ? DesktopEntries.applications.values : []) || []
         var currentIds = (root.currentGroup && root.currentGroup.apps) ? root.currentGroup.apps : []
-        var q = root.modalFilterQuery.trim().toLowerCase()
+        var q = modals.filterQuery.trim().toLowerCase()
         var out = []
         for (var i = 0; i < a.length; i++) {
             var e = a[i]
@@ -197,69 +106,6 @@ Item {
         return out
     }
 
-    // ── Group Operations ──────────────────────────────────────────────────────
-    function createGroup(name, icon) {
-        var cleanName = name.trim()
-        if (!cleanName) return
-        var newGroup = {
-            id: "group-" + Date.now(),
-            name: cleanName,
-            icon: icon || "folder",
-            apps: []
-        }
-        var updated = root.groups.slice()
-        updated.push(newGroup)
-        SettingsBus.set("apps.groups", updated)
-        root.activeGroupIndex = updated.length - 1
-        root.modalState = ""
-        Notifications.notify("Group created", cleanName, icon || "folder", "low", { transient: true })
-    }
-
-    function renameGroup(newName, newIcon) {
-        if (!root.currentGroup) return
-        var cleanName = newName.trim()
-        if (!cleanName) return
-        var updated = root.groups.slice()
-        var g = JSON.parse(JSON.stringify(root.currentGroup))
-        g.name = cleanName
-        g.icon = newIcon || g.icon || "folder"
-        updated[root.activeGroupIndex] = g
-        SettingsBus.set("apps.groups", updated)
-        root.modalState = ""
-        Notifications.notify("Group updated", cleanName, g.icon, "low", { transient: true })
-    }
-
-    function deleteCurrentGroup() {
-        if (!root.currentGroup) return
-        var name = root.currentGroup.name
-        var updated = root.groups.filter(function (g, idx) { return idx !== root.activeGroupIndex })
-        SettingsBus.set("apps.groups", updated)
-        root.activeGroupIndex = Math.max(0, root.activeGroupIndex - 1)
-        root.modalState = ""
-        Notifications.notify("Group deleted", name, "delete", "low", { transient: true })
-    }
-
-    function addAppToCurrentGroup(appId) {
-        if (!root.currentGroup || !appId) return
-        var updated = root.groups.slice()
-        var g = JSON.parse(JSON.stringify(root.currentGroup))
-        if (!g.apps) g.apps = []
-        if (g.apps.indexOf(appId) < 0) {
-            g.apps.push(appId)
-            updated[root.activeGroupIndex] = g
-            SettingsBus.set("apps.groups", updated)
-        }
-    }
-
-    function removeAppFromCurrentGroup(appId) {
-        if (!root.currentGroup || !appId) return
-        var updated = root.groups.slice()
-        var g = JSON.parse(JSON.stringify(root.currentGroup))
-        if (!g.apps) return
-        g.apps = g.apps.filter(function (id) { return id !== appId })
-        updated[root.activeGroupIndex] = g
-        SettingsBus.set("apps.groups", updated)
-    }
 
     // Keyboard navigation
     readonly property int columns: gv.width > 0 ? Math.max(1, Math.floor(gv.width / 110)) : 1
@@ -395,9 +241,7 @@ Item {
                 HoverHandler { id: newGrpHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler {
                     onTapped: {
-                        root.modalGroupName = ""
-                        root.modalGroupIcon = "folder"
-                        root.modalState = "create"
+                        modals.open("create")
                     }
                 }
             }
@@ -450,8 +294,7 @@ Item {
                 HoverHandler { id: addAppsHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler {
                     onTapped: {
-                        root.modalFilterQuery = ""
-                        root.modalState = "add-apps"
+                        modals.open("add-apps")
                     }
                 }
             }
@@ -474,11 +317,8 @@ Item {
                 HoverHandler { id: renHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler {
                     onTapped: {
-                        if (root.currentGroup) {
-                            root.modalGroupName = root.currentGroup.name
-                            root.modalGroupIcon = root.currentGroup.icon || "folder"
-                            root.modalState = "rename"
-                        }
+                        if (root.currentGroup)
+                            modals.open("rename", root.currentGroup.name, root.currentGroup.icon || "folder")
                     }
                 }
             }
@@ -500,7 +340,7 @@ Item {
                 }
                 HoverHandler { id: delHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler {
-                    onTapped: root.modalState = "delete"
+                    onTapped: modals.open("delete")
                 }
             }
         }
@@ -592,7 +432,7 @@ Item {
 
                             HoverHandler { id: rmHover; cursorShape: Qt.PointingHandCursor }
                             TapHandler {
-                                onTapped: root.removeAppFromCurrentGroup(cell.modelData.id)
+                                onTapped: modals.removeAppFromCurrentGroup(cell.modelData.id)
                             }
                         }
 
@@ -698,14 +538,7 @@ Item {
                     HoverHandler { id: emptyActHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler {
                         onTapped: {
-                            if (root.groups.length === 0) {
-                                root.modalGroupName = ""
-                                root.modalGroupIcon = "folder"
-                                root.modalState = "create"
-                            } else {
-                                root.modalFilterQuery = ""
-                                root.modalState = "add-apps"
-                            }
+                            modals.open(root.groups.length === 0 ? "create" : "add-apps")
                         }
                     }
                 }
@@ -713,377 +546,14 @@ Item {
         }
     }
 
-    // ── Modals & Popovers Overlay ─────────────────────────────────────────────
-
-    // 1. Scrim for active modal
-    Rectangle {
-        anchors.fill: parent
-        z: 90
-        opacity: root.modalState !== "" ? 1 : 0
-        visible: opacity > 0
-        color: Theme.withAlpha("#000000", 0.65)
-        Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast) } }
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.modalState = ""
-        }
-    }
-
-    // 2. Create / Rename Group Dialog
-    Rectangle {
-        id: groupEditModal
-        anchors.centerIn: parent
-        z: 100
-        readonly property bool shown: root.modalState === "create" || root.modalState === "rename"
-        visible: opacity > 0
-        width: 380
-        height: editCol.implicitHeight + 28
-        radius: Theme.radiusLg
-        color: Theme.surface
-        border.color: Theme.borderStrong
-        border.width: 1
-
-        scale: groupEditModal.shown ? 1.0 : 0.94
-        opacity: groupEditModal.shown ? 1.0 : 0.0
-        Behavior on scale { NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Anim.easeStandard } }
-        Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast) } }
-
-        ColumnLayout {
-            id: editCol
-            anchors.fill: parent
-            anchors.margins: 16
-            spacing: 14
-
-            RowLayout {
-                Layout.fillWidth: true
-                MaterialIcon {
-                    iconName: root.modalGroupIcon || "folder"
-                    pixelSize: 20
-                    color: Theme.accent
-                }
-                Text {
-                    text: root.modalState === "create" ? "Create New Group" : "Rename Group"
-                    color: Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeTitle + 1
-                    font.bold: true
-                    Layout.fillWidth: true
-                }
-                IconButton {
-                    iconName: "close"
-                    onClicked: root.modalState = ""
-                }
-            }
-
-            // Group Name Input
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 38
-                radius: Theme.radiusSm
-                color: Theme.bg
-                border.color: nameInput.activeFocus ? Theme.accent : Theme.border
-                border.width: 1
-
-                TextInput {
-                    id: nameInput
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    verticalAlignment: Text.AlignVCenter
-                    color: Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeTitle
-                    text: root.modalGroupName
-                    onTextChanged: root.modalGroupName = text
-                    focus: root.modalState === "create" || root.modalState === "rename"
-                    Keys.onReturnPressed: {
-                        if (root.modalState === "create") root.createGroup(nameInput.text, root.modalGroupIcon)
-                        else root.renameGroup(nameInput.text, root.modalGroupIcon)
-                    }
-                    Keys.onEscapePressed: root.modalState = ""
-
-                    Text {
-                        anchors.fill: parent
-                        verticalAlignment: Text.AlignVCenter
-                        text: "Enter group name (e.g. Work, Gaming, Creative)…"
-                        color: Theme.textDim
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeTitle
-                        visible: nameInput.text === ""
-                    }
-                }
-            }
-
-            // Icon Picker
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 6
-                Text { text: "Choose Icon"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel }
-
-                Flow {
-                    Layout.fillWidth: true
-                    spacing: 6
-                    Repeater {
-                        model: root.iconChoices
-                        delegate: Rectangle {
-                            id: iChoice
-                            required property var modelData
-                            readonly property bool isSelected: root.modalGroupIcon === modelData
-                            implicitWidth: 32
-                            implicitHeight: 32
-                            radius: Theme.radiusSm
-                            color: isSelected ? Theme.withAlpha(Theme.accent, 0.25) : (iHover.hovered ? Theme.surfaceHover : Theme.bg)
-                            border.color: isSelected ? Theme.accent : Theme.border
-
-                            MaterialIcon {
-                                anchors.centerIn: parent
-                                iconName: iChoice.modelData
-                                pixelSize: 16
-                                color: iChoice.isSelected ? Theme.accent : Theme.textSecondary
-                            }
-                            HoverHandler { id: iHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: root.modalGroupIcon = iChoice.modelData }
-                        }
-                    }
-                }
-            }
-
-            // Dialog Actions
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: 4
-                spacing: 8
-                Item { Layout.fillWidth: true }
-
-                Rectangle {
-                    Layout.preferredHeight: 30
-                    Layout.preferredWidth: 80
-                    radius: Theme.radiusSm
-                    color: cancelH.hovered ? Theme.surfaceHover : Theme.surface
-                    border.color: Theme.border
-                    Text { anchors.centerIn: parent; text: "Cancel"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
-                    HoverHandler { id: cancelH; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: root.modalState = "" }
-                }
-
-                Rectangle {
-                    Layout.preferredHeight: 30
-                    Layout.preferredWidth: 80
-                    radius: Theme.radiusSm
-                    color: saveH.hovered ? Theme.accent : Theme.withAlpha(Theme.accent, 0.85)
-                    opacity: root.modalGroupName.trim() !== "" ? 1.0 : 0.5
-                    Text { anchors.centerIn: parent; text: "Save"; color: Theme.bg; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true }
-                    HoverHandler { id: saveH; cursorShape: Qt.PointingHandCursor }
-                    TapHandler {
-                        onTapped: {
-                            if (root.modalState === "create") root.createGroup(root.modalGroupName, root.modalGroupIcon)
-                            else root.renameGroup(root.modalGroupName, root.modalGroupIcon)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 3. Delete Group Confirmation Dialog
-    Rectangle {
-        anchors.centerIn: parent
-        z: 100
-        visible: root.modalState === "delete"
-        width: 360
-        height: delCol.implicitHeight + 28
-        radius: Theme.radiusLg
-        color: Theme.surface
-        border.color: Theme.error
-        border.width: 1
-
-        ColumnLayout {
-            id: delCol
-            anchors.fill: parent
-            anchors.margins: 16
-            spacing: 12
-
-            RowLayout {
-                spacing: 8
-                MaterialIcon { iconName: "warning"; pixelSize: 22; color: Theme.error }
-                Text {
-                    text: "Delete Group?"
-                    color: Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeTitle + 1
-                    font.bold: true
-                }
-            }
-
-            Text {
-                text: "Are you sure you want to delete the group \"" + (root.currentGroup ? root.currentGroup.name : "") + "\"? Applications inside will remain installed on your system."
-                color: Theme.textSecondary
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSmall
-                wrapMode: Text.WordWrap
-                Layout.fillWidth: true
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: 6
-                spacing: 8
-                Item { Layout.fillWidth: true }
-
-                Rectangle {
-                    Layout.preferredHeight: 30
-                    Layout.preferredWidth: 80
-                    radius: Theme.radiusSm
-                    color: delCancH.hovered ? Theme.surfaceHover : Theme.surface
-                    border.color: Theme.border
-                    Text { anchors.centerIn: parent; text: "Cancel"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
-                    HoverHandler { id: delCancH; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: root.modalState = "" }
-                }
-
-                Rectangle {
-                    Layout.preferredHeight: 30
-                    Layout.preferredWidth: 90
-                    radius: Theme.radiusSm
-                    color: delConfH.hovered ? Theme.error : Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.85)
-                    Text { anchors.centerIn: parent; text: "Delete Group"; color: "#ffffff"; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true }
-                    HoverHandler { id: delConfH; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: root.deleteCurrentGroup() }
-                }
-            }
-        }
-    }
-
-    // 4. Add Applications to Group Picker Modal
-    Rectangle {
-        anchors.centerIn: parent
-        z: 100
-        visible: root.modalState === "add-apps"
-        width: 440
-        height: 380
-        radius: Theme.radiusLg
-        color: Theme.surface
-        border.color: Theme.borderStrong
-        border.width: 1
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 14
-            spacing: 10
-
-            RowLayout {
-                Layout.fillWidth: true
-                MaterialIcon { iconName: "add_circle"; pixelSize: 18; color: Theme.accent }
-                Text {
-                    text: "Add to " + (root.currentGroup ? root.currentGroup.name : "Group")
-                    color: Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeTitle
-                    font.bold: true
-                    Layout.fillWidth: true
-                }
-                IconButton {
-                    iconName: "close"
-                    onClicked: root.modalState = ""
-                }
-            }
-
-            // Search filter for available apps
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 36
-                radius: Theme.radiusSm
-                color: Theme.bg
-                border.color: addAppSearch.activeFocus ? Theme.accent : Theme.border
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 8
-                    anchors.rightMargin: 8
-                    spacing: 6
-                    MaterialIcon { iconName: "search"; pixelSize: 15; color: Theme.textSecondary }
-                    TextInput {
-                        id: addAppSearch
-                        Layout.fillWidth: true
-                        verticalAlignment: Text.AlignVCenter
-                        color: Theme.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeTitle
-                        onTextChanged: root.modalFilterQuery = text
-                        focus: root.modalState === "add-apps"
-                        Text {
-                            anchors.fill: parent
-                            verticalAlignment: Text.AlignVCenter
-                            text: "Filter applications…"
-                            color: Theme.textDim
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeTitle
-                            visible: addAppSearch.text === ""
-                        }
-                    }
-                }
-            }
-
-            // Scrollable list of applications
-            ListView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                spacing: 3
-                model: root.availableAppsToAdd
-                boundsBehavior: Flickable.StopAtBounds
-
-                delegate: Rectangle {
-                    id: addRow
-                    required property var modelData
-                    width: parent ? parent.width : 0
-                    implicitHeight: 38
-                    radius: Theme.radiusSm
-                    color: addRowH.hovered ? Theme.surfaceHover : "transparent"
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        spacing: 10
-
-                        IconImage {
-                            source: root.iconSource(addRow.modelData.icon)
-                            width: 24
-                            height: 24
-                        }
-
-                        Text {
-                            text: addRow.modelData.name
-                            color: Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
-
-                        Rectangle {
-                            Layout.preferredHeight: 22
-                            Layout.preferredWidth: 64
-                            radius: Theme.radiusSm
-                            color: addBtnH.hovered ? Theme.accent : Theme.surfaceActive
-                            border.color: Theme.borderStrong
-
-                            RowLayout {
-                                anchors.centerIn: parent
-                                spacing: 2
-                                MaterialIcon { iconName: "add"; pixelSize: 12; color: addBtnH.hovered ? Theme.bg : Theme.accent }
-                                Text { text: "Add"; color: addBtnH.hovered ? Theme.bg : Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel; font.bold: true }
-                            }
-                            HoverHandler { id: addBtnH; cursorShape: Qt.PointingHandCursor }
-                            TapHandler {
-                                onTapped: root.addAppToCurrentGroup(addRow.modelData.id)
-                            }
-                        }
-                    }
-                    HoverHandler { id: addRowH }
-                }
-            }
+    LauncherGroupModals {
+        id: modals
+        groups: root.groups
+        currentGroup: root.currentGroup
+        activeGroupIndex: root.activeGroupIndex
+        availableApps: root.availableAppsToAdd
+        onGroupsWritten: function(selectIndex) {
+            if (selectIndex >= 0) root.activeGroupIndex = selectIndex
         }
     }
 }

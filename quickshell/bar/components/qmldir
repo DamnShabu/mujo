@@ -17,7 +17,6 @@ MujoHero MujoHero.qml
 MujoSettingRow MujoSettingRow.qml
 MujoSegmented MujoSegmented.qml
 MujoLivingCanvas MujoLivingCanvas.qml
-MujoPageHeroArt MujoPageHeroArt.qml
 DeviceSlider DeviceSlider.qml
 DeviceToggle DeviceToggle.qml
 DisplayChip DisplayChip.qml

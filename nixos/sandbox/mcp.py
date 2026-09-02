@@ -10,6 +10,7 @@ import json
 import os
 import shlex
 import signal
+import socket
 import sys
 import threading
 import time
@@ -18,6 +19,34 @@ import time
 # JSON-RPC channel, and keep a dup of the original to answer on.
 _rpc = os.fdopen(os.dup(1), "wb")
 os.dup2(2, 1)
+
+
+# QEMU's SPICE port is a literal in sandbox.nix, so exactly one sandbox VM can
+# exist on this machine. Without this check the second one binds nothing, hangs
+# in vm.start() and the client waits until its own timeout with no explanation
+# -- which is how a stale VM from another session silently blocked every
+# sandbox call for ten hours.
+# Overridable only so the self-check can aim the probe at a port it controls:
+# the VM's own -spice port is a literal in sandbox.nix and does not read this.
+SPICE_PORT = int(os.environ.get("MUJO_SANDBOX_SPICE_PORT_PROBE", "5920"))
+
+
+def spice_port_busy():
+    """True when something already holds the port QEMU needs."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        try:
+            probe.bind(("0.0.0.0", SPICE_PORT))
+            return False
+        except OSError:
+            return True
+
+
+PORT_BUSY_MESSAGE = (
+    f"another sandbox VM is already running: TCP port {SPICE_PORT} is taken, "
+    f"and QEMU's -spice port is a literal in nixos/sandbox/sandbox.nix, so only "
+    f"one sandbox can exist at a time. Find the holder with "
+    f"`ss -ltnp | grep {SPICE_PORT}` and stop it, then retry."
+)
 
 # The driver appends `-nographic` when it finds no display in the environment,
 # and that would override the `-display egl-headless` the guest needs for GL.
@@ -113,6 +142,11 @@ def _idle_watchdog():
                 teardown(f"idle for {int(idle)}s")
 
 
+# Say it once at startup too, so someone running `nix run .#sandbox` in a
+# terminal sees the reason immediately rather than on the first tool call.
+if spice_port_busy():
+    print(f"sandbox: {PORT_BUSY_MESSAGE}", file=sys.stderr)
+
 threading.Thread(target=_idle_watchdog, daemon=True).start()
 atexit.register(lambda: teardown("server exiting"))
 try:
@@ -131,6 +165,8 @@ def user_name():
 def ensure_up():
     if vm.booted:
         return
+    if spice_port_busy():
+        raise RuntimeError(PORT_BUSY_MESSAGE)
     t_start = time.time()
     print(f"sandbox: booting VM...", file=sys.stderr)
     if getattr(vm, "shared_dir", None):
