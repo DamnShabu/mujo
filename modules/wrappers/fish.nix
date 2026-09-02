@@ -1,4 +1,4 @@
-{self, ...}: {
+{...}: {
   flake.wrappers.fish = {
     wlib,
     pkgs,
