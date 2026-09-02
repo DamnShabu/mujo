@@ -173,6 +173,13 @@ Rectangle {
                         asynchronous: true
                         cache: true
                         smooth: true
+                        // `source` is the full-size wallhaven image, which runs
+                        // to 5120x2880 (~59 MB of RGBA). The modal is capped at
+                        // 960x680 and this pane is a fraction of that, and fit
+                        // mode scales into the box regardless — so decoding at
+                        // the modal's own maximum is free of visible cost.
+                        sourceSize.width: 960
+                        sourceSize.height: 680
 
                         Spinner {
                             anchors.centerIn: parent
