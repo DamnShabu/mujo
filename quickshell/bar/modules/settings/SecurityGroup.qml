@@ -374,16 +374,16 @@ ColumnLayout {
 
                     Rectangle {
                         width: 32; height: 32; radius: Theme.radiusSm
-                        color: Theme.successDim
-                        MaterialIcon { anchors.centerIn: parent; iconName: "key"; pixelSize: 18; color: Theme.success }
+                        color: SecurityService.encryptedSwapActive ? Theme.successDim : Theme.errorDim
+                        MaterialIcon { anchors.centerIn: parent; iconName: SecurityService.encryptedSwapActive ? "key" : "key_off"; pixelSize: 18; color: SecurityService.encryptedSwapActive ? Theme.success : Theme.error }
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 2
                         Text { text: "Per-Boot Encrypted Swap"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true }
-                        Text { text: "Re-keyed on every boot with a random key; persistent hibernation disabled"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                        Text { text: SecurityService.encryptedSwapActive ? "Re-keyed on every boot with a random key; persistent hibernation disabled" : "Swap is not reporting as encrypted — pages may reach the disk in the clear"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
                     }
-                    DisplayChip { label: "ENCRYPTED"; selected: true }
+                    DisplayChip { label: SecurityService.encryptedSwapActive ? "ENCRYPTED" : "UNVERIFIED"; selected: SecurityService.encryptedSwapActive }
                 }
             }
 
@@ -403,16 +403,16 @@ ColumnLayout {
 
                     Rectangle {
                         width: 32; height: 32; radius: Theme.radiusSm
-                        color: Theme.successDim
-                        MaterialIcon { anchors.centerIn: parent; iconName: "hide_source"; pixelSize: 18; color: Theme.success }
+                        color: SecurityService.coredumpDisabled ? Theme.successDim : Theme.errorDim
+                        MaterialIcon { anchors.centerIn: parent; iconName: "hide_source"; pixelSize: 18; color: SecurityService.coredumpDisabled ? Theme.success : Theme.error }
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 2
                         Text { text: "Zero Core Dumps on Persistent Disk"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true }
-                        Text { text: "RAM images never persist to disk; crashes stay bounded in journald"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                        Text { text: SecurityService.coredumpDisabled ? "RAM images never persist to disk; crashes stay bounded in journald" : "Core dumps are not reporting as disabled — process memory can reach the disk"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
                     }
-                    DisplayChip { label: "DISABLED"; selected: true }
+                    DisplayChip { label: SecurityService.coredumpDisabled ? "DISABLED" : "UNVERIFIED"; selected: SecurityService.coredumpDisabled }
                 }
             }
 
@@ -432,16 +432,16 @@ ColumnLayout {
 
                     Rectangle {
                         width: 32; height: 32; radius: Theme.radiusSm
-                        color: Theme.accentDim
-                        MaterialIcon { anchors.centerIn: parent; iconName: "delete_sweep"; pixelSize: 18; color: Theme.accent }
+                        color: SecurityService.tmpfsTmpActive ? Theme.accentDim : Theme.errorDim
+                        MaterialIcon { anchors.centerIn: parent; iconName: "delete_sweep"; pixelSize: 18; color: SecurityService.tmpfsTmpActive ? Theme.accent : Theme.error }
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 2
                         Text { text: "Ephemeral Scratch Directory (/tmp in RAM)"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true }
-                        Text { text: "All scratch files reside in tmpfs and are discarded on reboot"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                        Text { text: SecurityService.tmpfsTmpActive ? "All scratch files reside in tmpfs and are discarded on reboot" : "/tmp is not reporting as tmpfs — scratch files may survive a reboot on disk"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
                     }
-                    DisplayChip { label: "TMPFS"; selected: true }
+                    DisplayChip { label: SecurityService.tmpfsTmpActive ? "TMPFS" : "UNVERIFIED"; selected: SecurityService.tmpfsTmpActive }
                 }
             }
 
@@ -461,16 +461,16 @@ ColumnLayout {
 
                     Rectangle {
                         width: 32; height: 32; radius: Theme.radiusSm
-                        color: Theme.successDim
-                        MaterialIcon { anchors.centerIn: parent; iconName: "local_fire_department"; pixelSize: 18; color: Theme.success }
+                        color: SecurityService.firewallActive ? Theme.successDim : Theme.errorDim
+                        MaterialIcon { anchors.centerIn: parent; iconName: "local_fire_department"; pixelSize: 18; color: SecurityService.firewallActive ? Theme.success : Theme.error }
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 2
                         Text { text: "NFTables Host Firewall"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true }
-                        Text { text: "Default DROP for all inbound traffic; strictly managed interfaces"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                        Text { text: SecurityService.firewallActive ? "Default DROP for all inbound traffic; strictly managed interfaces" : "Firewall is not reporting as active — inbound traffic may not be dropped"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
                     }
-                    DisplayChip { label: "ENFORCING"; selected: true }
+                    DisplayChip { label: SecurityService.firewallActive ? "ENFORCING" : "UNVERIFIED"; selected: SecurityService.firewallActive }
                 }
             }
         }
