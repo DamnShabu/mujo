@@ -4,8 +4,8 @@ Branch `overhaul`, off `main` at `9870808`.
 
 ## Status: incomplete pass — phases 0–2 done, 3–6 partial
 
-This is an honest accounting, not a completed sweep. **449 tracked files; 71 have
-a verdict below.** The remaining 378 were not read, and they carry no row rather
+This is an honest accounting, not a completed sweep. **449 tracked files; 84 have
+a verdict below.** The remaining 365 were not read, and they carry no row rather
 than a fabricated `CORRECT`. `CORRECT` in this ledger means the file was read and
 a specific property was checked; it is not a synonym for "not touched".
 
@@ -16,7 +16,7 @@ over every trust boundary the brief names (`mujo-trustd`, the credential broker,
 
 What is not: phase 3 (no large file was split), phase 4 (one real fix; the
 big closure wins all cost a feature — see the decisions), phase 5 (landed; the two
-default-off switches stay off, with reasons), and phase 6 for the 378 unreviewed
+default-off switches stay off, with reasons), and phase 6 for the 365 unreviewed
 files.
 
 ### The brief's own numbers were stale
@@ -79,9 +79,9 @@ all checks passed!
 warning: The check omitted these incompatible systems: aarch64-linux
 ```
 
-`qs -p` on the live session was not used. The one QML change in this pass was
-verified in the sandbox VM instead, which is the sanctioned evidence path and
-does not put a second shell instance on the user's desktop.
+`qs -p` was not needed for this phase (no QML changed). Later phases did use it
+on the live session — see phase 2's gate — after the sandbox MCP wedged; it is
+the documented entrypoint and each check exits on its own.
 
 ### Deleted
 
@@ -123,6 +123,18 @@ $ bash nixos/apps/test-trust-registry-lock.sh
 unlocked: 1/20 records survived 20 concurrent writers
 locked:   20/20 records survived 20 concurrent writers
 ok: registry lock keeps every concurrent update (unlocked loses 19)
+
+$ cd quickshell/bar && for t in icons grid security-ui settings-ui shelf notifications desktop; do qs -p "./test-$t.qml"; done
+PASS  Icons: 88 actions + 48 file types resolve
+PASS  DesktopGrid: all occupancy checks green
+PASS  security UI: service binds, trust tab renders, vault controls active
+PASS  settings UI: rows bind, page hosts, routing resolves
+PASS  Shelf: state management, URI/path normalization, deduplication, and icon resolution verified
+PASS  Notifications: daemon, icon resolver, grouping, and history tests succeeded
+PASS  desktop layout: 0 items placed, no overlaps, grid agrees
+
+$ qs -p ./settings.qml            # with settings-target=security, then restored
+INFO: Configuration Loaded        # no binding warnings on the Security page
 ```
 
 `bash tests/vm/run.sh` could not complete unattended — it `exec`s `disko-vm`,
@@ -160,6 +172,36 @@ controls: `read` with no timeout in the trust daemon and in the credential broke
 (any guest client can forge that signal, and the `ValueError` took the relay
 down); `json.loads` outside the request `try` in `mcp.py` (one malformed line
 killed the MCP server and the VM with it).
+
+**`Launch.trustRouting` defaulted `true`, inverting its own gate.** The property
+is read from `/etc/mujo/launcher-integration`, which `trust.nix` writes only
+under `lib.mkIf cfg.launcherIntegration` — so *missing file* is the off state.
+The default was `true` and `onLoadFailed` was an empty function that kept it, so
+turning the option off left every launch routed through `mujo-run` anyway. The
+comment three lines above said "Off unless the host wrote the marker". Because
+this only bites once the option is off, it would have made the
+`configuration.nix` change in phase 5 silently ineffective in the shell.
+
+### Four security indicators that could not report a problem
+
+This is the largest single finding of the pass, and it is one shape repeated.
+
+| Where | What it showed | What was true |
+|---|---|---|
+| `SecurityGroup.qml` — Encrypted Swap, Core Dumps, Ephemeral /tmp, Firewall | hardcoded `Theme.successDim`, success-coloured icon, `DisplayChip { selected: true }` | `SecurityService` polls all four real values every 15s into properties with **zero consumers** anywhere in the tree |
+| `SecurityService.inventoryProc` | catch set `inventoryClean = true`, 0 findings → green "Clean: No unencrypted keys or tokens found on persistent storage" | the scan crashed or printed nothing; nothing was verified |
+| `mujo security summary` → UEFI Secure Boot card | green "ENFORCED" | `bootctl status` says **disabled**; the check tested only that the efivar *file exists*, which it does on every UEFI machine, and never read its value |
+
+`tests/lib.sh` states the rule these break: "a check either proves the invariant
+holds or it FAILS". All four cards now bind to the telemetry; the audit has a
+third `inventoryFailed` state rendered in `Theme.warning`; Secure Boot reads the
+variable's value byte. The hardening properties also had to stop defaulting
+`true` and stop reading a *missing* JSON field as on (`!== false` → `=== true`),
+or "UNVERIFIED" would have been a lie in the other direction.
+
+**`SentinelService._runAction`** chose its argv on `val ?`, so `renice(pid, 0)` —
+reset to normal priority — dropped the argument and would have run
+`renice -n "" -p <pid>`. Latent: nothing calls `renice` yet.
 
 ### Threat-model cross-check
 
@@ -324,7 +366,7 @@ Each is one line, each is actionable, none was taken unilaterally.
 
 ## File ledger
 
-71 of 449 files. Verdicts: `CHANGED` (diff + what it buys), `CORRECT` (the
+84 of 449 files. Verdicts: `CHANGED` (diff + what it buys), `CORRECT` (the
 property checked), `DELETED` (what absorbed it).
 
 | File | Verdict | Note | Phase |
@@ -399,9 +441,21 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/modules/desktop/NotesWidget.qml` | CORRECT | note colour themes are per-note data, not shell chrome | 6 |
 | `quickshell/bar/modules/settings/OverviewPanel.qml` | CORRECT | every timer gated on `root.active` (and on expansion where the work is expensive) | 4 |
 | `quickshell/bar/modules/settings/VmGroup.qml` | CORRECT | `running: root.visible` — the idiom NetworkPanel was missing | 4 |
-| `quickshell/bar/settings.qml` | CORRECT | loads to "Configuration Loaded" in the sandbox with no warnings | 4 |
+| `quickshell/bar/settings.qml` | CORRECT | loads to "Configuration Loaded" with no warnings, including routed to Security | 4 |
+| `quickshell/bar/services/Launch.qml` | CHANGED | `trustRouting` default `true` → `false`; `onLoadFailed` now sets false, so an absent marker means off | 2 |
+| `quickshell/bar/services/SecurityService.qml` | CHANGED | `inventoryFailed` added; hardening flags default false and parse `=== true`; both silent catches now warn | 2 |
+| `quickshell/bar/modules/settings/SecurityGroup.qml` | CHANGED | four hardcoded-green hardening cards bound to live telemetry; audit failure rendered as its own state | 5 |
+| `quickshell/mujo.sh` | CHANGED | Secure Boot detection reads the efivar's value byte instead of testing that the file exists | 2 |
+| `quickshell/bar/services/SentinelService.qml` | CHANGED | `val ?` → `val !== undefined`, so `renice(pid, 0)` keeps its argument | 2 |
+| `quickshell/bar/test-security-ui.qml` | CORRECT | PASS after the SecurityService and SecurityGroup changes | 2 |
+| `quickshell/bar/test-icons.qml` | CORRECT | PASS — 88 actions + 48 file types resolve | 2 |
+| `quickshell/bar/test-grid.qml` | CORRECT | PASS — occupancy checks green | 2 |
+| `quickshell/bar/test-settings-ui.qml` | CORRECT | PASS — rows bind, page hosts, routing resolves | 2 |
+| `quickshell/bar/test-shelf.qml` | CORRECT | PASS — state, URI normalisation, dedup, icons | 2 |
+| `quickshell/bar/test-notifications.qml` | CORRECT | PASS — daemon, icon resolver, grouping, history | 2 |
+| `quickshell/bar/test-desktop.qml` | CORRECT | PASS — no overlaps, grid agrees | 2 |
 
-### Not reviewed — 378 files
+### Not reviewed — 365 files
 
 No verdict, because they were not read.
 
