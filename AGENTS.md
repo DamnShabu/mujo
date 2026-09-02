@@ -37,8 +37,16 @@ python3 nixos/sandbox/test-lifetime.py           # sandbox VM lifetime: mcp.py a
 bash nixos/apps/test-trust-registry-lock.sh      # trust registry survives concurrent writers
 bash quickshell/test-screenshot-crop.sh          # screenshot crop bounds guard (ImageMagick only)
 bash quickshell/test-screenshot-ocr-lines.sh     # OCR line boxes (tesseract + ImageMagick)
-qs -p ./quickshell/bar/test-icons.qml            # icon-theme resolution
-qs -p ./quickshell/bar/test-grid.qml             # DesktopGrid occupancy
+```
+
+The shell's own checks each print PASS/FAIL and exit, so they can be run in a
+row. Full list in `quickshell/bar/AGENTS.md` → RUNNING:
+
+```bash
+cd quickshell/bar
+for t in icons grid notifications shelf settings-ui security-ui desktop; do
+  qs -p "./test-$t.qml"
+done
 ```
 
 ## CORE CONSTRAINTS
