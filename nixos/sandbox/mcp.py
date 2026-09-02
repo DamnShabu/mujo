@@ -382,7 +382,20 @@ while True:
         continue
     with _vm_lock:
         _last_use = time.time()
-    req = json.loads(line)
+    # Parsing is outside the per-request try below on purpose in one direction
+    # only: a request that fails to parse has no id to answer against. It must
+    # still not take the server -- and with it the VM -- down, which is what an
+    # unhandled JSONDecodeError here used to do on a single truncated line.
+    try:
+        req = json.loads(line)
+    except ValueError as e:
+        send({"jsonrpc": "2.0", "id": None,
+              "error": {"code": -32700, "message": f"parse error: {e}"}})
+        continue
+    if not isinstance(req, dict):
+        send({"jsonrpc": "2.0", "id": None,
+              "error": {"code": -32600, "message": "request is not an object"}})
+        continue
     mid, method = req.get("id"), req.get("method")
     try:
         if method == "initialize":

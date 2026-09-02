@@ -36,6 +36,16 @@ NOTIFY_PATH = "/org/freedesktop/Notifications"
 DBUS = "org.freedesktop.DBus"
 PROPS = "org.freedesktop.DBus.Properties"
 
+# The only members the relay carries from the guest to the host's notification
+# service. Gating on the object path alone would let a compromised guest call
+# anything the host service exposes on that path -- CloseNotification against
+# ids it never created, say -- which is wider than the guest->host surface
+# docs/application-trust.md §6 claims. These four are what a client needs to
+# raise a notification and nothing else.
+NOTIFY_MEMBERS = frozenset(
+    {"Notify", "CloseNotification", "GetCapabilities", "GetServerInformation"}
+)
+
 INTROSPECT = """<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
 <node>
@@ -112,6 +122,11 @@ class Relay:
     def _on_guest(self, msg):
         if msg.message_type == MessageType.SIGNAL:
             if msg.interface == DBUS and msg.member == "NameOwnerChanged":
+                # Anything on the guest bus can emit a signal that claims to be
+                # this one, with a body of any shape; unpacking it blind raised
+                # ValueError inside the message handler and took the relay down.
+                if len(msg.body) != 3:
+                    return None
                 name, _old, new = msg.body
                 if not new and name in self.items:
                     asyncio.get_running_loop().create_task(self._drop(name))
@@ -140,6 +155,12 @@ class Relay:
         if msg.path == NOTIFY_PATH:
             if self.notify_host is None:
                 return None
+            if msg.interface != NOTIFY or msg.member not in NOTIFY_MEMBERS:
+                return Message.new_error(
+                    msg,
+                    "org.freedesktop.DBus.Error.AccessDenied",
+                    f"mujo-tray-relay does not relay {msg.interface}.{msg.member}",
+                )
             asyncio.get_running_loop().create_task(self._forward_notify(msg))
             return True
 
