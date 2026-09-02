@@ -2980,9 +2980,16 @@ case "${CMD}" in
     SUB="${1:-summary}"
     case "${SUB}" in
       summary)
+        # The efivar file exists on every UEFI machine whether Secure Boot is on
+        # or off, so testing for its presence -- which this did -- reported
+        # "ENFORCED" in Settings -> Security on a host booting GRUB with Secure
+        # Boot disabled in firmware. Read the value: 4 bytes of EFI variable
+        # attributes followed by one byte, 1 = enabled.
         sb_active="false"
-        if [[ -f /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c ]]; then
-          sb_active="true"
+        sb_var=/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c
+        if [[ -r ${sb_var} ]]; then
+          sb_byte="$(od -An -t u1 -j4 -N1 "${sb_var}" 2>/dev/null | tr -d '[:space:]' || echo "")"
+          [[ ${sb_byte} == "1" ]] && sb_active="true"
         fi
 
         tpm_active="false"
