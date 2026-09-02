@@ -35,6 +35,22 @@
 
     nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=v0.7.0";
 
+    # Secure Boot: signs the kernel/initrd/stub with our own PKI so the firmware
+    # will only load a boot chain we produced. Replaces GRUB (which let anyone at
+    # the machine press "e" and boot init=/bin/sh).
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote/v1.1.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # Declarative NixOS MicroVMs. Backs the QUARANTINE trust state: an
+    # untrusted application runs behind a KVM boundary rather than a namespace
+    # one. See nixos/apps/microvm.nix.
+    microvm = {
+      url = "github:astro/microvm.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     quickshell = {
       url = "git+https://git.outfoxxed.me/outfoxxed/quickshell";
       inputs.nixpkgs.follows = "nixpkgs";

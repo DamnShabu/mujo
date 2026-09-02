@@ -459,6 +459,7 @@ Rectangle {
                             }
 
                             Flow {
+                                id: tagsFlow
                                 Layout.fillWidth: true
                                 spacing: 5
 
@@ -476,7 +477,7 @@ Rectangle {
                                 }
 
                                 Repeater {
-                                    model: parent.activeTagsList
+                                    model: tagsFlow.activeTagsList
                                     delegate: Rectangle {
                                         id: weTagPill
                                         required property var modelData

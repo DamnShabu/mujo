@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQuick
 import Quickshell
+import Quickshell.Io
 
 // Central app-launch service + launch-feedback state.
 //
@@ -55,6 +56,22 @@ QtObject {
         _expectIds = []
     }
 
+    // Phase 11/24: when the trust engine owns launching, a desktop entry is not
+    // spawned directly — `mujo-trust run` resolves the app's identity and picks
+    // its runtime (quarantine MicroVM or native sandbox) from its trust state.
+    // The user still clicks the same icon; the runtime changes underneath.
+    //
+    // Off unless the host wrote the marker: with it on, an application nobody
+    // has graduated yet boots a VM on first launch, which is not a change to
+    // make silently. See `apps.trust.launcherIntegration` and
+    // docs/application-trust.md §8.
+    property bool trustRouting: true
+    property FileView _trustMarker: FileView {
+        path: "/etc/mujo/launcher-integration"
+        onLoaded: launch.trustRouting = (text() || "").trim() === "enabled"
+        onLoadFailed: function (err) { /* keep default */ }
+    }
+
     // Build an argv from a DesktopEntry, dropping desktop field codes (%U, %F…).
     // entry.command is already tokenized by quickshell with field codes handled,
     // but bare "%U"-style tokens can survive for entries that use them alone.
@@ -93,7 +110,12 @@ QtObject {
         if (entry.startupClass) ids.push(String(entry.startupClass).toLowerCase())
         if (entry.id && entry.id !== entry.startupClass) ids.push(String(entry.id).toLowerCase())
         if (argv.length > 0) {
-            var cmd = entry.runInTerminal ? ["kitty", "-e"].concat(argv) : argv
+            // Trust routing wraps the application, not the terminal:
+            // `kitty -e mujo-run foo`, never `mujo-run kitty`, which
+            // would evaluate the terminal instead of what the user asked for.
+            var isTerminal = argv[0] === "kitty" || argv[0] === "terminal"
+            var cmd = (launch.trustRouting && !isTerminal) ? ["mujo-run"].concat(argv) : argv
+            if (entry.runInTerminal) cmd = ["kitty", "-e"].concat(cmd)
             _spawn(cmd)
         } else {
             // No parsed command available — let quickshell parse the Exec line.
@@ -119,7 +141,11 @@ QtObject {
     function run(argv, name, icon, screen, expectIds) {
         if (!argv || argv.length === 0)
             return
-        _spawn(argv)
+        var cmd = argv
+        if (launch.trustRouting && argv[0] !== "mujo-run" && argv[0] !== "mujo-trust" && argv[0] !== "pkexec" && argv[0] !== "mujo" && argv[0] !== "qs" && argv[0] !== "niri" && argv[0] !== "wl-copy" && argv[0] !== "cliphist" && argv[0] !== "kitty" && argv[0] !== "terminal") {
+            cmd = ["mujo-run"].concat(argv)
+        }
+        _spawn(cmd)
         notify(name || argv[0], icon || "", screen, expectIds || [])
     }
 

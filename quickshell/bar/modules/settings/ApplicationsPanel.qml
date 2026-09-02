@@ -13,12 +13,16 @@ Item {
     id: root
 
     // ── Tab navigation state ──────────────────────────────────────────────────
-    property string activeTab: "integrations" // integrations | flatpaks | launcher
+    property string activeTab: "integrations" // integrations | trust | flatpaks | launcher
     readonly property var tabs: [
         { id: "integrations", label: "Integrations & Services", icon: "extension" },
+        { id: "trust",        label: "Progressive Trust",       icon: "shield" },
         { id: "flatpaks",     label: "Flatpak Applications",    icon: "inventory_2" },
         { id: "launcher",     label: "Launcher & Workflow",     icon: "stars" }
     ]
+
+    property string trustFilterState: "ALL" // ALL | QUARANTINE | OBSERVING | GRADUATED | REVOKED
+    property string trustSearchQuery: ""
 
     // ── Integrations registry ────────────────────────────────────────────────
     readonly property var registry: [
@@ -279,122 +283,136 @@ Item {
                 Repeater {
                     model: root.categories
                     delegate: MujoCard {
+                        id: catCard
                         required property var modelData
                         readonly property var entries: root.entriesFor(modelData)
                         visible: entries.length > 0
                         title: modelData
                         iconName: "extension"
 
-                        Repeater {
-                            model: parent.entries
-                            delegate: Rectangle {
-                                required property var modelData
-                                readonly property bool installed: root.isInstalled(modelData)
-                                readonly property bool running: root.isRunning(modelData)
-                                Layout.fillWidth: true
-                                implicitHeight: 60
-                                radius: Theme.radiusMd
-                                color: int_hh.hovered ? Theme.surfaceHover : "transparent"
-                                border.color: int_hh.hovered ? Theme.borderStrong : "transparent"
-                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
 
-                                HoverHandler { id: int_hh }
+                            Repeater {
+                                model: catCard.entries
+                                delegate: Rectangle {
+                                    id: intRow
+                                    required property var modelData
+                                    readonly property bool installed: root.isInstalled(modelData)
+                                    readonly property bool running: root.isRunning(modelData)
+                                    Layout.fillWidth: true
+                                    implicitHeight: 56
+                                    radius: Theme.radiusMd
+                                    color: int_hh.hovered ? Theme.surfaceHover : "transparent"
+                                    border.color: int_hh.hovered ? Theme.borderStrong : "transparent"
+                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 8
-                                    anchors.rightMargin: 8
-                                    spacing: 12
+                                    HoverHandler { id: int_hh }
 
-                                    BrandIcon {
-                                        brand: modelData.brand || "desktop"
-                                        size: 34
-                                        Layout.alignment: Qt.AlignVCenter
-                                    }
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 12
+                                        anchors.rightMargin: 12
+                                        spacing: 12
 
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-                                        Layout.alignment: Qt.AlignVCenter
+                                        BrandIcon {
+                                            brand: intRow.modelData.brand || "desktop"
+                                            size: 32
+                                            Layout.preferredWidth: 32
+                                            Layout.preferredHeight: 32
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
 
-                                        RowLayout {
-                                            spacing: 8
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            Layout.alignment: Qt.AlignVCenter
+                                            spacing: 2
 
-                                            Text {
-                                                text: modelData.name
-                                                color: Theme.text
-                                                font.family: Theme.fontFamily
-                                                font.pixelSize: Theme.fontSizeBody
-                                                font.bold: true
-                                            }
+                                            RowLayout {
+                                                spacing: 8
+                                                Layout.fillWidth: true
 
-                                            // Status pill
-                                            Rectangle {
-                                                implicitWidth: statText.implicitWidth + 10
-                                                implicitHeight: 16
-                                                radius: Theme.radiusSm
-                                                color: running ? Theme.accentDim : "transparent"
-                                                border.color: running ? Theme.accent : (modelData.builtin ? Theme.accent : (installed ? Theme.success : Theme.border))
+                                                Text {
+                                                    text: intRow.modelData.name
+                                                    color: Theme.text
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fontSizeBody
+                                                    font.bold: true
+                                                }
 
-                                                RowLayout {
-                                                    anchors.centerIn: parent
-                                                    spacing: 4
-                                                    Rectangle {
-                                                        visible: running
-                                                        width: 5; height: 5; radius: 2.5; color: Theme.success
-                                                    }
-                                                    Text {
-                                                        id: statText
-                                                        text: running ? "Running" : (modelData.builtin ? "Built-in" : (installed ? "Installed" : "Not installed"))
-                                                        color: running ? Theme.success : (modelData.builtin ? Theme.accent : (installed ? Theme.success : Theme.textDim))
-                                                        font.family: Theme.fontFamily
-                                                        font.pixelSize: Theme.fontSizeLabel - 1
-                                                        font.bold: running
+                                                // Status pill
+                                                Rectangle {
+                                                    implicitWidth: statText.implicitWidth + 10
+                                                    implicitHeight: 16
+                                                    radius: Theme.radiusSm
+                                                    color: intRow.running ? Theme.accentDim : "transparent"
+                                                    border.color: intRow.running ? Theme.accent : (intRow.modelData.builtin ? Theme.accent : (intRow.installed ? Theme.success : Theme.border))
+
+                                                    RowLayout {
+                                                        anchors.centerIn: parent
+                                                        spacing: 4
+                                                        Rectangle {
+                                                            visible: intRow.running
+                                                            width: 5; height: 5; radius: 2.5; color: Theme.success
+                                                        }
+                                                        Text {
+                                                            id: statText
+                                                            text: intRow.running ? "Running" : (intRow.modelData.builtin ? "Built-in" : (intRow.installed ? "Installed" : "Not installed"))
+                                                            color: intRow.running ? Theme.success : (intRow.modelData.builtin ? Theme.accent : (intRow.installed ? Theme.success : Theme.textDim))
+                                                            font.family: Theme.fontFamily
+                                                            font.pixelSize: Theme.fontSizeLabel - 1
+                                                            font.bold: intRow.running
+                                                        }
                                                     }
                                                 }
                                             }
+
+                                            Text {
+                                                text: intRow.modelData.desc
+                                                color: Theme.textSecondary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
                                         }
 
-                                        Text {
-                                            text: modelData.desc
-                                            color: Theme.textSecondary
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeSmall
-                                            elide: Text.ElideRight
-                                            Layout.fillWidth: true
+                                        // Open Data Folder button
+                                        Rectangle {
+                                            visible: intRow.modelData.dataDir !== undefined && intRow.installed
+                                            Layout.preferredWidth: 30
+                                            Layout.preferredHeight: 30
+                                            Layout.alignment: Qt.AlignVCenter
+                                            radius: Theme.radiusSm
+                                            color: data_hh.hovered ? Theme.surfaceActive : "transparent"
+                                            border.color: Theme.border
+                                            MaterialIcon {
+                                                anchors.centerIn: parent
+                                                iconName: "folder_open"
+                                                pixelSize: 15
+                                                color: Theme.textSecondary
+                                            }
+                                            HoverHandler { id: data_hh; cursorShape: Qt.PointingHandCursor }
+                                            TapHandler { onTapped: root.openDataFolder(intRow.modelData.dataDir) }
                                         }
-                                    }
 
-                                    // Open Data Folder button
-                                    Rectangle {
-                                        visible: modelData.dataDir !== undefined && installed
-                                        implicitWidth: 30; implicitHeight: 30
-                                        radius: Theme.radiusSm
-                                        color: data_hh.hovered ? Theme.surfaceActive : "transparent"
-                                        border.color: Theme.border
-                                        MaterialIcon {
-                                            anchors.centerIn: parent
-                                            iconName: "folder_open"
-                                            pixelSize: 15
-                                            color: Theme.textSecondary
+                                        // Launch action
+                                        DialogButton {
+                                            visible: intRow.modelData.launch !== ""
+                                            Layout.alignment: Qt.AlignVCenter
+                                            text: "Launch"
+                                            enabled: intRow.installed
+                                            opacity: intRow.installed ? 1 : 0.4
+                                            onClicked: root.launch(intRow.modelData)
                                         }
-                                        HoverHandler { id: data_hh; cursorShape: Qt.PointingHandCursor }
-                                        TapHandler { onTapped: root.openDataFolder(modelData.dataDir) }
-                                    }
 
-                                    // Launch action
-                                    DialogButton {
-                                        visible: modelData.launch !== ""
-                                        text: "Launch"
-                                        enabled: installed
-                                        opacity: installed ? 1 : 0.4
-                                        onClicked: root.launch(modelData)
-                                    }
-
-                                    // Enable toggle
-                                    ToggleSwitch {
-                                        checked: root.isEnabled(modelData)
-                                        onToggled: function(c) { root.setEnabled(modelData, c) }
+                                        // Enable toggle
+                                        ToggleSwitch {
+                                            Layout.alignment: Qt.AlignVCenter
+                                            checked: root.isEnabled(intRow.modelData)
+                                            onToggled: function(c) { root.setEnabled(intRow.modelData, c) }
+                                        }
                                     }
                                 }
                             }
@@ -404,7 +422,408 @@ Item {
             }
 
             // ═════════════════════════════════════════════════════════════════
-            // TAB 2: INSTALLED APPLICATIONS & FLATPAKS
+            // TAB 2: PROGRESSIVE TRUST & APPLICATION SANDBOXING
+            // ═════════════════════════════════════════════════════════════════
+            ColumnLayout {
+                visible: root.activeTab === "trust"
+                Layout.fillWidth: true
+                spacing: 14
+
+                // Trust Engine Summary Card
+                MujoCard {
+                    title: "Progressive Trust & Isolation Engine"
+                    iconName: "shield"
+                    badgeText: (SecurityService.totalAppsCount) + " APPS"
+                    badgeColor: Theme.accent
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: "New and updated applications initially run isolated in a temporary MicroVM quarantine domain. Following 72 hours of clean observation without boundary violations, low and medium risk applications graduate to native seccomp/systemd sandboxing."
+                            color: Theme.textSecondary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                            wrapMode: Text.Wrap
+                        }
+
+                        // Statistics Pills Row
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: 46
+                                radius: Theme.radiusMd
+                                color: Theme.bg
+                                border.color: Theme.border
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 8
+                                    Text { text: SecurityService.quarantinedAppsCount.toString(); color: Theme.warning; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
+                                    ColumnLayout {
+                                        spacing: 0
+                                        Text { text: "Quarantine"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                                        Text { text: "MicroVM Domain"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: 46
+                                radius: Theme.radiusMd
+                                color: Theme.bg
+                                border.color: Theme.border
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 8
+                                    Text { text: SecurityService.observingAppsCount.toString(); color: Theme.accent; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
+                                    ColumnLayout {
+                                        spacing: 0
+                                        Text { text: "Observing"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                                        Text { text: "Pre-Graduation"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: 46
+                                radius: Theme.radiusMd
+                                color: Theme.bg
+                                border.color: Theme.border
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 8
+                                    Text { text: SecurityService.graduatedAppsCount.toString(); color: Theme.success; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
+                                    ColumnLayout {
+                                        spacing: 0
+                                        Text { text: "Graduated"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                                        Text { text: "Native Sandbox"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: 46
+                                radius: Theme.radiusMd
+                                color: Theme.bg
+                                border.color: Theme.border
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 8
+                                    Text { text: SecurityService.revokedAppsCount.toString(); color: Theme.error; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
+                                    ColumnLayout {
+                                        spacing: 0
+                                        Text { text: "Revoked"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                                        Text { text: "Launch Denied"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
+                                    }
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Launcher Integration: " + (SecurityService.launcherIntegrationActive ? "Enabled (apps route through mujo-trust run)" : "Disabled (menu launches directly)")
+                                color: Theme.textDim
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                            }
+
+                            DialogButton {
+                                text: "Evaluate Policy Now"
+                                onClicked: SecurityService.evaluateTrust()
+                            }
+                        }
+                    }
+                }
+
+                // Filter & Search bar
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 38
+                    radius: Theme.radiusMd
+                    color: Theme.surface
+                    border.color: Theme.border
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        spacing: 8
+
+                        MaterialIcon { iconName: "search"; pixelSize: 17; color: Theme.textDim }
+                        TextInput {
+                            id: trustSearchInput
+                            Layout.fillWidth: true
+                            verticalAlignment: Text.AlignVCenter
+                            color: Theme.text
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeBody
+                            onTextChanged: root.trustSearchQuery = text.trim().toLowerCase()
+                            Text {
+                                visible: trustSearchInput.text === ""
+                                text: "Search registered applications by name or store path…"
+                                color: Theme.textDim
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeBody
+                            }
+                        }
+
+                        RowLayout {
+                            spacing: 4
+                            Repeater {
+                                model: ["ALL", "QUARANTINE", "OBSERVING", "GRADUATED", "REVOKED"]
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    readonly property bool active: root.trustFilterState === modelData
+                                    implicitWidth: fText.implicitWidth + 12
+                                    implicitHeight: 26
+                                    radius: Theme.radiusSm
+                                    color: active ? Theme.surfaceActive : (f_hh.hovered ? Theme.surfaceHover : "transparent")
+                                    border.color: active ? Theme.borderStrong : "transparent"
+
+                                    Text {
+                                        id: fText
+                                        anchors.centerIn: parent
+                                        text: modelData
+                                        color: active ? Theme.text : Theme.textDim
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeLabel - 1
+                                        font.bold: active
+                                    }
+
+                                    HoverHandler { id: f_hh; cursorShape: Qt.PointingHandCursor }
+                                    TapHandler { onTapped: root.trustFilterState = modelData }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Applications Trust List Card
+                MujoCard {
+                    title: "Application Trust Registry"
+                    iconName: "policy"
+
+                    ColumnLayout {
+                        id: trustAppCol
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        readonly property var filteredTrustApps: SecurityService.trustApps.filter(function(a) {
+                            if (root.trustFilterState !== "ALL" && a.state !== root.trustFilterState) return false
+                            if (root.trustSearchQuery !== "") {
+                                var matchName = a.name && a.name.toLowerCase().indexOf(root.trustSearchQuery) >= 0
+                                var matchPath = a.storePath && a.storePath.toLowerCase().indexOf(root.trustSearchQuery) >= 0
+                                return matchName || matchPath
+                            }
+                            return true
+                        })
+
+                        Text {
+                            visible: trustAppCol.filteredTrustApps.length === 0
+                            text: SecurityService.trustApps.length === 0
+                                ? "No applications registered yet in /var/lib/mujo-trust/registry.json. Run an app via 'mujo-trust run <app>' or register via 'sudo mujo-trust register <app>'."
+                                : "No applications matching the selected filter."
+                            color: Theme.textDim
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                        }
+
+                        Repeater {
+                            model: trustAppCol.filteredTrustApps
+                            delegate: Rectangle {
+                                required property var modelData
+                                readonly property string st: modelData.state || "QUARANTINE"
+                                readonly property color stateColor: st === "GRADUATED" ? Theme.success : (st === "OBSERVING" ? Theme.accent : (st === "REVOKED" ? Theme.error : Theme.warning))
+                                readonly property color stateDimColor: st === "GRADUATED" ? Theme.successDim : (st === "OBSERVING" ? Theme.accentDim : (st === "REVOKED" ? Theme.errorDim : Theme.warningDim))
+
+                                Layout.fillWidth: true
+                                implicitHeight: 70
+                                radius: Theme.radiusMd
+                                color: tr_hh.hovered ? Theme.surfaceHover : "transparent"
+                                border.color: tr_hh.hovered ? Theme.borderStrong : "transparent"
+                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+                                HoverHandler { id: tr_hh }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
+                                    spacing: 12
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 36
+                                        Layout.preferredHeight: 36
+                                        Layout.alignment: Qt.AlignVCenter
+                                        radius: Theme.radiusSm
+                                        color: stateDimColor
+                                        MaterialIcon {
+                                            anchors.centerIn: parent
+                                            iconName: st === "GRADUATED" ? "verified" : (st === "OBSERVING" ? "visibility" : (st === "REVOKED" ? "gpp_bad" : "hourglass_top"))
+                                            pixelSize: 18
+                                            color: stateColor
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+                                        Layout.alignment: Qt.AlignVCenter
+
+                                        RowLayout {
+                                            spacing: 8
+                                            Text {
+                                                text: modelData.name || modelData.id
+                                                color: Theme.text
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fontSizeBody
+                                                font.bold: true
+                                            }
+
+                                            // State Badge
+                                            Rectangle {
+                                                implicitWidth: stText.implicitWidth + 10; implicitHeight: 18
+                                                radius: Theme.radiusSm
+                                                color: stateDimColor
+                                                border.color: stateColor
+                                                Text {
+                                                    id: stText
+                                                    anchors.centerIn: parent
+                                                    text: st
+                                                    color: stateColor
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fontSizeLabel - 1
+                                                    font.bold: true
+                                                }
+                                            }
+
+                                            // Risk Tier Chip
+                                            Rectangle {
+                                                implicitWidth: tierText.implicitWidth + 8; implicitHeight: 16
+                                                radius: Theme.radiusSm
+                                                color: Theme.surface
+                                                border.color: Theme.border
+                                                Text {
+                                                    id: tierText
+                                                    anchors.centerIn: parent
+                                                    text: (modelData.tier || "medium").toUpperCase()
+                                                    color: Theme.textDim
+                                                    font.family: Theme.fontMono
+                                                    font.pixelSize: Theme.fontSizeLabel - 1
+                                                }
+                                            }
+
+                                            // Violations badge if > 0
+                                            Rectangle {
+                                                visible: (modelData.violations || 0) > 0
+                                                implicitWidth: violText.implicitWidth + 8; implicitHeight: 16
+                                                radius: Theme.radiusSm
+                                                color: Theme.errorDim
+                                                border.color: Theme.error
+                                                Text {
+                                                    id: violText
+                                                    anchors.centerIn: parent
+                                                    text: modelData.violations + " VIOLATION" + (modelData.violations > 1 ? "S" : "")
+                                                    color: Theme.error
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fontSizeLabel - 1
+                                                    font.bold: true
+                                                }
+                                            }
+                                        }
+
+                                        // Store path
+                                        Text {
+                                            text: modelData.storePath || "No store path"
+                                            color: Theme.textSecondary
+                                            font.family: Theme.fontMono
+                                            font.pixelSize: Theme.fontSizeSmall - 1
+                                            elide: Text.ElideMiddle
+                                            Layout.fillWidth: true
+                                        }
+
+                                        // Progress Bar Row (Observation progress towards 72 hours)
+                                        RowLayout {
+                                            spacing: 8
+                                            visible: st === "QUARANTINE" || st === "OBSERVING"
+
+                                            Rectangle {
+                                                implicitWidth: 120; implicitHeight: 5
+                                                radius: 2.5
+                                                color: Theme.surfaceActive
+
+                                                Rectangle {
+                                                    anchors.left: parent.left
+                                                    anchors.top: parent.top
+                                                    anchors.bottom: parent.bottom
+                                                    width: Math.min(parent.width, Math.max(4, parent.width * (Math.min(72, (modelData.observedHours || 0)) / 72.0)))
+                                                    radius: 2.5
+                                                    color: stateColor
+                                                }
+                                            }
+
+                                            Text {
+                                                text: (modelData.observedHours || 0) + "h / 72h observation"
+                                                color: Theme.textDim
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fontSizeLabel - 1
+                                            }
+                                        }
+                                    }
+
+                                    // Context actions
+                                    RowLayout {
+                                        spacing: 6
+                                        Layout.alignment: Qt.AlignVCenter
+
+                                        // Rollback button for revoked
+                                        DialogButton {
+                                            visible: st === "REVOKED" && modelData.previousStorePath
+                                            text: "Rollback"
+                                            onClicked: SecurityService.rollbackApp(modelData.id)
+                                        }
+
+                                        // Graduate action
+                                        DialogButton {
+                                            visible: st === "QUARANTINE" || st === "OBSERVING"
+                                            text: "Graduate"
+                                            onClicked: SecurityService.graduateApp(modelData.id)
+                                        }
+
+                                        // Force Quarantine action
+                                        DialogButton {
+                                            visible: st === "GRADUATED"
+                                            text: "Quarantine"
+                                            onClicked: SecurityService.quarantineApp(modelData.id)
+                                        }
+
+                                        // Launch button
+                                        DialogButton {
+                                            text: "Launch"
+                                            onClicked: Launch.run(["mujo-run", modelData.id], modelData.name, "shield")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ═════════════════════════════════════════════════════════════════
+            // TAB 3: INSTALLED APPLICATIONS & FLATPAKS
             // ═════════════════════════════════════════════════════════════════
             ColumnLayout {
                 visible: root.activeTab === "flatpaks"
@@ -433,7 +852,7 @@ Item {
                 // Filter search bar
                 Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: 36
+                    implicitHeight: 38
                     radius: Theme.radiusMd
                     color: Theme.surface
                     border.color: Theme.border
@@ -467,94 +886,128 @@ Item {
                 MujoCard {
                     title: "Installed Flatpaks"
                     iconName: "apps"
+                    badgeText: (root.flatpaksList.length) + " INSTALLED"
 
-                    Repeater {
-                        model: root.flatpaksList.filter(function(f) {
+                    ColumnLayout {
+                        id: fpCol
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        Text {
+                            visible: fpCol.filteredFlatpaks.length === 0
+                            text: root.flatpaksList.length === 0 ? "No Flatpaks installed." : "No Flatpaks matching the search query."
+                            color: Theme.textDim
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                        }
+
+                        readonly property var filteredFlatpaks: root.flatpaksList.filter(function(f) {
                             if (root.searchQuery === "") return true
                             return (f.name && f.name.toLowerCase().indexOf(root.searchQuery) >= 0)
                                 || (f.id && f.id.toLowerCase().indexOf(root.searchQuery) >= 0)
                         })
-                        delegate: Rectangle {
-                            required property var modelData
-                            Layout.fillWidth: true
-                            implicitHeight: 52
-                            radius: Theme.radiusMd
-                            color: fp_hh.hovered ? Theme.surfaceHover : "transparent"
-                            border.color: fp_hh.hovered ? Theme.borderStrong : "transparent"
 
-                            HoverHandler { id: fp_hh }
+                        Repeater {
+                            model: fpCol.filteredFlatpaks
+                            delegate: Rectangle {
+                                id: fpRow
+                                required property var modelData
+                                Layout.fillWidth: true
+                                implicitHeight: 56
+                                radius: Theme.radiusMd
+                                color: fp_hh.hovered ? Theme.surfaceHover : "transparent"
+                                border.color: fp_hh.hovered ? Theme.borderStrong : "transparent"
+                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 8
-                                anchors.rightMargin: 8
-                                spacing: 12
+                                HoverHandler { id: fp_hh }
 
-                                Rectangle {
-                                    width: 32; height: 32; radius: Theme.radiusSm
-                                    color: Theme.surfaceActive
-                                    MaterialIcon {
-                                        anchors.centerIn: parent
-                                        iconName: "inventory_2"
-                                        pixelSize: 17
-                                        color: Theme.accent
-                                    }
-                                }
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
+                                    spacing: 12
 
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 1
-                                    RowLayout {
-                                        spacing: 8
-                                        Text {
-                                            text: modelData.name
-                                            color: Theme.text
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeBody
-                                            font.bold: true
+                                    Rectangle {
+                                        Layout.preferredWidth: 32
+                                        Layout.preferredHeight: 32
+                                        Layout.alignment: Qt.AlignVCenter
+                                        radius: Theme.radiusSm
+                                        color: Theme.surfaceActive
+                                        MaterialIcon {
+                                            anchors.centerIn: parent
+                                            iconName: "inventory_2"
+                                            pixelSize: 17
+                                            color: Theme.accent
                                         }
-                                        Rectangle {
-                                            visible: modelData.version !== ""
-                                            implicitWidth: verText.implicitWidth + 8; implicitHeight: 15
-                                            radius: Theme.radiusSm
-                                            color: Theme.bg
-                                            border.color: Theme.border
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                        spacing: 2
+
+                                        RowLayout {
+                                            spacing: 8
+                                            Layout.fillWidth: true
+
                                             Text {
-                                                id: verText
-                                                anchors.centerIn: parent
-                                                text: modelData.version
-                                                color: Theme.textDim
-                                                font.family: Theme.fontMono
-                                                font.pixelSize: Theme.fontSizeLabel - 1
+                                                text: fpRow.modelData.name
+                                                color: Theme.text
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fontSizeBody
+                                                font.bold: true
+                                            }
+
+                                            Rectangle {
+                                                visible: fpRow.modelData.version !== undefined && fpRow.modelData.version !== ""
+                                                implicitWidth: fpVerTxt.implicitWidth + 8
+                                                implicitHeight: 16
+                                                radius: Theme.radiusSm
+                                                color: Theme.bg
+                                                border.color: Theme.border
+                                                Text {
+                                                    id: fpVerTxt
+                                                    anchors.centerIn: parent
+                                                    text: fpRow.modelData.version || ""
+                                                    color: Theme.textDim
+                                                    font.family: Theme.fontMono
+                                                    font.pixelSize: Theme.fontSizeLabel - 1
+                                                }
                                             }
                                         }
-                                    }
-                                    Text {
-                                        text: modelData.id + (modelData.size ? " · " + modelData.size : "")
-                                        color: Theme.textSecondary
-                                        font.family: Theme.fontMono
-                                        font.pixelSize: Theme.fontSizeSmall
-                                    }
-                                }
 
-                                Rectangle {
-                                    implicitWidth: 30; implicitHeight: 30
-                                    radius: Theme.radiusSm
-                                    color: fp_data_hh.hovered ? Theme.surfaceActive : "transparent"
-                                    border.color: Theme.border
-                                    MaterialIcon {
-                                        anchors.centerIn: parent
-                                        iconName: "folder_open"
-                                        pixelSize: 15
-                                        color: Theme.textSecondary
+                                        Text {
+                                            text: fpRow.modelData.id + (fpRow.modelData.size ? " · " + fpRow.modelData.size : "")
+                                            color: Theme.textSecondary
+                                            font.family: Theme.fontMono
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
                                     }
-                                    HoverHandler { id: fp_data_hh; cursorShape: Qt.PointingHandCursor }
-                                    TapHandler { onTapped: root.openDataFolder(".var/app/" + modelData.id) }
-                                }
 
-                                DialogButton {
-                                    text: "Launch"
-                                    onClicked: Quickshell.execDetached(["flatpak", "run", modelData.id])
+                                    Rectangle {
+                                        Layout.preferredWidth: 30
+                                        Layout.preferredHeight: 30
+                                        Layout.alignment: Qt.AlignVCenter
+                                        radius: Theme.radiusSm
+                                        color: fp_data_hh.hovered ? Theme.surfaceActive : "transparent"
+                                        border.color: Theme.border
+                                        MaterialIcon {
+                                            anchors.centerIn: parent
+                                            iconName: "folder_open"
+                                            pixelSize: 15
+                                            color: Theme.textSecondary
+                                        }
+                                        HoverHandler { id: fp_data_hh; cursorShape: Qt.PointingHandCursor }
+                                        TapHandler { onTapped: root.openDataFolder(".var/app/" + fpRow.modelData.id) }
+                                    }
+
+                                    DialogButton {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        text: "Launch"
+                                        onClicked: Launch.run(["mujo-run", "flatpak", "run", fpRow.modelData.id], fpRow.modelData.name, "shield")
+                                    }
                                 }
                             }
                         }
@@ -563,7 +1016,7 @@ Item {
             }
 
             // ═════════════════════════════════════════════════════════════════
-            // TAB 3: LAUNCHER & WORKFLOW PREFERENCES
+            // TAB 4: LAUNCHER & WORKFLOW PREFERENCES
             // ═════════════════════════════════════════════════════════════════
             ColumnLayout {
                 id: appsSec

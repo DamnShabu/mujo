@@ -138,7 +138,7 @@ Item {
             x: 24
             y: 24
             width: parent.width - 48
-            spacing: 20
+            spacing: 16
 
             MujoHero {
                 brand: "network"
@@ -150,30 +150,24 @@ Item {
             }
 
             // ── Status hero card ──────────────────────────────────────────────
-            Rectangle {
-                Layout.fillWidth: true
-                radius: Theme.radiusLg
-                color: Theme.surface
-                border.color: Theme.border
-                implicitHeight: hero.implicitHeight + 32
-                // subtle status-tinted wash
-                Rectangle {
-                    anchors.fill: parent; radius: parent.radius
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: Qt.rgba(root.stateColor.r, root.stateColor.g, root.stateColor.b, 0.10) }
-                        GradientStop { position: 1.0; color: "transparent" }
-                    }
-                }
+            MujoCard {
+                title: "Mullvad WireGuard Tunnel"
+                iconName: "vpn_lock"
+                badgeText: root.vpnState.toUpperCase()
+                badgeColor: root.stateColor
+
                 RowLayout {
-                    id: hero
-                    anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 18; rightMargin: 18 }
+                    Layout.fillWidth: true
                     spacing: 16
-                    BrandIcon { brand: "mullvad"; size: 52 }
+
+                    BrandIcon { brand: "mullvad"; size: 44 }
+
                     ColumnLayout {
-                        spacing: 3
+                        spacing: 2
                         RowLayout {
                             spacing: 8
-                            Rectangle { width: 10; height: 10; radius: 5; color: root.stateColor
+                            Rectangle {
+                                width: 10; height: 10; radius: 5; color: root.stateColor
                                 SequentialAnimation on opacity {
                                     running: root.busy && !Anim.reduceMotion
                                     loops: Animation.Infinite
@@ -181,14 +175,16 @@ Item {
                                     NumberAnimation { to: 1.0; duration: 500; easing.type: Easing.InOutQuad }
                                 }
                             }
-                            Text { text: root.vpnState; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeTitle + 3; font.bold: true }
+                            Text { text: root.vpnState; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeTitle; font.bold: true }
                         }
                         Text {
                             text: root.relay !== "" ? ("Relay " + root.relay) : (root.account || "Mullvad VPN")
                             color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
                         }
                     }
+
                     Item { Layout.fillWidth: true }
+
                     DialogButton { text: "Reconnect"; visible: root.connected; onClicked: root.mullvad(["reconnect"]) }
                     DialogButton {
                         text: root.connected ? "Disconnect" : "Connect"
@@ -199,39 +195,53 @@ Item {
             }
 
             // ── Account (keyring-backed) ──────────────────────────────────────
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 10
-                SectionLabel { text: "Account" }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 10
-                    MaterialIcon { iconName: root.keyringId !== "" ? "key" : "key_off"; pixelSize: 20; color: root.keyringId !== "" ? Theme.success : Theme.textDim }
-                    ColumnLayout {
-                        Layout.fillWidth: true; spacing: 1
-                        Text { text: root.keyringId !== "" ? "Account stored in keyring" : "No account stored"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
-                        Text { text: root.account; visible: root.account !== ""; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
-                    }
-                    DialogButton { text: "Log in with stored"; enabled: root.keyringId !== ""; opacity: root.keyringId !== "" ? 1 : 0.4; onClicked: root.loginWithStored() }
-                }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    TextField {
-                        id: acctField
+            MujoCard {
+                title: "Keyring Credentials & Login"
+                iconName: "key"
+                badgeText: root.keyringId !== "" ? "KEYRING ACTIVE" : "UNAUTHENTICATED"
+                badgeColor: root.keyringId !== "" ? Theme.success : Theme.warning
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    RowLayout {
                         Layout.fillWidth: true
-                        placeholder: "Mullvad account number"
-                        password: true
-                        onTextChanged: root.enterAccount = text
-                        onAccepted: root.saveAndLogin()
+                        spacing: 10
+                        MaterialIcon { iconName: root.keyringId !== "" ? "key" : "key_off"; pixelSize: 20; color: root.keyringId !== "" ? Theme.success : Theme.textDim }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 1
+                            Text { text: root.keyringId !== "" ? "Account stored in secure keyring" : "No account stored in keyring"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
+                            Text { text: root.account; visible: root.account !== ""; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                        }
+                        DialogButton { text: "Log in with stored"; enabled: root.keyringId !== ""; opacity: root.keyringId !== "" ? 1 : 0.4; onClicked: root.loginWithStored() }
                     }
-                    DialogButton { text: "Save to keyring & log in"; primary: true; enabled: root.enterAccount.trim() !== ""; onClicked: root.saveAndLogin() }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        TextField {
+                            id: acctField
+                            Layout.fillWidth: true
+                            placeholder: "Enter 16-digit Mullvad account number"
+                            password: true
+                            onTextChanged: root.enterAccount = text
+                            onAccepted: root.saveAndLogin()
+                        }
+                        DialogButton { text: "Save to keyring & log in"; primary: true; enabled: root.enterAccount.trim() !== ""; onClicked: root.saveAndLogin() }
+                    }
                 }
             }
 
             // ── Location ──────────────────────────────────────────────────────
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 10
-                SectionLabel { text: "Location" }
+            MujoCard {
+                title: "Relay Locations & Exit Nodes"
+                iconName: "public"
+
                 Flow {
-                    Layout.fillWidth: true; spacing: 7
+                    Layout.fillWidth: true
+                    spacing: 7
                     Repeater {
                         model: root.locations
                         delegate: DisplayChip {
@@ -245,25 +255,32 @@ Item {
             }
 
             // ── Behavior ──────────────────────────────────────────────────────
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 10
-                SectionLabel { text: "Behavior" }
-                DeviceToggle {
-                    label: "Auto-connect at login"; desc: "Establish the tunnel automatically when the daemon starts"
-                    checked: root.autoConnect
-                    onToggledTo: function(c) { root.mullvad(["auto-connect", "set", c ? "on" : "off"]) }
+            MujoCard {
+                title: "Tunnel Automation & Behavior"
+                iconName: "settings_ethernet"
+
+                MujoSettingRow {
+                    iconName: "bolt"
+                    title: "Auto-connect at login"
+                    description: "Establish the WireGuard tunnel automatically when the desktop session starts."
+
+                    ToggleSwitch {
+                        checked: root.autoConnect
+                        onToggled: function(c) { root.mullvad(["auto-connect", "set", c ? "on" : "off"]) }
+                    }
                 }
             }
 
             Text {
                 Layout.fillWidth: true
-                text: "DNS content blocking and relay lists are managed declaratively in the NixOS mullvad module."
+                text: "DNS content blocking, quantum-resistant WireGuard keys, and custom relay lists are managed declaratively in the NixOS mullvad module."
                 color: Theme.textDim
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
                 wrapMode: Text.WordWrap
             }
-            Item { implicitHeight: 4 }
+
+            Item { implicitHeight: 12 }
         }
     }
 }

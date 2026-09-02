@@ -54,7 +54,7 @@
             };
 
             "pulse.properties" = {
-              "server.address" = ["unix:native"];
+              "server.address" = ["unix:native" "tcp:127.0.0.1:4713"];
             };
           };
         };

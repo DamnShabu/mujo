@@ -100,8 +100,8 @@ ShellRoot {
                     // Consolidated: one page of cards. `keys` keeps the old
                     // panel keys routable, so `mujo settings vm`, Overview's
                     // cards and the search index all still land here.
-                    page: hardwareComp, badge: 6,
-                    keys: ["display", "devices", "shortcuts", "vm", "keyring", "idle", "lock"]
+                    page: hardwareComp, badge: 7,
+                    keys: ["display", "devices", "shortcuts", "vm", "keyring", "security", "vault", "idle", "lock"]
                 }
             ]
 
@@ -175,6 +175,8 @@ ShellRoot {
                 { title: "Custom ISO virtual machine", desc: "Create accelerated QEMU virtual machine from local ISO file", cat: "Hardware", key: "vm" },
 
                 // Storage & Security
+                { title: "Security & Trust architecture", desc: "Verified boot, TPM 2.0, LUKS2 encrypted vault, progressive trust", cat: "Security", key: "security" },
+                { title: "Encrypted Storage Vault", desc: "Unlock / lock /persist/secure/mujo-vault.luks container", cat: "Security", key: "vault" },
                 { title: "Keyring vault",       desc: "Secure credentials, secret specs, and reveal tokens", cat: "Security", key: "keyring" },
                 { title: "Impermanence storage",desc: "Persistent directories and files surviving btrfs boot wipe", cat: "Security", key: "persistence" },
                 { title: "Integrations & Apps", desc: "Discord, Obsidian, Claude, Steam, Flatpaks, sandboxing", cat: "Security", key: "applications" }

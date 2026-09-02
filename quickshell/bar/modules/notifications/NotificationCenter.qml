@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Effects
 import "../../theme"
 import "../../components"
 import "../../services"
@@ -405,6 +406,7 @@ ColumnLayout {
                         Repeater {
                             model: grp.modelData.items.slice(0, grp.maxShown)
                             delegate: Rectangle {
+                                id: histItemCard
                                 required property var modelData
                                 readonly property var rec: modelData
                                 Layout.fillWidth: true
@@ -412,6 +414,20 @@ ColumnLayout {
                                 radius: Theme.radiusMd
                                 color: itemHover.hovered ? Theme.surfaceHover : Theme.surface
                                 border.color: rec.urgency === "critical" ? Theme.error : (itemHover.hovered ? Theme.borderStrong : Theme.border)
+
+                                readonly property string mediaSource: Notifications.resolveImage(rec.image)
+                                readonly property bool mediaReady: mediaProbe.status === Image.Ready
+                                readonly property real mediaAspect: mediaProbe.implicitHeight > 0
+                                    ? mediaProbe.implicitWidth / mediaProbe.implicitHeight : 1
+                                readonly property bool mediaWide: mediaAspect > 1.6
+
+                                Image {
+                                    id: mediaProbe
+                                    source: histItemCard.mediaSource
+                                    sourceSize.width: 32
+                                    asynchronous: true
+                                    visible: false
+                                }
 
                                 HoverHandler { id: itemHover }
 
@@ -423,105 +439,148 @@ ColumnLayout {
                                         top: parent.top
                                         margins: 10
                                     }
-                                    spacing: 4
+                                    spacing: 6
 
                                     RowLayout {
                                         Layout.fillWidth: true
-                                        spacing: 6
+                                        spacing: 10
+                                        Layout.alignment: Qt.AlignTop
 
-                                        Text {
+                                        // Square / Avatar thumbnail
+                                        Item {
+                                            id: histThumbSlot
+                                            visible: histItemCard.mediaReady && !histItemCard.mediaWide
+                                            Layout.preferredWidth: 44
+                                            Layout.preferredHeight: 44
+                                            Layout.alignment: Qt.AlignTop
+
+                                            Image {
+                                                id: histThumbImg
+                                                anchors.fill: parent
+                                                source: histThumbSlot.visible ? histItemCard.mediaSource : ""
+                                                fillMode: Image.PreserveAspectCrop
+                                                sourceSize.width: 88
+                                                sourceSize.height: 88
+                                                asynchronous: true
+                                                smooth: true
+                                                visible: false
+                                            }
+
+                                            Rectangle {
+                                                id: histThumbMask
+                                                anchors.fill: parent
+                                                radius: Theme.radiusSm
+                                                visible: false
+                                                layer.enabled: true
+                                            }
+
+                                            MultiEffect {
+                                                anchors.fill: parent
+                                                source: histThumbImg
+                                                maskEnabled: true
+                                                maskSource: histThumbMask
+                                            }
+                                        }
+
+                                        // Text column
+                                        ColumnLayout {
                                             Layout.fillWidth: true
-                                            text: rec.summary || "Notification"
-                                            color: Theme.text
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: Theme.fontSizeSmall
-                                            font.bold: true
-                                            elide: Text.ElideRight
-                                        }
-
-                                        Text {
-                                            text: root.fmtTime(rec.time)
-                                            color: Theme.textDim
-                                            font.family: Theme.fontMono
-                                            font.pixelSize: Theme.fontSizeLabel
-                                        }
-
-                                        Rectangle {
-                                            implicitWidth: 20
-                                            implicitHeight: 20
-                                            radius: Theme.radiusSm
-                                            color: dismissMa.containsMouse ? Theme.withAlpha(Theme.error, 0.2) : "transparent"
+                                            spacing: 3
                                             Layout.alignment: Qt.AlignVCenter
 
-                                            MaterialIcon {
-                                                anchors.centerIn: parent
-                                                iconName: "close"
-                                                pixelSize: 14
-                                                color: dismissMa.containsMouse ? Theme.error : Theme.textDim
-                                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                            }
-                                            MouseArea {
-                                                id: dismissMa
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                preventStealing: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: Notifications.removeHistory(rec.id)
-                                            }
-                                        }
-                                    }
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 6
 
-                                    Text {
-                                        Layout.fillWidth: true
-                                        visible: rec.body !== ""
-                                        text: rec.body
-                                        color: Theme.textSecondary
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        wrapMode: Text.WordWrap
-                                        maximumLineCount: 3
-                                        elide: Text.ElideRight
-                                        textFormat: Text.StyledText
-                                        onLinkActivated: function(link) { Qt.openUrlExternally(link) }
-                                    }
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    text: rec.summary || "Notification"
+                                                    color: Theme.text
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fontSizeSmall
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                }
 
-                                    // Attached image preview in history
-                                    Loader {
-                                        id: histImgLoader
-                                        Layout.fillWidth: true
-                                        readonly property string resolvedImg: Notifications.resolveImage(rec.image)
-                                        active: resolvedImg !== ""
-                                        visible: active && item !== null && item.hasLoaded
-
-                                        sourceComponent: Component {
-                                            Item {
-                                                id: histImgItem
-                                                width: histImgLoader.width
-                                                property bool hasLoaded: histImg.status === Image.Ready
-                                                implicitHeight: hasLoaded ? Math.min(100, Math.max(50, histImg.implicitWidth > 0
-                                                    ? Math.round(histImg.implicitHeight * itemCol.width / histImg.implicitWidth)
-                                                    : 70)) : 0
+                                                Text {
+                                                    text: root.fmtTime(rec.time)
+                                                    color: Theme.textDim
+                                                    font.family: Theme.fontMono
+                                                    font.pixelSize: Theme.fontSizeLabel
+                                                }
 
                                                 Rectangle {
-                                                    anchors.fill: parent
+                                                    implicitWidth: 20
+                                                    implicitHeight: 20
                                                     radius: Theme.radiusSm
-                                                    color: Theme.bg
-                                                    border.color: Theme.border
-                                                    border.width: 1
-                                                    clip: true
+                                                    color: dismissMa.containsMouse ? Theme.withAlpha(Theme.error, 0.2) : "transparent"
+                                                    Layout.alignment: Qt.AlignVCenter
 
-                                                    Image {
-                                                        id: histImg
+                                                    MaterialIcon {
+                                                        anchors.centerIn: parent
+                                                        iconName: "close"
+                                                        pixelSize: 14
+                                                        color: dismissMa.containsMouse ? Theme.error : Theme.textDim
+                                                        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                                                    }
+                                                    MouseArea {
+                                                        id: dismissMa
                                                         anchors.fill: parent
-                                                        anchors.margins: 2
-                                                        source: histImgLoader.resolvedImg
-                                                        fillMode: Image.PreserveAspectFit
-                                                        smooth: true
-                                                        asynchronous: true
-                                                        visible: status === Image.Ready
+                                                        hoverEnabled: true
+                                                        preventStealing: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: Notifications.removeHistory(rec.id)
                                                     }
                                                 }
                                             }
+
+                                            Text {
+                                                Layout.fillWidth: true
+                                                visible: rec.body !== ""
+                                                text: rec.body
+                                                color: Theme.textSecondary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fontSizeSmall
+                                                wrapMode: Text.WordWrap
+                                                maximumLineCount: 3
+                                                elide: Text.ElideRight
+                                                textFormat: Text.StyledText
+                                                onLinkActivated: function(link) { Qt.openUrlExternally(link) }
+                                            }
+                                        }
+                                    }
+
+                                    // Wide media banner
+                                    Item {
+                                        id: histBannerSlot
+                                        visible: histItemCard.mediaReady && histItemCard.mediaWide
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: Math.min(120, Math.round(width / Math.max(0.1, histItemCard.mediaAspect)))
+
+                                        Image {
+                                            id: histBannerImg
+                                            anchors.fill: parent
+                                            source: histBannerSlot.visible ? histItemCard.mediaSource : ""
+                                            fillMode: Image.PreserveAspectCrop
+                                            sourceSize.width: 600
+                                            asynchronous: true
+                                            smooth: true
+                                            visible: false
+                                        }
+
+                                        Rectangle {
+                                            id: histBannerMask
+                                            anchors.fill: parent
+                                            radius: Theme.radiusSm
+                                            visible: false
+                                            layer.enabled: true
+                                        }
+
+                                        MultiEffect {
+                                            anchors.fill: parent
+                                            source: histBannerImg
+                                            maskEnabled: true
+                                            maskSource: histBannerMask
                                         }
                                     }
 

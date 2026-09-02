@@ -51,6 +51,25 @@ ShellRoot {
         if (rec) Notifications.dismissPopup(rec.id)
         if (Notifications.popups.length !== 2) fails.push("dismissPopup failed: popups length is " + Notifications.popups.length)
 
+        // 7. App name resolution & healing
+        var n1 = Notifications.resolveAppName("Notification", "dev.vencord.Vesktop", "dev.vencord.Vesktop", null)
+        if (n1 !== "Vesktop") fails.push("resolveAppName failed for Vesktop desktopEntry, got: " + n1)
+
+        var n2 = Notifications.resolveAppName("", "discord", "", null)
+        if (n2 !== "Discord") fails.push("resolveAppName failed for discord entry, got: " + n2)
+
+        var n3 = Notifications.resolveAppName("notify-send", "org.gnome.Nautilus", "", null)
+        if (n3 !== "Nautilus") fails.push("resolveAppName failed for Nautilus entry, got: " + n3)
+
+        var n4 = Notifications.resolveAppName("", "", "firefox", null)
+        if (n4 !== "Firefox") fails.push("resolveAppName failed for firefox appIcon, got: " + n4)
+
+        var n5 = Notifications.resolveAppName("CustomApp", "ignored", "", null)
+        if (n5 !== "CustomApp") fails.push("resolveAppName failed for CustomApp, got: " + n5)
+
+        var sRec = Notifications._sanitizeRecord({ appName: "Notification", desktopEntry: "dev.vencord.Vesktop", icon: "" })
+        if (!sRec || sRec.appName !== "Vesktop") fails.push("_sanitizeRecord failed to heal appName, got: " + (sRec ? sRec.appName : "null"))
+
         // Clean up
         Notifications.clearHistory()
 

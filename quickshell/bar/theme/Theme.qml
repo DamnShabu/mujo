@@ -266,8 +266,11 @@ QtObject {
         : active.accentText
 
     property color success: active.success
+    property color successDim: withAlpha(active.success, 0.18)
     property color warning: active.warning
+    property color warningDim: withAlpha(active.warning, 0.18)
     property color error: active.error
+    property color errorDim: withAlpha(active.error, 0.18)
 
     // ─── Typography ───────────────────────────────────────────────────────────
     property string fontFamily: "Ubuntu Sans"

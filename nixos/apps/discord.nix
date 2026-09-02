@@ -10,8 +10,11 @@
       "dev.vencord.Vesktop" = {
         Context.sockets = ["wayland" "!x11" "!fallback-x11"];
         Environment = {
-          NODE_OPTIONS = "--max-old-space-size=384";
-          VESKTOP_FLAGS = "--ozone-platform=wayland --enable-features=UseOzonePlatform,WaylandWindowDecorations --disable-features=SpareRendererForSitePerProcess,AudioServiceSandbox --js-flags=--max-old-space-size=384 --optimize_for_size";
+          # No --max-old-space-size here: a 384 MB V8 old-space cap made the renderer
+          # sit in back-to-back full GCs once a busy session filled the heap --
+          # ~70% of a core burned continuously, window unresponsive after a few
+          # minutes. This host has 62 GB of RAM; let V8 pick its own limit.
+          VESKTOP_FLAGS = "--ozone-platform=wayland --enable-features=UseOzonePlatform,WaylandWindowDecorations --disable-features=SpareRendererForSitePerProcess,AudioServiceSandbox";
         };
       };
     };

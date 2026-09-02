@@ -3,6 +3,7 @@
     pkgs,
     lib,
     config,
+    options,
     ...
   }: let
     selfpkgs = self.packages."${pkgs.stdenv.hostPlatform.system}";
@@ -92,8 +93,10 @@
       "L+ %h/.local/share/icons/${iconThemeName} - - - - ${iconThemePackage}/share/icons/${iconThemeName}"
     ];
 
-    services.flatpak.overrides = lib.mkIf config.services.flatpak.enable {
-      global.Context.filesystems = ["xdg-data/icons:ro"];
+    services = lib.optionalAttrs (options.services ? flatpak && options.services.flatpak ? overrides) {
+      flatpak.overrides = lib.mkIf (config.services.flatpak.enable or false) {
+        global.Context.filesystems = ["xdg-data/icons:ro" "xdg-data/themes:ro"];
+      };
     };
   };
 }
