@@ -38,7 +38,12 @@ Item {
         if (thenRefresh !== false) repoll.restart()
     }
     function refresh() { statusProc.running = true; autoProc.running = true; acctProc.running = true; keyProc.running = true }
-    Timer { id: poll; interval: 3000; running: true; repeat: true; onTriggered: root.refresh() }
+    // `running: root.visible`, not `running: true`: settings panels stay alive
+    // once visited so scroll position survives switching category, so a bare
+    // `true` here kept spawning four `mullvad` processes every three seconds
+    // for the rest of the session, with the panel off screen. triggeredOnStart
+    // refreshes the moment it comes back into view rather than up to 3s later.
+    Timer { id: poll; interval: 3000; running: root.visible; repeat: true; triggeredOnStart: true; onTriggered: root.refresh() }
     Timer { id: repoll; interval: 600; onTriggered: root.refresh() }
     Component.onCompleted: refresh()
 
