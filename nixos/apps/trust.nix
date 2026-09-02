@@ -66,7 +66,7 @@
     # application call about itself, and administration stays a root CLI.
     trustHandler = pkgs.writeShellApplication {
       name = "mujo-trustd-handler";
-      runtimeInputs = with pkgs; [coreutils jq];
+      runtimeInputs = with pkgs; [coreutils jq util-linux];
       # $a / $p in the blocks below are jq variables, not shell ones.
       excludeShellChecks = ["SC2016"];
       text = ''
@@ -88,9 +88,27 @@
           fi
         }
 
-        IFS=$'\t' read -r verb app arg || exit 0
+        # systemd accepts each connection into its own instance of this service,
+        # so a client that connects and then says nothing would otherwise hold a
+        # root process open for as long as it liked.
+        IFS=$'\t' read -t 5 -r verb app arg || exit 0
         [ -n "''${verb:-}" ] || exit 0
         [ -n "''${app:-}" ] || { echo "ERR missing application"; exit 0; }
+
+        # The application names its own key in the registry. Bound it: an
+        # unbounded name is a way to grow a root-owned file in /var/lib without
+        # ever launching anything.
+        [ "''${#app}" -le 128 ] || { echo "ERR application name too long"; exit 0; }
+
+        # Every verb below is a read-modify-write of one JSON file, and `mv` only
+        # makes the final swap atomic -- it does not stop two concurrent handlers
+        # from both reading the pre-update registry and the second one discarding
+        # the first one's write. That is not merely a lost update: the write most
+        # likely to be lost is `begin`'s requarantine of an application whose
+        # store path changed, which would leave an updated binary sitting on its
+        # old GRADUATED state. Serialise the whole request instead.
+        exec 8>${dbDir}/.registry.lock
+        flock -w 5 8 || { echo "ERR registry busy"; exit 0; }
 
         case "$verb" in
           begin)
@@ -168,10 +186,18 @@
     # quarantine or HIGH past observation without a person saying so.
     trustEvaluate = pkgs.writeShellApplication {
       name = "mujo-trust-evaluate";
-      runtimeInputs = with pkgs; [coreutils jq];
+      runtimeInputs = with pkgs; [coreutils jq util-linux];
       excludeShellChecks = ["SC2016"];
       text = ''
         [ -f ${dbFile} ] || exit 0
+
+        # This pass rewrites every record, so running it unserialised against a
+        # live socket handler is the worst of the lost-update cases: it could
+        # discard a REVOKED state that a `violation` had just written. Same lock
+        # the handler takes.
+        exec 8>${dbDir}/.registry.lock
+        flock -w 10 8 || exit 0
+
         tmp=$(mktemp ${dbDir}/.registry.XXXXXX)
         # Swap the registry atomically or leave it alone: a half-written
         # evaluation would be worse than a stale one.
@@ -217,7 +243,7 @@
     # their tier synchronised, and any updated store/commit path triggers re-quarantine.
     trustSeed = pkgs.writeShellApplication {
       name = "mujo-trust-seed";
-      runtimeInputs = with pkgs; [coreutils jq];
+      runtimeInputs = with pkgs; [coreutils jq util-linux];
       excludeShellChecks = ["SC2016"];
       text = ''
         umask 022
@@ -251,6 +277,10 @@
           [ -n "$path" ] || return 0
 
           local tmp
+          # Same registry lock the socket handler and the evaluator take; seeding
+          # runs at boot, when the first launches are also happening.
+          exec 8>${dbDir}/.registry.lock
+          flock -w 10 8 || return 0
           tmp=$(mktemp ${dbDir}/.registry.XXXXXX)
           if jq -L${jqDir} --arg a "$name" --arg t "$tier" --arg s "$state" --arg p "$path" '
             include "mujo-trust";
@@ -304,7 +334,7 @@
     # ── user-facing CLI ─────────────────────────────────────────────────────
     mujoTrustCli = pkgs.writeShellApplication {
       name = "mujo-trust";
-      runtimeInputs = with pkgs; [coreutils jq socat trustSeed];
+      runtimeInputs = with pkgs; [coreutils jq socat util-linux trustSeed];
       # The single-quoted blocks below are jq programs, and $a / $p / $s are
       # jq variables passed with --arg. shellcheck sees shell parameters that
       # will not expand, which is exactly the intent.
@@ -395,14 +425,27 @@
         # reach, and an application must not be able to promote itself.
         edit_db() {
           local tmp
+          # graduate/revoke/tier/rollback race the socket handler exactly like
+          # everything else that writes this file; take the same lock. The fd is
+          # scoped to this block rather than opened with `exec`, because cmd_run
+          # in this same script spawns applications that outlive it -- an fd left
+          # open at process scope would be inherited by one of them and hold the
+          # registry lock for as long as the application ran.
           tmp=$(mktemp ${dbDir}/.registry.XXXXXX)
-          if jq -L${jqDir} "$@" "$DB" > "$tmp"; then
-            chmod 644 "$tmp"
-            mv "$tmp" "$DB"
-          else
-            rm -f "$tmp"
-            exit 1
-          fi
+          {
+            flock -w 10 8 || {
+              echo "mujo-trust: registry is busy, try again" >&2
+              rm -f "$tmp"
+              exit 75
+            }
+            if jq -L${jqDir} "$@" "$DB" > "$tmp"; then
+              chmod 644 "$tmp"
+              mv "$tmp" "$DB"
+            else
+              rm -f "$tmp"
+              exit 1
+            fi
+          } 8>${dbDir}/.registry.lock
         }
 
         cmd_run() {
