@@ -52,20 +52,51 @@ _vm_lock = threading.RLock()
 _last_use = time.time()
 
 
+# crash() sends a monitor `quit` and then blocks in wait_for_shutdown(). A VM
+# whose monitor has wedged never answers, so it is run on a worker thread with a
+# deadline: without one, teardown blocks forever holding _vm_lock and takes
+# every later tool call down with it -- a sandbox was found still resident after
+# ten hours, with its driver alive and the watchdog no longer ticking.
+CRASH_TIMEOUT_SEC = 20
+
+
+def _kill_qemu():
+    """Last resort when the monitor will not answer: SIGKILL QEMU itself."""
+    pid = getattr(vm, "pid", None)
+    if pid is None:
+        print("sandbox: no QEMU pid to kill", file=sys.stderr)
+        return
+    print(f"sandbox: monitor did not answer; SIGKILL on QEMU pid {pid}", file=sys.stderr)
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except OSError as e:
+        print(f"sandbox: could not kill QEMU: {e}", file=sys.stderr)
+    # ensure_up() boots a fresh VM off this flag, so it must not stay True.
+    vm.booted = False
+
+
 def teardown(reason):
     """Power the VM off. Safe to call repeatedly and when already down."""
     with _vm_lock:
         if not vm.booted:
             return
         print(f"sandbox: {reason}; powering the VM off", file=sys.stderr)
-        try:
-            # crash() is one QMP/monitor 'quit' rather than a guest `poweroff`
-            # that waits on the backdoor shell. An abandoned sandbox is exactly
-            # the case where that shell may be wedged, and there is nothing to
-            # flush, so the abrupt route is the reliable one here.
-            vm.crash()
-        except Exception as e:
-            print(f"sandbox: teardown failed: {e}", file=sys.stderr)
+
+        # crash() is one QMP/monitor 'quit' rather than a guest `poweroff` that
+        # waits on the backdoor shell. An abandoned sandbox is exactly the case
+        # where that shell may be wedged, and there is nothing to flush, so the
+        # abrupt route is the reliable one here.
+        def _crash():
+            try:
+                vm.crash()
+            except Exception as e:
+                print(f"sandbox: teardown failed: {e}", file=sys.stderr)
+
+        worker = threading.Thread(target=_crash, daemon=True)
+        worker.start()
+        worker.join(CRASH_TIMEOUT_SEC)
+        if worker.is_alive() or vm.booted:
+            _kill_qemu()
 
 
 # Poll often enough to be responsive without busy-waiting: 30s in the default
@@ -334,6 +365,12 @@ def _dispatch(name, a):
     if name == "reload":
         loads, restarts = shell_state()
         user_run(
+            # Any settings window still open is a separate process running the
+            # QML it was launched with. Leaving it up makes a reload look like
+            # it changed nothing -- the stale window is what gets screenshotted.
+            # The bracket keeps the pattern from matching the `sh -c` process
+            # running it, which would otherwise kill the copy before it ran.
+            "pkill -f '[s]ettings[.]qml'; "
             "cp -a /mnt/nixconf/quickshell/bar/. /run/quickshell-bar/ && "
             "([ -d /mnt/host-config/quickshell ] && cp -a /mnt/host-config/quickshell/. ~/.config/quickshell/ 2>/dev/null || true) && "
             "([ -d /mnt/host-config/qsshell ] && cp -a /mnt/host-config/qsshell/. ~/.config/qsshell/ 2>/dev/null || true) && "

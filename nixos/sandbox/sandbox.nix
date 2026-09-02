@@ -74,12 +74,21 @@
         securityModel = "none";
       };
       # The sandbox may read the working tree, never write to it.
+      #
+      # cache=none, not cache=loose: both of these mounts are edited on the
+      # host while the guest is running -- the working tree by whoever is
+      # iterating on QML, ~/.config by the live session. cache=loose tells the
+      # kernel nothing else changes them, so the guest kept serving the
+      # contents it read at boot and `reload` copied those stale bytes into
+      # /run/quickshell-bar, reporting success while showing the old UI.
+      # The tmpfs copy is what makes shell startup fast; the page cache here
+      # only decides whether that copy is current.
       fileSystems."/mnt/nixconf".options = [
         "ro"
         "trans=virtio"
         "version=9p2000.L"
         "msize=1048576"
-        "cache=loose"
+        "cache=none"
         "posixacl=0"
       ];
       fileSystems."/mnt/host-config".options = [
@@ -87,7 +96,7 @@
         "trans=virtio"
         "version=9p2000.L"
         "msize=1048576"
-        "cache=loose"
+        "cache=none"
         "posixacl=0"
       ];
       fileSystems."/nix/.ro-store".options = [

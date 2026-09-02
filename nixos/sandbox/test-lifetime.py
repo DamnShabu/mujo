@@ -23,7 +23,7 @@ MCP = Path(__file__).with_name("mcp.py")
 # atexit hook, and reads fd 0 to EOF, none of which survives being run twice in
 # one interpreter.
 HARNESS = '''
-import os, sys, threading, time
+import os, subprocess, sys, threading, time
 
 class FakeVM:
     """Just the slice of the driver's Machine API that mcp.py touches."""
@@ -38,9 +38,21 @@ class FakeVM:
     def execute(self, *a, **k): self.execs += 1; return (0, "1000\\n")
     def wait_for_unit(self, *a, **k): return None
 
+class WedgedVM(FakeVM):
+    """A VM whose monitor never answers: crash() blocks, exactly as
+    wait_for_shutdown() does when QEMU has stopped reading the monitor socket.
+    Its `pid` is a real child process, so the escalation has something to kill."""
+    def __init__(self):
+        super().__init__()
+        self.proc = subprocess.Popen(["sleep", "300"])
+        self.pid = self.proc.pid
+    def crash(self):
+        self.crashed += 1
+        time.sleep(600)
+
 MODE = sys.argv[1]
 os.environ["MUJO_SANDBOX_IDLE_SEC"] = "2"
-vm_obj = FakeVM()
+vm_obj = WedgedVM() if MODE == "wedged" else FakeVM()
 g = {"machines": [vm_obj], "__name__": "__main__"}
 src = open(%(mcp)r).read()
 
@@ -83,6 +95,14 @@ else:
         detail = "booted=%%s crashed=%%d execs=%%d" %% (
             vm_obj.booted, vm_obj.crashed, vm_obj.execs)
 
+    elif MODE == "wedged":
+        # The ten-hour VM: crash() never returns, so without a deadline the
+        # watchdog blocks holding _vm_lock and the 4 GiB is never reclaimed.
+        time.sleep(28)
+        alive = vm_obj.proc.poll() is None
+        ok = (not alive) and (not vm_obj.booted)
+        detail = "qemu_alive=%%s booted=%%s" %% (alive, vm_obj.booted)
+
     elif MODE == "reboot":
         # An idle teardown must cost the next caller a boot, not an error.
         time.sleep(5)
@@ -102,6 +122,7 @@ CASES = {
     "eof": "client disconnects -> VM is powered off",
     "active": "continuous use -> VM stays up",
     "reboot": "after idle teardown -> next call boots it again",
+    "wedged": "monitor never answers -> QEMU is SIGKILLed anyway",
 }
 
 
@@ -110,7 +131,7 @@ def main():
     for mode, what in CASES.items():
         p = subprocess.run(
             [sys.executable, "-c", HARNESS, mode],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, timeout=90,
         )
         # mcp.py does os.dup2(2, 1) to keep stdout a clean JSON-RPC channel, so
         # the harness verdict surfaces on stderr. The exit status is the signal.

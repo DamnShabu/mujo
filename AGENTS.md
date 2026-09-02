@@ -32,22 +32,29 @@ PASS/FAIL and exits non-zero on failure. Non-trivial logic in this repo leaves
 one of these behind rather than a test suite.
 
 ```bash
-python3 nixos/apps/test-tray-relay.py            # tray relay: two private buses, no VM
-python3 nixos/sandbox/test-lifetime.py           # sandbox VM lifetime: mcp.py against a fake Machine
+# There is no python3 on the host PATH -- these two bring their own.
+nix shell --impure --expr 'with import <nixpkgs> {}; python3.withPackages (p: [p.dbus-next])' \
+  -c python3 nixos/apps/test-tray-relay.py       # tray relay: two private buses, no VM
+nix shell nixpkgs#python3 -c python3 nixos/sandbox/test-lifetime.py   # sandbox VM lifetime: mcp.py vs a fake Machine
 bash nixos/apps/test-trust-registry-lock.sh      # trust registry survives concurrent writers
 bash quickshell/test-screenshot-crop.sh          # screenshot crop bounds guard (ImageMagick only)
-bash quickshell/test-screenshot-ocr-lines.sh     # OCR line boxes (tesseract + ImageMagick)
+bash quickshell/test-screenshot-ocr-lines.sh     # OCR line boxes; SKIPs unless run under nix run .#mujo-screenshot
 ```
 
-The shell's own checks each print PASS/FAIL and exit, so they can be run in a
-row. Full list in `quickshell/bar/AGENTS.md` → RUNNING:
+The shell's own checks each print PASS/FAIL and exit 0 or 1, so they can be run
+in a row. Full list in `quickshell/bar/AGENTS.md` → RUNNING:
 
 ```bash
 cd quickshell/bar
-for t in icons grid notifications shelf settings-ui security-ui desktop; do
+for t in icons grid notifications shelf settings-ui security-ui desktop wallpaper-panel; do
   qs -p "./test-$t.qml"
 done
 ```
+
+A new one runs its assertions from a `Timer { interval: 0 }`, never from
+`Component.onCompleted`: Quickshell connects `Qt.exit()` only after the config
+finishes loading, so a check that exits from `onCompleted` prints its verdict
+and then hangs forever.
 
 ## CORE CONSTRAINTS
 
@@ -130,11 +137,11 @@ Also `secrets.vaultwarden.sshKeys.*` and `secrets.vaultwarden.gpgKeys.*`.
 
 - Tools: `screenshot`, `click`, `type`, `key`, `logs`, `reload`, `exec`.
 - The VM is nixpkgs' NixOS test driver (QEMU); root is a tmpfs, so no state survives.
-- The working tree is 9p-mounted read-only at `/mnt/nixconf` and `/etc/xdg/quickshell/bar` points at it, so the loop is **edit → `reload` → `screenshot`, no rebuild**. `reload` waits for quickshell to actually finish loading (~20s) and reports the journal instead if it crash-loops on a QML error.
+- The working tree is 9p-mounted read-only at `/mnt/nixconf`, and `reload` copies it into the tmpfs `/run/quickshell-bar` that `/etc/xdg/quickshell/bar` points at, so the loop is **edit → `reload` → `screenshot`, no rebuild**. `reload` waits for quickshell to actually finish loading (~20s) and reports the journal instead if it crash-loops on a QML error. It also kills any open settings window, because that is a separate process still running the QML it was launched with — leaving it up makes a reload look like it changed nothing. The 9p mounts are `cache=none` for the same reason: with `cache=loose` the guest kept serving the bytes it read at boot and `reload` copied those, reporting success while showing the old UI.
 - Values behind `SettingsBus.get(…)` come from the guest's `~/.config/qsshell/settings.json`, so editing their *defaults* in `Theme.qml` will not change the render — edit plain literals, or set the value with `mujo settings`.
 - It needs the host's render node (`/dev/dri/renderD128`): niri refuses software EGL, so the guest gets virgl via `-device virtio-gpu-gl-pci -display egl-headless`. Nothing is drawn on the real session.
 - **The first tool call costs ~45s** (VM boot + the ~20s quickshell load); later ones are fast.
-- **The VM powers itself off after 10 minutes idle** and boots again on the next tool call, so an agent session left open in another terminal cannot pin its 4 GiB indefinitely (one was found resident for 1h41m holding 1.4 GB). Tune with `MUJO_SANDBOX_IDLE_SEC`; the only cost of a teardown is that the next call pays the ~45s cold start again. `python3 nixos/sandbox/test-lifetime.py` is the self-check — it runs mcp.py against a fake Machine, needs no QEMU, and covers both directions: the VM comes down when idle or disconnected, and never while a client is still calling.
+- **The VM powers itself off after 10 minutes idle** and boots again on the next tool call, so an agent session left open in another terminal cannot pin its 4 GiB indefinitely (one was found resident for 1h41m holding 1.4 GB). Tune with `MUJO_SANDBOX_IDLE_SEC`; the only cost of a teardown is that the next call pays the ~45s cold start again. `nix shell nixpkgs#python3 -c python3 nixos/sandbox/test-lifetime.py` is the self-check — it runs mcp.py against a fake Machine, needs no QEMU, and covers three directions: the VM comes down when idle or disconnected, never while a client is still calling, and comes down by SIGKILL when its monitor stops answering `crash()` (which is how one stayed resident for ten hours).
 - **`MCP_TIMEOUT` must be raised** (`.claude/settings.json` sets it to 180000). A warm `nix run .#sandbox` answers `initialize` in ~0.5s, but a cold flake eval — which is what happens right after any source edit — exceeds the client's 30s default and the server never connects.
 
 ## AI ASSISTANTS

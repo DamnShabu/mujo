@@ -2,10 +2,10 @@
 
 Branch `overhaul`, off `main` at `9870808`.
 
-## Status: incomplete pass — phases 0–2 done, 3–6 partial
+## Status: incomplete pass — phases 0–2 done, 3 begun, 4–6 partial
 
-This is an honest accounting, not a completed sweep. **449 tracked files; 84 have
-a verdict below.** The remaining 365 were not read, and they carry no row rather
+This is an honest accounting, not a completed sweep. **458 tracked files; 96 have
+a verdict below.** The remaining 362 were not read, and they carry no row rather
 than a fabricated `CORRECT`. `CORRECT` in this ledger means the file was read and
 a specific property was checked; it is not a synonym for "not touched".
 
@@ -14,10 +14,10 @@ Nix module arguments and dead packages, and the phase 2 correctness/security pas
 over every trust boundary the brief names (`mujo-trustd`, the credential broker,
 `nixos/sandbox/mcp.py`, the tray relay) plus the threat-model cross-check.
 
-What is not: phase 3 (no large file was split), phase 4 (one real fix; the
-big closure wins all cost a feature — see the decisions), phase 5 (landed; the two
-default-off switches stay off, with reasons), and phase 6 for the 365 unreviewed
-files.
+What is not: phase 3 (only `WallpaperPanel.qml` was split; the other five large
+files remain), phase 4 (one real fix; the big closure wins all cost a feature —
+see the decisions), phase 5 (landed; the two default-off switches stay off, with
+reasons), and phase 6 for the 362 unreviewed files.
 
 ### The brief's own numbers were stale
 
@@ -263,14 +263,159 @@ written down. See decisions.
 
 ## Phase 3 — structure
 
-**Not done.** `quickshell/mujo.sh` (3826), `WallpaperPanel.qml` (2933),
-`MujoPageHeroArt.qml` (1180), `ApplicationsPanel.qml` (1156),
-`LauncherGroupsView.qml` / `LauncherBody.qml` (~1080) are untouched. Splitting
-QML has one honest gate — identical renders from the sandbox MCP, before and
-after — and I did not have that evidence, so I did not start cutting. This is the
-largest remaining piece of the brief.
+Scope this pass: `WallpaperPanel.qml`, the largest file in the QML tree. The
+other five named in the brief (`quickshell/mujo.sh`, `MujoPageHeroArt.qml`,
+`ApplicationsPanel.qml`, `LauncherGroupsView.qml`, `LauncherBody.qml`) are still
+untouched.
 
----
+`WallpaperPanel.qml` was 2933 lines holding four tabs' worth of controls, three
+result grids, three copies of a scroll animation and two copies of a tag parser.
+It is now 590 lines that own state, wiring and layout, and nothing else.
+
+| File | Lines | Responsibility |
+|---|---|---|
+| `WallpaperPanel.qml` | 590 | tab state, `wallpaper.json`, the library listing, effects card, the shared overlays, the two inspector modals |
+| `WallhavenControls.qml` | 775 | Wallhaven search box, tag row, quick filters, filter drawer |
+| `WallpaperEngineControls.qml` | 795 | the same for Wallpaper Engine — different filter axes, so not merged |
+| `WallpaperEngineGrid.qml` | 312 | Workshop/installed results, and its own pagination trigger |
+| `WallhavenGrid.qml` | 252 | Wallhaven results, and its own pagination trigger |
+| `TagQuery.js` | 72 | tag parsing: `isInQuery`, `append`, `replaceLastToken`, `lastToken` |
+| `WallpaperLibraryGrid.qml` | 68 | the local library |
+| `components/MujoGridView.qml` | 61 | GridView + the shell's kinetic wheel scrolling |
+
+The seams are real, not line-count cuts. Before the split, `root.suggestions`,
+`root.selectedSuggestionIndex` and `root.filtersExpanded` were panel-level state
+that only the Wallhaven controls ever read; the same held for the seven `we*`
+properties. Each block now owns the state only it uses, and the panel keeps only
+what crosses a seam — which is why the panel exposes exactly eight properties
+where it used to expose twenty-two.
+
+Three things were deduplicated on the way through:
+
+- **`MujoGridView`.** All three grids carried the same 30-line block:
+  `targetContentY`, a `NumberAnimation`, a `WheelHandler` and four flick
+  handlers, identical but for the ids. `MujoFlickable` already exists for this,
+  but a `GridView` cannot be built on a `Flickable` subclass, which is the
+  honest reason the copies existed. One component now holds it, with
+  `scrollTo`/`scrollToTop` replacing the animation-poking the scroll-to-top
+  button used to do by hand. The curve is the grids' existing one, not
+  `MujoFlickable`'s accelerating variant — matching it would have changed how
+  scrolling feels, which is not a refactor.
+- **`TagQuery.js`.** `isTagInQuery`, `addTagToSearch`, `applySuggestion` and
+  their four `we`-prefixed twins were ~110 lines of near-identical string
+  handling. They are one 72-line module, following `modules/launcher/calc.js`,
+  and `test-wallpaper-panel.qml` covers them with 17 assertions.
+- **The two autocomplete debounce timers** were identical but for the service
+  they call; the "which word is the caret in" logic is now `TagQuery.lastToken`.
+
+### Gate
+
+`nix flake check`:
+
+```
+building '/nix/store/mj52gf4cma4biyrwzj4yzzg46vfjvi1h-nixos-system-main-26.11.20260719.241313f.drv'...
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux
+```
+
+Every QML self-check, from `quickshell/bar`:
+
+```
+icons            rc=0   PASS  Icons: 88 actions + 48 file types resolve
+grid             rc=0   PASS  DesktopGrid: all occupancy checks green
+notifications    rc=0   PASS  Notifications: daemon, icon resolver, grouping, and history tests succeeded
+shelf            rc=0   PASS  Shelf: state management, URI/path normalization, deduplication, and icon resolution verified
+settings-ui      rc=0   PASS  settings UI: rows bind, page hosts, routing resolves
+security-ui      rc=0   PASS  security UI: service binds, trust tab renders, vault controls active
+desktop          rc=0   PASS  desktop layout: 0 items placed, no overlaps, grid agrees
+wallpaper-panel  rc=0   PASS  wallpaper panel: components resolve, tag query parses
+```
+
+Sandbox screenshots, taken at HEAD and again on this tree, of all four tabs plus
+the Wallhaven filter drawer: **Library, Wallhaven, Wallhaven + filter drawer and
+Effects render identically.** The Wallpaper Engine tab is the one deliberate
+difference — see below. The guest journal carries the same six warnings before
+and after (no network, no pipewire, no bluez in the VM) and no new QML error.
+
+### The sandbox was showing me the old UI
+
+The first set of "after" screenshots matched the baseline perfectly, and they
+were worthless: the guest was still running the code from before the edit. Two
+independent causes, both now fixed, because a verification tool that silently
+lies is worse than not having one.
+
+1. **`/mnt/nixconf` was mounted `cache=loose`.** That option tells the kernel
+   nothing else modifies the files — while the entire point of the mount is that
+   the host edits them. The guest kept serving the bytes it read at boot, so
+   `reload`'s `cp -a` copied stale content and reported success. Both host
+   mounts are `cache=none` now; the tmpfs copy is what makes shell startup fast,
+   and this page cache only decided whether that copy was current.
+2. **`reload` left open settings windows running.** The settings app is a
+   separate process holding the QML it was launched with, so a reload could
+   change nothing visible while reporting that it had reloaded. `reload` now
+   kills them first. (The pattern is `'[s]ettings[.]qml'`: written plainly, the
+   `pkill -f` matched the `sh -c` process running it and killed the copy before
+   it ran.)
+
+Proof the loop works now: with the VM already booted, editing the hero title in
+the working tree, calling `reload`, and screenshotting shows the edited title
+(`shots/reload-probe.png`); `grep -c` inside the guest confirms the new text
+reached `/run/quickshell-bar`.
+
+### Defects found while verifying
+
+- **`services/Notifications.qml:158` called `soundProc.kill()`**, which does not
+  exist on Quickshell's `Process` (it has `signal(int)`; assigning
+  `running = false` is the documented stop). The `TypeError` aborted
+  `playSound()` before it started the new sound, so every notification arriving
+  while a previous sound was still playing was silent. It also aborted
+  `test-notifications.qml`, which is why that check never printed a verdict.
+- **All seven QML self-checks hung forever.** `Qt.exit()` from
+  `Component.onCompleted` runs before Quickshell connects the engine's exit
+  signal — the process printed `PASS` and then sat there. The documented
+  `for t in …; do qs -p …; done` loop in `AGENTS.md` could never get past the
+  first check. All eight now run their assertions from a `Timer { interval: 0 }`
+  and exit 0/1.
+- **`WallpaperEngineDetailModal.qml:456`** dereferenced `wallpaperItem.is_local`
+  with no null guard, throwing on every evaluation while the modal was closed.
+  Every other site in that file guards; this one did not.
+- **The Wallpaper Engine tab drew its error and empty states on top of each
+  other** — legible in the baseline screenshot as two overlapping paragraphs.
+  The Wallhaven branch excludes real errors from the empty state; the Wallpaper
+  Engine branch had no error clause at all, so a connection failure showed both
+  "Connection Issue" and "No Wallpapers Found". Now it mirrors Wallhaven.
+- **`teardown()` in `mcp.py` had no escalation.** `vm.crash()` sends a monitor
+  `quit` then blocks in `wait_for_shutdown()`; a VM whose monitor has wedged
+  never answers, so teardown blocks forever *holding `_vm_lock`* and every later
+  tool call blocks behind it. That matches what was found at the start of this
+  session: a sandbox VM from another session resident for ten hours, its driver
+  alive, its idle watchdog no longer ticking, holding the hardcoded SPICE port
+  5920 so no second sandbox could boot. `crash()` now runs on a worker thread
+  with a 20s deadline and falls back to `SIGKILL` on the QEMU pid.
+  `test-lifetime.py` grew a fifth case for it — a fake VM whose `crash()` blocks
+  and whose `pid` is a real child process, asserting the child is dead.
+- **`bash quickshell/test-screenshot-ocr-lines.sh` cannot work as documented**:
+  there is no `tesseract` on the host PATH, and the check reported that as
+  `FAIL: ocr-lines exited non-zero`. It now names the missing binary and skips.
+  With tesseract on PATH it passes: `ok: ocr-lines boxes (3 lines)`.
+- **`python3` is not on the host PATH either**, so both Python self-checks in
+  `AGENTS.md` failed as written. The section now carries invocations that run.
+
+### Metrics
+
+| Metric | Phase 0 | Phase 3 start | Now |
+|---|---|---|---|
+| `nix flake check` | pass | pass | pass |
+| Tracked files | 448 | 450 | 458 |
+| Tracked lines | 69,417 | 70,175 | 70,408 |
+| Largest QML file | 2,933 | 2,933 | 1,180 (`MujoPageHeroArt.qml`) |
+| `WallpaperPanel.qml` | 2,933 | 2,933 | 590 |
+| QML self-checks that terminate | 0 of 7 | 0 of 7 | 8 of 8 |
+| `test-lifetime.py` | 4/4 | 4/4 | 5/5 |
+
+Line count is up again, and again the reason is checks and comments, not code:
+the split moved ~2,600 lines and added a 74-line self-check plus the sandbox
+fixes. The deduplication took ~200 lines of copied logic out.
 
 ## Phase 4 — performance
 
@@ -396,9 +541,26 @@ Each is one line, each is actionable, none was taken unilaterally.
 
 ---
 
+9. **A sandbox VM from another session was resident for ten hours** holding the
+   hardcoded SPICE port 5920, so no second sandbox could boot and every tool call
+   hung silently. You approved killing it. `teardown()` now escalates to SIGKILL,
+   but the port stays hardcoded in `sandbox.nix:63` — two sandboxes still cannot
+   coexist, and the second one gets no diagnostic. Say the word and I will make
+   it fail fast with a clear message.
+10. **`WallpaperPanel.qml` is split; the other five large files are not.**
+    `quickshell/mujo.sh` (3833), `MujoPageHeroArt.qml` (1180),
+    `ApplicationsPanel.qml` (1156), `LauncherGroupsView.qml` (1089),
+    `LauncherBody.qml` (1073). The pattern and the screenshot method are proven
+    now, so each is a repeat of this pass rather than new ground.
+11. **The wallpaper grids scroll on a simpler curve than everything else.**
+    `MujoGridView` reproduces what those three grids always did — a flat 1.2×
+    step — while `MujoFlickable`, which every other scrollable surface uses, has
+    acceleration and 1:1 touchpad handling. Unifying them would make grid
+    scrolling feel different, so I did not; say so if you want them to match.
+
 ## File ledger
 
-84 of 449 files. Verdicts: `CHANGED` (diff + what it buys), `CORRECT` (the
+96 of 458 files. Verdicts: `CHANGED` (diff + what it buys), `CORRECT` (the
 property checked), `DELETED` (what absorbed it).
 
 | File | Verdict | Note | Phase |
@@ -430,10 +592,7 @@ property checked), `DELETED` (what absorbed it).
 | `nixos/apps/trust.nix` | CHANGED | `flock` on all four registry writers; `read -t 5`; 128-char key bound; block-scoped fd in `edit_db` | 1, 2 |
 | `nixos/security/broker.nix` | CHANGED | `read -t 5`; capability-by-socket design verified sound — grants are exact build-time strings and the `[^/]+/[^/]+` assertion makes traversal unreachable | 2 |
 | `nixos/apps/tray-relay.py` | CHANGED | four-member notification allowlist; arity check on `NameOwnerChanged` | 2 |
-| `nixos/apps/test-tray-relay.py` | CHANGED | `time.sleep` for `subprocess.run(["sleep"])` ×200 | 2, 4 |
 | `nixos/apps/test-trust-registry-lock.sh` | CHANGED | new: 20 concurrent writers, fails if the unlocked round stops losing updates | 2 |
-| `nixos/sandbox/mcp.py` | CHANGED | `json.loads` moved inside a guard; parse errors answer -32700 and the loop survives | 2 |
-| `nixos/sandbox/test-lifetime.py` | CORRECT | 4/4; already times out its subprocess; the pattern the other self-checks follow | 2 |
 | `quickshell/wallpaper-engine/mujo-wallpaper-engine.py` | CHANGED | `timeout=5` on two `pgrep` and one `pkill`, all inside existing `except` handlers | 2 |
 | `nixos/core/base.nix` | CHANGED | removed two `"yurii"` literals that the repo's own rule forbids; both were already shadowed | 2 |
 | `nixos/core/general.nix` | CHANGED | bare `ponytail:` replaced with the actual ceiling: this grants passwordless root | 2 |
@@ -445,13 +604,10 @@ property checked), `DELETED` (what absorbed it).
 | `nixos/hosts/main/checks.nix` | CORRECT | genuinely re-exports the host toplevel; verified by watching it rebuild | 0 |
 | `nixos/hosts/main/_boot.nix` | CORRECT | GRUB active, lanzaboote wired but gated; the marker names a real size-vs-hash ceiling | 2 |
 | `docs/threat-model.md` | CHANGED | A1 and invariants 3/5/6 now say what is enforced vs conditional | 2, 6 |
-| `AGENTS.md` | CHANGED | `preload`/`quicksnip` claims corrected; "No test suite" replaced; SELF-CHECKS added | 6 |
 | `README.md` | CORRECT | accurate, and orients a stranger in under 60 seconds | 6 |
 | `docs/application-trust.md` | CORRECT | §7 matches the implementation, including the empty-ACL commitment | 5 |
 | `flake.nix` | CORRECT | `importTree` and the `_` convention work as documented; the `unstable` duplication is a decision, not a defect | 4 |
 | `quickshell/mujo.sh` | CORRECT | `set -e` without `pipefail` is right here: 653 pipelines, many `… \| head -1 \|\| fallback`, where pipefail would turn a benign SIGPIPE into the fallback branch | 2 |
-| `quickshell/test-screenshot-crop.sh` | CORRECT | omits `-e` deliberately — it asserts on commands that must fail | 2 |
-| `quickshell/test-screenshot-ocr-lines.sh` | CORRECT | same | 2 |
 | `tests/lib.sh` | CORRECT | a sourced library; shell options belong to the entry points, and all eleven set them | 2 |
 | `tests/vm/run.sh` | CORRECT | builds and boots the real layout; needs a console, so it cannot run unattended | 2 |
 | `tests/trust/test-trust-engine.sh` | CORRECT | drives the `violation` verb, so the broker's detector is covered | 5 |
@@ -462,7 +618,6 @@ property checked), `DELETED` (what absorbed it).
 | `nixos/apps/zen.nix` | CORRECT | wired via `desktop.nix` | 1 |
 | `nixos/core/hjem.nix` | CORRECT | wired via `general.nix` | 1 |
 | `nixos/core/nix.nix` | CORRECT | wired via `general.nix` | 1 |
-| `nixos/sandbox/sandbox.nix` | CORRECT | defines its own test node; not host-wired by design | 1 |
 | `nixos/apps/discord.nix` | CORRECT | inner module binds its own `lib`; no outer argument to drop | 1 |
 | `quickshell/bar/screenshot.qml` | CORRECT | an entrypoint like `shell.qml`, so its absence from a `qmldir` is right | 1 |
 | `nixos/hosts/main/disko.nix` | CORRECT | `randomEncryption` swap; the `noatime` comment records why `preload` left | 1 |
@@ -477,17 +632,38 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/services/Launch.qml` | CHANGED | `trustRouting` default `true` → `false`; `onLoadFailed` now sets false, so an absent marker means off | 2 |
 | `quickshell/bar/services/SecurityService.qml` | CHANGED | `inventoryFailed` added; hardening flags default false and parse `=== true`; both silent catches now warn | 2 |
 | `quickshell/bar/modules/settings/SecurityGroup.qml` | CHANGED | four hardcoded-green hardening cards bound to live telemetry; audit failure rendered as its own state | 5 |
-| `quickshell/mujo.sh` | CHANGED | Secure Boot detection reads the efivar's value byte instead of testing that the file exists | 2 |
 | `quickshell/bar/services/SentinelService.qml` | CHANGED | `val ?` → `val !== undefined`, so `renice(pid, 0)` keeps its argument | 2 |
-| `quickshell/bar/test-security-ui.qml` | CORRECT | PASS after the SecurityService and SecurityGroup changes | 2 |
-| `quickshell/bar/test-icons.qml` | CORRECT | PASS — 88 actions + 48 file types resolve | 2 |
-| `quickshell/bar/test-grid.qml` | CORRECT | PASS — occupancy checks green | 2 |
-| `quickshell/bar/test-settings-ui.qml` | CORRECT | PASS — rows bind, page hosts, routing resolves | 2 |
-| `quickshell/bar/test-shelf.qml` | CORRECT | PASS — state, URI normalisation, dedup, icons | 2 |
-| `quickshell/bar/test-notifications.qml` | CORRECT | PASS — daemon, icon resolver, grouping, history | 2 |
-| `quickshell/bar/test-desktop.qml` | CORRECT | PASS — no overlaps, grid agrees | 2 |
 
-### Not reviewed — 365 files
+| `quickshell/bar/modules/settings/WallpaperPanel.qml` | CHANGED | 2933 → 590; keeps tab state, `wallpaper.json`, the library listing, effects, overlays and modals — every block that only one tab read now lives with that tab | 3 |
+| `quickshell/bar/modules/settings/WallhavenControls.qml` | CHANGED | new: the Wallhaven search box and filter drawer, owning the suggestion state nothing outside it read | 3 |
+| `quickshell/bar/modules/settings/WallpaperEngineControls.qml` | CHANGED | new: the same for Wallpaper Engine; not merged with the above because the two services expose different filter axes | 3 |
+| `quickshell/bar/modules/settings/WallhavenGrid.qml` | CHANGED | new: results grid; owns its pagination trigger, since only it knows the viewport's distance to the end of the model | 3 |
+| `quickshell/bar/modules/settings/WallpaperEngineGrid.qml` | CHANGED | new: same, paginating only for Workshop — the installed list arrives whole | 3 |
+| `quickshell/bar/modules/settings/WallpaperLibraryGrid.qml` | CHANGED | new: local library; `currentImage` is a `required property`, the selection signal replaces a direct `runWp` call | 3 |
+| `quickshell/bar/modules/settings/TagQuery.js` | CHANGED | new: the tag parser both search boxes had a copy of; pure functions, 17 assertions in `test-wallpaper-panel.qml` | 3 |
+| `quickshell/bar/components/MujoGridView.qml` | CHANGED | new: the scroll block all three grids duplicated; a GridView cannot extend `MujoFlickable`, which is why the copies existed | 3 |
+| `quickshell/bar/components/qmldir` | CHANGED | registers `MujoGridView` | 3 |
+| `quickshell/bar/modules/settings/qmldir` | CHANGED | registers the five new settings components | 3 |
+| `quickshell/bar/test-wallpaper-panel.qml` | CHANGED | new: loads the panel through all four tabs and asserts `TagQuery` against the behaviour it replaced | 3 |
+| `quickshell/bar/services/Notifications.qml` | CHANGED | `soundProc.kill()` → `running = false`; `Process` has no `kill()`, and the `TypeError` silently aborted `playSound()` | 3 |
+| `quickshell/bar/modules/settings/WallpaperEngineDetailModal.qml` | CHANGED | null-guard on `wallpaperItem.is_local`, which threw on every evaluation while the modal was closed | 3 |
+| `quickshell/bar/test-icons.qml` | CHANGED | checks moved into `Timer { interval: 0 }` so the process exits; `Qt.exit()` from `onCompleted` is a no-op | 3 |
+| `quickshell/bar/test-grid.qml` | CHANGED | same | 3 |
+| `quickshell/bar/test-notifications.qml` | CHANGED | same; also the first run of this check to reach its verdict, once `Process.kill` stopped throwing | 3 |
+| `quickshell/bar/test-shelf.qml` | CHANGED | same | 3 |
+| `quickshell/bar/test-settings-ui.qml` | CHANGED | same | 3 |
+| `quickshell/bar/test-security-ui.qml` | CHANGED | same | 3 |
+| `quickshell/bar/test-desktop.qml` | CHANGED | same | 3 |
+| `nixos/sandbox/sandbox.nix` | CHANGED | defines its own test node, not host-wired by design; both host 9p mounts `cache=loose` → `cache=none`, since loose made the guest serve boot-time bytes and `reload` copied those | 1, 3 |
+| `nixos/sandbox/mcp.py` | CHANGED | `json.loads` inside a guard, parse errors answer -32700; `reload` kills stale settings windows; `teardown()` bounds `crash()` at 20s and escalates to SIGKILL, so a wedged monitor cannot strand a VM holding `_vm_lock` | 2, 3 |
+| `nixos/sandbox/test-lifetime.py` | CHANGED | 5/5; fifth case asserts a VM whose `crash()` blocks is SIGKILLed anyway, against a real child process | 2, 3 |
+| `quickshell/test-screenshot-ocr-lines.sh` | CHANGED | names its missing dependency and skips, instead of reporting an absent `tesseract` as an OCR failure | 3 |
+| `quickshell/test-screenshot-crop.sh` | CORRECT | omits `-e` deliberately — it asserts on commands that must fail; passes on a bare host, needing only ImageMagick | 2, 3 |
+| `nixos/apps/test-tray-relay.py` | CHANGED | `time.sleep` for `subprocess.run(["sleep"])` ×200; passes — `ok: tray items cross from the guest bus to the host bus` | 2, 3, 4 |
+| `AGENTS.md` | CHANGED | `preload`/`quicksnip` claims corrected, SELF-CHECKS added, then: invocations that actually run, the `Timer` rule, and a sandbox section matching the code | 3, 6 |
+| `quickshell/bar/AGENTS.md` | CHANGED | RUNNING lists all eight checks and states the `Timer`-not-`onCompleted` rule | 3, 6 |
+
+### Not reviewed — 362 files
 
 No verdict, because they were not read.
 

@@ -155,7 +155,10 @@ QtObject {
             soundFile = "/run/current-system/sw/share/sounds/freedesktop/stereo/dialog-warning.oga"
         }
 
-        if (soundProc.running) soundProc.kill()
+        // Quickshell's Process has no kill(); assigning running = false is how it
+        // terminates one. The old call threw, which aborted playSound() before it
+        // ever started the new sound.
+        if (soundProc.running) soundProc.running = false
         soundProc.command = ["pw-play", soundFile]
         soundProc.running = true
     }
