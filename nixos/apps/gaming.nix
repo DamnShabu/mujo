@@ -1,8 +1,4 @@
-{
-  self,
-  inputs,
-  ...
-}: {
+{...}: {
   flake.nixosModules.gaming = {pkgs, ...}: {
     programs = {
       gamescope.enable = true;
