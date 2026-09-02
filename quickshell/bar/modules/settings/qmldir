@@ -24,3 +24,4 @@ InputGroup InputGroup.qml
 ShortcutsGroup ShortcutsGroup.qml
 VmGroup VmGroup.qml
 KeyringGroup KeyringGroup.qml
+SecurityGroup SecurityGroup.qml

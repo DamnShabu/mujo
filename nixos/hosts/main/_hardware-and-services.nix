@@ -48,7 +48,8 @@
 
   # zram is configured once, in nixos/core/system-preferences.nix (the host-level
   # duplicate of these two lines was dead). The 16G disk swap partition in
-  # disko.nix stays as overflow and for hibernation via its resumeDevice.
+  # disko.nix stays as overflow only; it is encrypted with a per-boot random
+  # key, which rules out hibernation (no stable key to resume under).
 
   environment.systemPackages = with pkgs; [
     glib
@@ -82,6 +83,24 @@
       };
     };
   };
+
+  # SDDM's Qt greeter runs in its own user session (uid 175) and reaches for
+  # xdg-desktop-portal to read the colour scheme. That session has no
+  # compositor and no DISPLAY, so the gtk backend dies with "cannot open
+  # display:" five times and hits its start limit on every boot, while the
+  # gnome backend logs a dependency failure for each attempt. The greeter has
+  # never actually got a portal out of this; skip the units there rather than
+  # let them flap. The real session (uid 1000) activates portals only after
+  # niri has exported WAYLAND_DISPLAY, and is unaffected.
+  systemd.user.services =
+    lib.genAttrs [
+      "xdg-desktop-portal"
+      "xdg-desktop-portal-gtk"
+      "xdg-desktop-portal-gnome"
+    ] (_: {
+      overrideStrategy = "asDropin";
+      unitConfig.ConditionUser = "!sddm";
+    });
 
   programs.niri = {
     enable = true;

@@ -64,124 +64,119 @@ Item {
         mutProc.running = true
     }
 
-    ColumnLayout {
+    MujoFlickable {
         anchors.fill: parent
-        anchors.margins: 26
-        spacing: 16
+        contentHeight: mainCol.implicitHeight + 48
 
-        MujoHero {
-            brand: "persistence"
-            title: "Persistence & Storage"
-            subtitle: "Root filesystem is wiped on every boot (Btrfs impermanence) — only /persist bindings survive."
-            isNixos: true
-            badgeText: root.managedRows.length + " PATHS"
-            badgeColor: Theme.accent
+        ColumnLayout {
+            id: mainCol
+            x: 24
+            y: 24
+            width: parent.width - 48
+            spacing: 16
 
-            DialogButton {
-                text: "Rebuild to apply"
-                primary: true
-                onClicked: Quickshell.execDetached(["mujo", "persist", "apply"])
+            MujoHero {
+                brand: "persistence"
+                title: "Persistence & Storage"
+                subtitle: "Root filesystem is wiped on every boot (Btrfs impermanence) — only /persist bindings survive."
+                isNixos: true
+                badgeText: root.managedRows.length + " PATHS"
+                badgeColor: Theme.accent
+
+                DialogButton {
+                    text: "Rebuild to apply"
+                    primary: true
+                    onClicked: Quickshell.execDetached(["mujo", "persist", "apply"])
+                }
             }
-        }
 
-        // ── Add ───────────────────────────────────────────────────────────────
-        Rectangle {
-            Layout.fillWidth: true
-            radius: Theme.radiusMd
-            color: Theme.surface
-            border.color: Theme.border
-            implicitHeight: addCol.implicitHeight + 24
+            // ── Add ───────────────────────────────────────────────────────────
+            MujoCard {
+                title: "Add Persistence Directory"
+                iconName: "create_new_folder"
 
-            ColumnLayout {
-                id: addCol
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                spacing: 10
-                SectionLabel { text: "Add directory" }
-                RowLayout {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 8
-                    DisplayChip { label: "User"; selected: root.addKind === "user"; onClicked: root.addKind = "user" }
-                    DisplayChip { label: "System"; selected: root.addKind === "system"; onClicked: root.addKind = "system" }
-                    TextField {
-                        id: pathField
+                    spacing: 10
+
+                    RowLayout {
                         Layout.fillWidth: true
-                        placeholder: root.addKind === "user" ? "Documents/vault  (relative to home)" : "/var/lib/service  (absolute)"
-                        onTextChanged: root.addPath = text
-                        onAccepted: root.addPersist()
-                    }
-                    DialogButton {
-                        text: "Add"
-                        primary: true
-                        enabled: root.addPath.trim() !== ""
-                        onClicked: root.addPersist()
-                    }
-                }
-                Text {
-                    visible: root.addError !== ""
-                    text: root.addError
-                    color: Theme.error
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSmall
-                    wrapMode: Text.WordWrap
-                    Layout.fillWidth: true
-                }
-            }
-        }
-
-        // ── Two lists side by side ────────────────────────────────────────────
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 14
-
-            // managed (editable)
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                spacing: 8
-                SectionLabel { text: "Managed by Settings — needs rebuild" }
-                ListView {
-                    id: managedList
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    spacing: 6
-                    model: root.managedRows
-                    boundsBehavior: Flickable.DragAndOvershootBounds
-                    delegate: Rectangle {
-                        required property var modelData
-                        width: managedList.width
-                        implicitHeight: 40
-                        radius: Theme.radiusSm
-                        color: Theme.surface
-                        border.color: Theme.border
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 6
-                            spacing: 8
-                            Rectangle {
-                                implicitWidth: kindL.implicitWidth + 12; implicitHeight: 18
-                                radius: Theme.radiusSm
-                                color: Theme.accentDim
-                                Text { id: kindL; anchors.centerIn: parent; text: modelData.kind; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel }
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                text: modelData.path
-                                color: Theme.text
-                                font.family: Theme.fontMono
-                                font.pixelSize: Theme.fontSizeSmall
-                                elide: Text.ElideMiddle
-                            }
-                            IconButton { iconName: "delete"; onClicked: root.removePersist(modelData.kind, modelData.path) }
+                        spacing: 8
+                        DisplayChip { label: "User"; selected: root.addKind === "user"; onClicked: root.addKind = "user" }
+                        DisplayChip { label: "System"; selected: root.addKind === "system"; onClicked: root.addKind = "system" }
+                        TextField {
+                            id: pathField
+                            Layout.fillWidth: true
+                            placeholder: root.addKind === "user" ? "Documents/vault  (relative to home)" : "/var/lib/service  (absolute)"
+                            onTextChanged: root.addPath = text
+                            onAccepted: root.addPersist()
+                        }
+                        DialogButton {
+                            text: "Add"
+                            primary: true
+                            enabled: root.addPath.trim() !== ""
+                            onClicked: root.addPersist()
                         }
                     }
                     Text {
-                        anchors.centerIn: parent
+                        visible: root.addError !== ""
+                        text: root.addError
+                        color: Theme.error
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+
+            // ── Managed Paths Card ────────────────────────────────────────────
+            MujoCard {
+                title: "Managed by Settings (Needs Rebuild)"
+                iconName: "edit_note"
+                badgeText: root.managedRows.length + " MANAGED"
+                badgeColor: Theme.accent
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Repeater {
+                        model: root.managedRows
+                        delegate: Rectangle {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            implicitHeight: 40
+                            radius: Theme.radiusSm
+                            color: Theme.surface
+                            border.color: Theme.border
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 6
+                                spacing: 8
+                                Rectangle {
+                                    implicitWidth: kindL.implicitWidth + 12; implicitHeight: 18
+                                    radius: Theme.radiusSm
+                                    color: Theme.accentDim
+                                    Text { id: kindL; anchors.centerIn: parent; text: modelData.kind; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel }
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: modelData.path
+                                    color: Theme.text
+                                    font.family: Theme.fontMono
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    elide: Text.ElideMiddle
+                                }
+                                IconButton { iconName: "delete"; onClicked: root.removePersist(modelData.kind, modelData.path) }
+                            }
+                        }
+                    }
+
+                    Text {
                         visible: root.managedRows.length === 0
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "Nothing added here yet.\nAdd a directory above."
+                        text: "Nothing added here yet. Add a directory above."
                         color: Theme.textDim
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeSmall
@@ -189,45 +184,55 @@ Item {
                 }
             }
 
-            // currently persisted (read-only)
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                spacing: 8
-                SectionLabel { text: "Currently persisted (" + root.currentRows.length + ")" }
-                ListView {
-                    id: currentList
+            // ── Currently Persisted Paths Card ────────────────────────────────
+            MujoCard {
+                title: "Currently Active Bind Mounts"
+                iconName: "folder_shared"
+                badgeText: root.currentRows.length + " ACTIVE"
+                badgeColor: Theme.success
+
+                ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
                     spacing: 6
-                    model: root.currentRows
-                    boundsBehavior: Flickable.DragAndOvershootBounds
-                    delegate: Rectangle {
-                        required property var modelData
-                        width: currentList.width
-                        implicitHeight: 34
-                        radius: Theme.radiusSm
-                        color: "transparent"
-                        border.color: Theme.border
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 10
-                            spacing: 8
-                            MaterialIcon { iconName: modelData.kind === "user" ? "person" : "dns"; pixelSize: 15; color: Theme.textDim }
-                            Text {
-                                Layout.fillWidth: true
-                                text: modelData.path
-                                color: Theme.textSecondary
-                                font.family: Theme.fontMono
-                                font.pixelSize: Theme.fontSizeSmall
-                                elide: Text.ElideMiddle
+
+                    Repeater {
+                        model: root.currentRows
+                        delegate: Rectangle {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            implicitHeight: 36
+                            radius: Theme.radiusSm
+                            color: Theme.bg
+                            border.color: Theme.border
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 8
+                                MaterialIcon { iconName: modelData.kind === "user" ? "person" : "dns"; pixelSize: 15; color: Theme.textDim }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: modelData.path
+                                    color: Theme.textSecondary
+                                    font.family: Theme.fontMono
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    elide: Text.ElideMiddle
+                                }
                             }
                         }
                     }
+
+                    Text {
+                        visible: root.currentRows.length === 0
+                        text: "Reading persisted mounts..."
+                        color: Theme.textDim
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
                 }
             }
+
+            Item { implicitHeight: 12 }
         }
     }
 }

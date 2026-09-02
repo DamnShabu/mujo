@@ -73,6 +73,44 @@ QtObject {
         } catch (e) { return -1 }
     }
 
+    // Resolve a clean, human-readable appName from appName, desktopEntry, icon, or hints
+    function resolveAppName(appName, desktopEntry, appIcon, hints) {
+        var name = (appName || "").trim()
+        var isGeneric = !name || name.toLowerCase() === "notification" || name.toLowerCase() === "notify-send"
+        if (!isGeneric) {
+            return name
+        }
+        // Check desktopEntry
+        var entry = (desktopEntry || (hints && (hints["desktop-entry"] || hints["desktop_entry"])) || "").trim()
+        if (entry) {
+            var clean = entry.replace(/\.desktop$/i, "")
+            var parts = clean.split(".")
+            var lastPart = parts[parts.length - 1]
+            if (lastPart) {
+                return lastPart.charAt(0).toUpperCase() + lastPart.slice(1)
+            }
+        }
+        // Check appIcon if it's a theme icon name rather than a path/URI
+        var icon = (appIcon || (hints && (hints["app-icon"] || hints["icon_data"])) || "").trim()
+        if (icon && !mgr._isRealImg(icon) && icon.indexOf("/") === -1) {
+            var iconClean = icon.replace(/\.desktop$/i, "")
+            var iconParts = iconClean.split(".")
+            var lastIcon = iconParts[iconParts.length - 1]
+            if (lastIcon) {
+                return lastIcon.charAt(0).toUpperCase() + lastIcon.slice(1)
+            }
+        }
+        return name || "Notification"
+    }
+
+    function _sanitizeRecord(rec) {
+        if (!rec) return rec
+        if (!rec.appName || rec.appName === "Notification" || rec.appName === "notify-send") {
+            rec.appName = mgr.resolveAppName(rec.appName, rec.desktopEntry, rec.icon, null)
+        }
+        return rec
+    }
+
     // Resolve system icon path for a notification record
     function resolveIcon(rec) {
         if (!rec) return ""
@@ -165,7 +203,8 @@ QtObject {
     }
 
     function _ingest(n) {
-        var app = n.appName || "Notification"
+        var dEntry = n.desktopEntry || (n.hints && (n.hints["desktop-entry"] || n.hints["desktop_entry"])) || ""
+        var app = mgr.resolveAppName(n.appName, dEntry, n.appIcon, n.hints)
         var urgencyStr = mgr.urgencyName(n.urgency)
         var acts = mgr._separateActions(n.actions)
         var imgHint = (n.hints && (n.hints["image-path"] || n.hints["image_path"] || n.hints["image-data"] || n.hints["image_data"])) || ""
@@ -186,7 +225,7 @@ QtObject {
             body: n.body || "",
             image: richImage,
             icon: n.appIcon || iconHint || (n.image && !richImage ? n.image : ""),
-            desktopEntry: n.desktopEntry || "",
+            desktopEntry: dEntry,
             urgency: urgencyStr,
             time: Date.now(),
             progress: mgr._progress(n),
@@ -410,7 +449,8 @@ QtObject {
     function grouped() {
         var groups = [], byApp = ({})
         for (var i = 0; i < mgr.history.length; i++) {
-            var r = mgr.history[i], k = r.appName || "Notification"
+            var r = mgr._sanitizeRecord(mgr.history[i])
+            var k = r.appName || "Notification"
             if (byApp[k] === undefined) {
                 byApp[k] = groups.length
                 groups.push({ appName: k, icon: r.icon, desktopEntry: r.desktopEntry, items: [] })
@@ -424,7 +464,8 @@ QtObject {
     function getRecentApps() {
         var map = ({}), list = []
         for (var i = 0; i < mgr.history.length; i++) {
-            var name = mgr.history[i].appName
+            var rec = mgr._sanitizeRecord(mgr.history[i])
+            var name = rec.appName
             if (name && !map[name]) {
                 map[name] = true
                 list.push(name)
@@ -462,7 +503,12 @@ QtObject {
         onFileChanged: reload()
         onLoaded: {
             if (saveProc.running || saveTimer.running) return
-            try { var d = JSON.parse(text() || "{}"); if (d && Array.isArray(d.history)) mgr.history = d.history }
+            try {
+                var d = JSON.parse(text() || "{}")
+                if (d && Array.isArray(d.history)) {
+                    mgr.history = d.history.map(function(item) { return mgr._sanitizeRecord(item) })
+                }
+            }
             catch (e) { console.warn("Notifications: history parse error", e) }
         }
         onLoadFailed: function (err) {}

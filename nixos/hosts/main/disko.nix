@@ -26,7 +26,14 @@
               size = "16G";
               content = {
                 type = "swap";
-                resumeDevice = true;
+                # Re-keyed with a fresh random key on every boot, so pages that
+                # held plaintext are unrecoverable once the machine powers off.
+                # This is what makes the "remove the SSD" test pass for swap.
+                #
+                # It rules out hibernation: a resume image cannot be read back
+                # under a key that no longer exists. zram (50% of RAM) still
+                # absorbs normal pressure and this partition remains overflow.
+                randomEncryption = true;
               };
             };
             root = {

@@ -90,197 +90,221 @@ Item {
     readonly property int currentGen: { for (var i = 0; i < root.gens.length; i++) if (root.gens[i].current) return root.gens[i].number; return -1 }
     readonly property int prevGen: { for (var i = 0; i < root.gens.length; i++) if (root.gens[i].number < root.currentGen) return root.gens[i].number; return -1 }
 
-    ColumnLayout {
+    MujoFlickable {
         anchors.fill: parent
-        anchors.margins: 26
-        spacing: 18
+        contentHeight: mainCol.implicitHeight + 48
 
-        MujoHero {
-            brand: "system"
-            title: "System / NixOS"
-            subtitle: "System generations, live rebuild logs, flake updates, and local module overrides."
-            isNixos: true
-            activeState: root.running
-            badgeText: root.running ? "BUILDING" : (root.currentGen >= 0 ? "GEN #" + root.currentGen : "")
-            badgeColor: root.running ? Theme.accent : Theme.success
-        }
-
-        // ── generation + store card ──
-        Rectangle {
-            Layout.fillWidth: true
-            radius: Theme.radiusMd
-            color: Theme.surface
-            border.color: Theme.border
-            implicitHeight: cardCol.implicitHeight + 24
-            ColumnLayout {
-                id: cardCol
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                spacing: 8
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 10
-                    Text { text: "Generation"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 120 }
-                    Text { text: root.currentGen >= 0 ? "#" + root.currentGen + " (current)" : "…"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall }
-                    Rectangle {
-                        visible: !!root.status.rebootRequired
-                        implicitWidth: rbl.implicitWidth + 16; implicitHeight: 20; radius: Theme.radiusSm
-                        color: Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.18); border.color: Theme.warning
-                        Text { id: rbl; anchors.centerIn: parent; text: "reboot to apply"; color: Theme.warning; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel }
-                    }
-                    Item { Layout.fillWidth: true }
-                }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 10
-                    Text { text: "Nix store"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 120 }
-                    Text { text: (root.storeUsed || "…") + " used of " + (root.storeSize || "…"); color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall }
-                    Item { Layout.fillWidth: true }
-                }
-                // update badge
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 10
-                    visible: root.status.updateSuggested !== undefined
-                    Text { text: "Updates"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 120 }
-                    MaterialIcon { iconName: root.status.updateSuggested ? "sync_problem" : "check_circle"; pixelSize: 15; color: root.status.updateSuggested ? Theme.warning : Theme.success }
-                    Text {
-                        text: root.status.updateSuggested
-                            ? (root.status.lockNewerThanSystem ? "flake.lock changed — not yet switched" : "lock is " + root.status.lockAgeDays + " days old")
-                            : "up to date (" + (root.status.lockAgeDays || 0) + "d)"
-                        color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                    }
-                    Item { Layout.fillWidth: true }
-                }
-            }
-        }
-
-        // ── actions ──
-        RowLayout {
-            Layout.fillWidth: true; spacing: 10
-            DialogButton { text: "Rebuild & switch"; primary: true; enabled: !root.running; onClicked: root.doRebuild() }
-            DialogButton { text: "Update"; enabled: !root.running; onClicked: root.doUpdate() }
-            DialogButton { text: root.confirmGc ? "Confirm GC?" : "Garbage collect"; enabled: !root.running; onClicked: { if (root.confirmGc) root.doGc(); else root.confirmGc = true } }
-            DialogButton { text: "Reload niri"; enabled: !root.running; onClicked: Quickshell.execDetached(["niri", "msg", "action", "reload-config"]) }
-            Item { Layout.fillWidth: true }
-        }
-
-        // ── log pane (rebuild/update/gc/rollback output) ──
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            visible: root.running || root.logLines.length > 0
-            radius: Theme.radiusMd
-            color: Theme.bg
-            border.color: root.failed ? Theme.error : (root.running ? Theme.accent : Theme.border)
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 10
-                spacing: 6
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    Spinner { size: 13; visible: root.running }
-                    MaterialIcon { visible: !root.running; iconName: root.failed ? "error" : "check_circle"; pixelSize: 14; color: root.failed ? Theme.error : Theme.success }
-                    Text { text: root.opLabel; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; Layout.fillWidth: true; elide: Text.ElideRight }
-                    DialogButton { text: "Cancel"; visible: root.running; onClicked: root.cancel() }
-                    DialogButton { text: "Roll back to #" + root.prevGen; visible: root.failed && root.prevGen >= 0 && !root.running; onClicked: root.doRollback(root.prevGen) }
-                    DialogButton { text: "Clear"; visible: !root.running && root.logLines.length > 0; onClicked: root.logLines = [] }
-                }
-                ListView {
-                    id: logView
-                    Layout.fillWidth: true; Layout.fillHeight: true
-                    clip: true
-                    model: root.logLines
-                    boundsBehavior: Flickable.DragAndOvershootBounds
-                    onCountChanged: positionViewAtEnd()
-                    delegate: Text {
-                        required property var modelData
-                        width: logView.width
-                        text: modelData
-                        color: Theme.textSecondary
-                        font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel
-                        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                    }
-                }
-            }
-        }
-
-        // ── generations list (only when no log pane) ──
         ColumnLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            visible: !(root.running || root.logLines.length > 0)
-            spacing: 8
+            id: mainCol
+            x: 24
+            y: 24
+            width: parent.width - 48
+            spacing: 16
 
-            // ── local overrides (WP-12) ──
-            SectionLabel { text: "Local overrides" }
-            Repeater {
-                model: root.overrides
-                delegate: Rectangle {
-                    required property var modelData
+            MujoHero {
+                brand: "system"
+                title: "System / NixOS"
+                subtitle: "System generations, live rebuild logs, flake updates, and local module overrides."
+                isNixos: true
+                activeState: root.running
+                badgeText: root.running ? "BUILDING" : (root.currentGen >= 0 ? "GEN #" + root.currentGen : "")
+                badgeColor: root.running ? Theme.accent : Theme.success
+            }
+
+            // ── generation + store card ──
+            MujoCard {
+                title: "System Generation & Store"
+                iconName: "memory"
+                badgeText: root.currentGen >= 0 ? "GEN #" + root.currentGen : ""
+                badgeColor: Theme.accent
+
+                ColumnLayout {
                     Layout.fillWidth: true
-                    implicitHeight: 38
-                    radius: Theme.radiusMd
-                    color: Theme.surface
-                    border.color: Theme.border
+                    spacing: 8
+
                     RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
-                        Rectangle { implicitWidth: 8; implicitHeight: 8; radius: 4; color: modelData.enabled ? Theme.success : Theme.textSecondary }
-                        Text { text: modelData.name; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall; Layout.fillWidth: true; elide: Text.ElideRight }
-                        DialogButton { text: "Show"; onClicked: root.ovShow(modelData.name) }
-                        DialogButton { text: modelData.enabled ? "Disable" : "Enable"; onClicked: root.ovRun([modelData.enabled ? "disable" : "enable", modelData.name]) }
-                        DialogButton {
-                            text: root.confirmRemove === modelData.name ? "Confirm?" : "Remove"
-                            onClicked: { if (root.confirmRemove === modelData.name) { root.confirmRemove = ""; root.ovRun(["remove", modelData.name]) } else root.confirmRemove = modelData.name }
+                        Layout.fillWidth: true; spacing: 10
+                        Text { text: "Generation"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 120 }
+                        Text { text: root.currentGen >= 0 ? "#" + root.currentGen + " (current)" : "…"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall }
+                        Rectangle {
+                            visible: !!root.status.rebootRequired
+                            implicitWidth: rbl.implicitWidth + 16; implicitHeight: 20; radius: Theme.radiusSm
+                            color: Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.18); border.color: Theme.warning
+                            Text { id: rbl; anchors.centerIn: parent; text: "reboot to apply"; color: Theme.warning; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 10
+                        Text { text: "Nix store"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 120 }
+                        Text { text: (root.storeUsed || "…") + " used of " + (root.storeSize || "…"); color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall }
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    // update badge
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 10
+                        visible: root.status.updateSuggested !== undefined
+                        Text { text: "Updates"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 120 }
+                        MaterialIcon { iconName: root.status.updateSuggested ? "sync_problem" : "check_circle"; pixelSize: 15; color: root.status.updateSuggested ? Theme.warning : Theme.success }
+                        Text {
+                            text: root.status.updateSuggested
+                                ? (root.status.lockNewerThanSystem ? "flake.lock changed — not yet switched" : "lock is " + root.status.lockAgeDays + " days old")
+                                : "up to date (" + (root.status.lockAgeDays || 0) + "d)"
+                            color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                }
+            }
+
+            // ── actions ──
+            RowLayout {
+                Layout.fillWidth: true; spacing: 10
+                DialogButton { text: "Rebuild & switch"; primary: true; enabled: !root.running; onClicked: root.doRebuild() }
+                DialogButton { text: "Update"; enabled: !root.running; onClicked: root.doUpdate() }
+                DialogButton { text: root.confirmGc ? "Confirm GC?" : "Garbage collect"; enabled: !root.running; onClicked: { if (root.confirmGc) root.doGc(); else root.confirmGc = true } }
+                DialogButton { text: "Reload niri"; enabled: !root.running; onClicked: Quickshell.execDetached(["niri", "msg", "action", "reload-config"]) }
+                Item { Layout.fillWidth: true }
+            }
+
+            // ── log pane (rebuild/update/gc/rollback output) ──
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 220
+                visible: root.running || root.logLines.length > 0
+                radius: Theme.radiusMd
+                color: Theme.bg
+                border.color: root.failed ? Theme.error : (root.running ? Theme.accent : Theme.border)
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 6
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 8
+                        Spinner { size: 13; visible: root.running }
+                        MaterialIcon { visible: !root.running; iconName: root.failed ? "error" : "check_circle"; pixelSize: 14; color: root.failed ? Theme.error : Theme.success }
+                        Text { text: root.opLabel; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; Layout.fillWidth: true; elide: Text.ElideRight }
+                        DialogButton { text: "Cancel"; visible: root.running; onClicked: root.cancel() }
+                        DialogButton { text: "Roll back to #" + root.prevGen; visible: root.failed && root.prevGen >= 0 && !root.running; onClicked: root.doRollback(root.prevGen) }
+                        DialogButton { text: "Clear"; visible: !root.running && root.logLines.length > 0; onClicked: root.logLines = [] }
+                    }
+                    ListView {
+                        id: logView
+                        Layout.fillWidth: true; Layout.fillHeight: true
+                        clip: true
+                        model: root.logLines
+                        boundsBehavior: Flickable.DragAndOvershootBounds
+                        onCountChanged: positionViewAtEnd()
+                        delegate: Text {
+                            required property var modelData
+                            width: logView.width
+                            text: modelData
+                            color: Theme.textSecondary
+                            font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel
+                            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                         }
                     }
                 }
             }
-            Text {
-                visible: root.overrides.length === 0
-                text: "No overrides. Add one below, then Rebuild & switch to apply."
-                color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel
-            }
-            RowLayout {
-                Layout.fillWidth: true; spacing: 8
-                TextField { id: ovAddField; Layout.fillWidth: true; placeholder: "new-override-name" }
-                DialogButton {
-                    text: "Add from template"; primary: true
-                    enabled: /^[a-zA-Z0-9_-]+$/.test(ovAddField.text.trim()) && ovAddField.text.trim() !== "template"
-                    onClicked: { root.ovRun(["add", ovAddField.text.trim()]); ovAddField.text = "" }
-                }
-            }
 
-            SectionLabel { text: "Generations" }
-            ListView {
-                id: genList
-                Layout.fillWidth: true; Layout.fillHeight: true
-                clip: true
-                model: root.gens
-                spacing: 3
-                boundsBehavior: Flickable.DragAndOvershootBounds
-                delegate: Rectangle {
-                    required property var modelData
-                    width: ListView.view.width
-                    implicitHeight: 40
-                    radius: Theme.radiusMd
-                    color: modelData.current ? Theme.accentDim : Theme.surface
-                    border.color: modelData.current ? Theme.accent : Theme.border
+            // ── local overrides card (WP-12) ──
+            MujoCard {
+                visible: !(root.running || root.logLines.length > 0)
+                title: "Local Module Overrides"
+                iconName: "tune"
+                badgeText: root.overrides.length + " OVERRIDES"
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Repeater {
+                        model: root.overrides
+                        delegate: Rectangle {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            implicitHeight: 38
+                            radius: Theme.radiusMd
+                            color: Theme.surface
+                            border.color: Theme.border
+                            RowLayout {
+                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
+                                Rectangle { implicitWidth: 8; implicitHeight: 8; radius: 4; color: modelData.enabled ? Theme.success : Theme.textSecondary }
+                                Text { text: modelData.name; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall; Layout.fillWidth: true; elide: Text.ElideRight }
+                                DialogButton { text: "Show"; onClicked: root.ovShow(modelData.name) }
+                                DialogButton { text: modelData.enabled ? "Disable" : "Enable"; onClicked: root.ovRun([modelData.enabled ? "disable" : "enable", modelData.name]) }
+                                DialogButton {
+                                    text: root.confirmRemove === modelData.name ? "Confirm?" : "Remove"
+                                    onClicked: { if (root.confirmRemove === modelData.name) { root.confirmRemove = ""; root.ovRun(["remove", modelData.name]) } else root.confirmRemove = modelData.name }
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        visible: root.overrides.length === 0
+                        text: "No overrides. Add one below, then Rebuild & switch to apply."
+                        color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel
+                    }
+
                     RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
-                        Text { text: "#" + modelData.number; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall; Layout.preferredWidth: 60 }
-                        Text { text: modelData.date; color: Theme.textSecondary; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel; Layout.fillWidth: true; elide: Text.ElideRight }
-                        Text { visible: modelData.current; text: "current"; color: Theme.accent; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel }
-                        DialogButton { text: "Roll back"; visible: !modelData.current; enabled: !root.running; onClicked: root.rollbackTarget = modelData.number }
+                        Layout.fillWidth: true; spacing: 8
+                        TextField { id: ovAddField; Layout.fillWidth: true; placeholder: "new-override-name" }
+                        DialogButton {
+                            text: "Add from template"; primary: true
+                            enabled: /^[a-zA-Z0-9_-]+$/.test(ovAddField.text.trim()) && ovAddField.text.trim() !== "template"
+                            onClicked: { root.ovRun(["add", ovAddField.text.trim()]); ovAddField.text = "" }
+                        }
                     }
                 }
             }
-            // typed-confirm rollback
-            RowLayout {
-                Layout.fillWidth: true; spacing: 8
-                visible: root.rollbackTarget >= 0
-                Text { text: "Type " + root.rollbackTarget + " to roll back:"; color: Theme.warning; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
-                TextField { id: rbField; Layout.preferredWidth: 100; placeholder: String(root.rollbackTarget); onAccepted: if (text.trim() === String(root.rollbackTarget)) root.doRollback(root.rollbackTarget) }
-                DialogButton { text: "Confirm rollback"; primary: true; enabled: rbField.text.trim() === String(root.rollbackTarget); onClicked: root.doRollback(root.rollbackTarget) }
-                DialogButton { text: "Cancel"; onClicked: { root.rollbackTarget = -1; rbField.text = "" } }
+
+            // ── generations history card ──
+            MujoCard {
+                visible: !(root.running || root.logLines.length > 0)
+                title: "System Generation History"
+                iconName: "history"
+                badgeText: root.gens.length + " GENERATIONS"
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Repeater {
+                        model: root.gens
+                        delegate: Rectangle {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            implicitHeight: 40
+                            radius: Theme.radiusMd
+                            color: modelData.current ? Theme.accentDim : Theme.surface
+                            border.color: modelData.current ? Theme.accent : Theme.border
+                            RowLayout {
+                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
+                                Text { text: "#" + modelData.number; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall; Layout.preferredWidth: 60 }
+                                Text { text: modelData.date; color: Theme.textSecondary; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel; Layout.fillWidth: true; elide: Text.ElideRight }
+                                Text { visible: modelData.current; text: "current"; color: Theme.accent; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel }
+                                DialogButton { text: "Roll back"; visible: !modelData.current; enabled: !root.running; onClicked: root.rollbackTarget = modelData.number }
+                            }
+                        }
+                    }
+
+                    // typed-confirm rollback
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 8
+                        visible: root.rollbackTarget >= 0
+                        Text { text: "Type " + root.rollbackTarget + " to roll back:"; color: Theme.warning; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                        TextField { id: rbField; Layout.preferredWidth: 100; placeholder: String(root.rollbackTarget); onAccepted: if (text.trim() === String(root.rollbackTarget)) root.doRollback(root.rollbackTarget) }
+                        DialogButton { text: "Confirm rollback"; primary: true; enabled: rbField.text.trim() === String(root.rollbackTarget); onClicked: root.doRollback(root.rollbackTarget) }
+                        DialogButton { text: "Cancel"; onClicked: { root.rollbackTarget = -1; rbField.text = "" } }
+                    }
+                }
             }
+
+            Item { implicitHeight: 12 }
         }
     }
 }

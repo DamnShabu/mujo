@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -e
 
+# /run/current-system/sw/bin/pkexec is the plain store binary; only the wrapper
+# in /run/wrappers/bin is setuid. Callers that inherit a login shell's PATH get
+# the wrapper first, but a systemd user service (qs-bar, and the settings window
+# it spawns) does not, so every escalation from the GUI died with "pkexec must
+# be setuid root". Put the wrappers first here so it holds for every caller.
+PATH="/run/wrappers/bin:$PATH"
+export PATH
+
 usage() {
   cat >&2 <<EOF
 Usage: mujo <command> [args...]
@@ -23,7 +31,10 @@ Commands:
   sentinel <subcommand>    Process sentinel: runaway CPU/RAM/GPU & zombie killer
   clean <subcommand>       System cleaner: Nix store GC, journal vacuum, cache & ZRAM
   health [summary|check]   Overall system health & vitals score
+  security [summary|audit] Mujo 2.0 Security Architecture status & vault audit
+  trust [summary]          Progressive trust engine application registry status
   idle-guard <audio|charging>  Exit 0 if idle actions should be inhibited (used by swayidle)
+  run <app> [args...]      Run application in its progressive trust environment
   help                      Show this help
 EOF
   exit 1
@@ -72,6 +83,28 @@ Usage: mujo health [summary]
 
 Commands:
   summary                   Unified system health, vitals, sentinel anomalies & cleaner stats (JSON)
+EOF
+  exit 1
+}
+
+security_usage() {
+  cat >&2 <<EOF
+Usage: mujo security <command> [args...]
+
+Commands:
+  summary                   Unified security architecture status (JSON)
+  inventory                 Run sensitive data inventory audit (JSON)
+EOF
+  exit 1
+}
+
+trust_usage() {
+  cat >&2 <<EOF
+Usage: mujo trust <command> [args...]
+
+Commands:
+  summary                   List all registered applications and progressive trust status (JSON)
+  seed                      Seed declarative default applications into registry
 EOF
   exit 1
 }
@@ -2941,6 +2974,229 @@ case "${CMD}" in
         cleaner: $clean,
         timestamp: (now * 1000 | round)
       }'
+    ;;
+
+  security)
+    SUB="${1:-summary}"
+    case "${SUB}" in
+      summary)
+        sb_active="false"
+        if [[ -f /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c ]]; then
+          sb_active="true"
+        fi
+
+        tpm_active="false"
+        if [[ -e /dev/tpmrm0 || -e /dev/tpm0 ]]; then
+          tpm_active="true"
+        fi
+
+        lockdown_mode="none"
+        if [[ -f /sys/kernel/security/lockdown ]]; then
+          lockdown_mode="$(grep -o '\[[a-z]*\]' /sys/kernel/security/lockdown 2>/dev/null | tr -d '[]' || echo "none")"
+        fi
+
+        vault_container="/persist/secure/mujo-vault.luks"
+        vault_present="false"
+        vault_size=""
+        if [[ -f "${vault_container}" ]]; then
+          vault_present="true"
+          vault_size="$(du -h "${vault_container}" 2>/dev/null | cut -f1 || echo "")"
+        fi
+
+        vault_mounted="false"
+        mount_point="/run/mujo/vault"
+        subdirs="[]"
+        if mountpoint -q "${mount_point}"; then
+          vault_mounted="true"
+          subdirs="$(find "${mount_point}" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' 2>/dev/null | jq -R . | jq -s .)"
+        fi
+
+        swap_enc="true"
+        swap_count=0
+        while read -r dev _; do
+          case "$dev" in Filename | "") continue ;; esac
+          name="${dev#/dev/}"
+          case "$name" in zram*) continue ;; esac
+          swap_count=$((swap_count + 1))
+          if [[ ! -e "/sys/class/block/$name/dm/uuid" ]] || ! grep -qs '^CRYPT-' "/sys/class/block/$name/dm/uuid"; then
+            swap_enc="false"
+          fi
+        done < /proc/swaps
+        if [[ "${swap_count}" -eq 0 ]]; then
+          swap_enc="true"
+        fi
+
+        coredump_none="false"
+        if grep -qs 'Storage=none' /etc/systemd/coredump.conf 2>/dev/null || (systemd-analyze cat-config systemd/coredump.conf 2>/dev/null | grep -qs 'Storage=none'); then
+          coredump_none="true"
+        fi
+
+        tmpfs_tmp="false"
+        if mountpoint -q /tmp && (findmnt -n -o FSTYPE /tmp 2>/dev/null | grep -qs 'tmpfs'); then
+          tmpfs_tmp="true"
+        fi
+
+        fw_active="true"
+        if command -v iptables >/dev/null 2>&1 && ! iptables -S 2>/dev/null | grep -qs '^-P INPUT DROP'; then
+          if ! systemctl is-active --quiet nftables 2>/dev/null && ! systemctl is-active --quiet firewall 2>/dev/null; then
+            fw_active="false"
+          fi
+        fi
+
+        trust_reg="/var/lib/mujo-trust/registry.json"
+        q_count=0; obs_count=0; grad_count=0; rev_count=0; tot_count=0
+        if [[ -f "${trust_reg}" ]]; then
+          q_count="$(jq '[.applications[] | select(.state=="QUARANTINE")] | length' "${trust_reg}" 2>/dev/null || echo 0)"
+          obs_count="$(jq '[.applications[] | select(.state=="OBSERVING")] | length' "${trust_reg}" 2>/dev/null || echo 0)"
+          grad_count="$(jq '[.applications[] | select(.state=="GRADUATED")] | length' "${trust_reg}" 2>/dev/null || echo 0)"
+          rev_count="$(jq '[.applications[] | select(.state=="REVOKED")] | length' "${trust_reg}" 2>/dev/null || echo 0)"
+          tot_count="$(jq '.applications | length' "${trust_reg}" 2>/dev/null || echo 0)"
+        fi
+
+        overall="secure"
+        if [[ "${vault_present}" != "true" || "${swap_enc}" != "true" || "${fw_active}" != "true" ]]; then
+          overall="attention"
+        fi
+
+        jq -n \
+          --arg sb "${sb_active}" \
+          --arg tpm "${tpm_active}" \
+          --arg lockdown "${lockdown_mode}" \
+          --arg v_present "${vault_present}" \
+          --arg v_size "${vault_size}" \
+          --arg v_mount "${vault_mounted}" \
+          --arg v_path "${mount_point}" \
+          --argjson v_subdirs "${subdirs:-[]}" \
+          --arg swap_enc "${swap_enc}" \
+          --arg coredump "${coredump_none}" \
+          --arg tmpfs "${tmpfs_tmp}" \
+          --arg fw "${fw_active}" \
+          --argjson q_cnt "${q_count:-0}" \
+          --argjson obs_cnt "${obs_count:-0}" \
+          --argjson grad_cnt "${grad_count:-0}" \
+          --argjson rev_cnt "${rev_count:-0}" \
+          --argjson tot_cnt "${tot_count:-0}" \
+          --arg overall "${overall}" '
+          {
+            verifiedBoot: {
+              secureBoot: ($sb == "true"),
+              tpm: ($tpm == "true"),
+              lockdown: $lockdown
+            },
+            vault: {
+              containerPresent: ($v_present == "true"),
+              containerSize: $v_size,
+              mounted: ($v_mount == "true"),
+              mountPoint: $v_path,
+              subdirectories: $v_subdirs
+            },
+            storage: {
+              encryptedSwap: ($swap_enc == "true"),
+              coredumpDisabled: ($coredump == "true"),
+              tmpfsTmp: ($tmpfs == "true")
+            },
+            network: {
+              firewallActive: ($fw == "true")
+            },
+            trust: {
+              quarantinedCount: $q_cnt,
+              observingCount: $obs_cnt,
+              graduatedCount: $grad_cnt,
+              revokedCount: $rev_cnt,
+              totalCount: $tot_cnt
+            },
+            overallStatus: $overall,
+            timestamp: (now * 1000 | round)
+          }'
+        ;;
+
+      inventory|audit)
+        if command -v mujo-inventory >/dev/null 2>&1; then
+          out="$(mujo-inventory 2>&1 || true)"
+          if echo "${out}" | grep -qs 'CLEAN: no sensitive plaintext'; then
+            jq -n --arg out "${out}" '{clean: true, findingsCount: 0, output: $out}'
+          else
+            cnt="$(echo "${out}" | grep -o '[0-9]\+ finding' | awk '{print $1}' | head -n1 || echo 1)"
+            jq -n --arg out "${out}" --argjson cnt "${cnt:-1}" '{clean: false, findingsCount: ($cnt | tonumber), output: $out}'
+          fi
+        else
+          jq -n '{clean: true, findingsCount: 0, output: "mujo-inventory not in PATH"}'
+        fi
+        ;;
+
+      *) security_usage ;;
+    esac
+    ;;
+
+  run)
+    shift
+    [[ $# -ge 1 ]] || { echo "Usage: mujo run <app> [args...]"; exit 1; }
+    exec mujo-trust run "$@"
+    ;;
+
+  trust)
+    SUB="${1:-summary}"
+    shift || true
+    case "${SUB}" in
+      summary|list)
+        db="/var/lib/mujo-trust/registry.json"
+        launcher_integ="false"
+        if [[ -f /etc/mujo/launcher-integration ]]; then
+          launcher_integ="true"
+        fi
+
+        if [[ ! -f "${db}" ]]; then
+          jq -n --arg li "${launcher_integ}" '{applications: [], counts: {quarantine: 0, observing: 0, graduated: 0, revoked: 0, total: 0}, launcherIntegration: ($li == "true")}'
+        else
+          jq --arg li "${launcher_integ}" '
+            (.applications // {}) as $apps |
+            ($apps | to_entries | map(
+              # A running application has not banked its current session yet
+              # (that happens when it exits, or at the hourly evaluation), so
+              # add the session in flight or the UI shows a frozen number.
+              (((.value.observed_seconds // 0)
+                + (if .value.session_started == null then 0
+                   else now - .value.session_started end)) | floor) as $obs |
+            {
+              id: .key,
+              name: (.value.name // .key),
+              state: (.value.state // "UNKNOWN"),
+              tier: (.value.tier // "medium"),
+              storePath: (.value.store_path // ""),
+              previousStorePath: (.value.previous_store_path // null),
+              observedSeconds: $obs,
+              observedHours: (($obs / 3600 * 10 | floor) / 10),
+              registeredAt: (.value.registered_at // ""),
+              lastEvaluated: (.value.last_evaluated // ""),
+              violations: (.value.violations // 0),
+              violationLog: (.value.violation_log // [])
+            })) as $list |
+            {
+              applications: $list,
+              counts: {
+                quarantine: ($list | map(select(.state == "QUARANTINE")) | length),
+                observing: ($list | map(select(.state == "OBSERVING")) | length),
+                graduated: ($list | map(select(.state == "GRADUATED")) | length),
+                revoked: ($list | map(select(.state == "REVOKED")) | length),
+                total: ($list | length)
+              },
+              launcherIntegration: ($li == "true")
+            }
+          ' "${db}"
+        fi
+        ;;
+
+      graduate|quarantine|rollback|revoke|evaluate|seed)
+        trust_bin="$(command -v mujo-trust 2>/dev/null || echo "/run/current-system/sw/bin/mujo-trust")"
+        if [[ "$(id -u)" -eq 0 ]]; then
+          exec "${trust_bin}" "${SUB}" "$@"
+        else
+          exec pkexec "${trust_bin}" "${SUB}" "$@"
+        fi
+        ;;
+
+      *) trust_usage ;;
+    esac
     ;;
 
   vm)

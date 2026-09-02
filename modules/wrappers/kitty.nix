@@ -1,6 +1,6 @@
 {
-  self,
   lib,
+  self,
   ...
 }: {
   flake.wrappers.kitty = {

@@ -48,7 +48,6 @@
       };
 
       packages.mujo-screenshot = qs.mujo-screenshot;
-      packages.quicksnip = qs.mujo-screenshot;
 
       packages.skeuos-gtk = let
         src = pkgs.fetchFromGitHub {

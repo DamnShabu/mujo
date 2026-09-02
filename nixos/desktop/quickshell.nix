@@ -115,7 +115,10 @@
         # service's PATH, and without it every app outside the package list
         # below (i.e. all normal desktop apps) silently fails with
         # "Failed to find executable <app>".
-        path = with pkgs; [bash coreutils findutils gnugrep gnused jq curl sqlite libsecret wl-clipboard cliphist xdg-utils systemd swayidle brightnessctl cava quickshell qs.cursor-tracker qs.unlock qs.mujo-wallpaper-engine linux-wallpaperengine qs.mujo-screenshot] ++ ["/run/current-system/sw"];
+        # /run/wrappers before /run/current-system/sw: the latter's pkexec is the
+        # plain store binary, and only the wrapper is setuid, so anything the UI
+        # escalates (trust graduate, rebuild, GC) fails without it.
+        path = with pkgs; ["/run/wrappers"] ++ [bash coreutils findutils gnugrep gnused jq curl sqlite libsecret wl-clipboard cliphist xdg-utils systemd swayidle brightnessctl cava quickshell qs.cursor-tracker qs.unlock qs.mujo-wallpaper-engine linux-wallpaperengine qs.mujo-screenshot] ++ ["/run/current-system/sw"];
         environment = {
           QS_ICON_THEME = "Colloid-Dark";
           XDG_DATA_DIRS = appDataDirs;

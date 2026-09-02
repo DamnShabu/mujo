@@ -85,7 +85,7 @@ Item {
             x: 24
             y: 24
             width: parent.width - 48
-            spacing: 20
+            spacing: 16
 
             MujoHero {
                 brand: "health"

@@ -333,7 +333,12 @@ def _dispatch(name, a):
         )
     if name == "reload":
         loads, restarts = shell_state()
-        user_run("cp -a /mnt/nixconf/quickshell/bar/. /run/quickshell-bar/ && systemctl --user restart qs-bar.service")
+        user_run(
+            "cp -a /mnt/nixconf/quickshell/bar/. /run/quickshell-bar/ && "
+            "([ -d /mnt/host-config/quickshell ] && cp -a /mnt/host-config/quickshell/. ~/.config/quickshell/ 2>/dev/null || true) && "
+            "([ -d /mnt/host-config/qsshell ] && cp -a /mnt/host-config/qsshell/. ~/.config/qsshell/ 2>/dev/null || true) && "
+            "systemctl --user restart qs-bar.service"
+        )
         if wait_for_shell(loads, restarts):
             # ponytail: fixed settle — the load event fires before the layer
             # surfaces are mapped and painted, so an immediate screenshot

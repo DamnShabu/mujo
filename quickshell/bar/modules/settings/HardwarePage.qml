@@ -13,4 +13,5 @@ SettingsPage {
     ShortcutsGroup {}
     VmGroup {}
     KeyringGroup {}
+    SecurityGroup {}
 }

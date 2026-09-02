@@ -23,6 +23,7 @@
       self.nixosModules.base
       self.nixosModules.user
       self.nixosModules.quickshell
+      self.nixosModules.gtk
     ];
 
     boot.kernelParams = lib.mkAfter [
@@ -67,8 +68,21 @@
         target = "/mnt/nixconf";
         securityModel = "none";
       };
+      sharedDirectories.hostConfig = {
+        source = ''''${MUJO_SANDBOX_CONFIG:-/home/${user}/.config}'';
+        target = "/mnt/host-config";
+        securityModel = "none";
+      };
       # The sandbox may read the working tree, never write to it.
       fileSystems."/mnt/nixconf".options = [
+        "ro"
+        "trans=virtio"
+        "version=9p2000.L"
+        "msize=1048576"
+        "cache=loose"
+        "posixacl=0"
+      ];
+      fileSystems."/mnt/host-config".options = [
         "ro"
         "trans=virtio"
         "version=9p2000.L"
@@ -189,10 +203,20 @@
           chmod 1777 /tmp/shared /run/qmlcache
           ${pkgs.coreutils}/bin/cp -a /mnt/nixconf/quickshell/bar/. /run/quickshell-bar/
           mkdir -p /home/${user}/.cache/qsshell /home/${user}/.local/state/qsshell /home/${user}/.config/quickshell /home/${user}/.config/qsshell
-          echo '{"temp":20,"code":0,"city":"Sandbox","humidity":50,"wind":5,"updated":'$(date +%s)',"units":"metric"}' > /home/${user}/.cache/qsshell/weather.json
-          echo '{"items":[],"positions":{}}' > /home/${user}/.local/state/qsshell/desktop.json
-          echo '[]' > /home/${user}/.local/state/qsshell/notifications.json
-          echo '{"items":[]}' > /home/${user}/.local/state/qsshell/shelf.json
+
+          # Sync host quickshell & qsshell theme/settings if mounted
+          if [ -d /mnt/host-config/quickshell ]; then
+            ${pkgs.coreutils}/bin/cp -a /mnt/host-config/quickshell/. /home/${user}/.config/quickshell/ 2>/dev/null || true
+          fi
+          if [ -d /mnt/host-config/qsshell ]; then
+            ${pkgs.coreutils}/bin/cp -a /mnt/host-config/qsshell/. /home/${user}/.config/qsshell/ 2>/dev/null || true
+          fi
+
+          # Ensure fallback defaults if files don't exist
+          [ -f /home/${user}/.cache/qsshell/weather.json ] || echo '{"temp":20,"code":0,"city":"Sandbox","humidity":50,"wind":5,"updated":'$(date +%s)',"units":"metric"}' > /home/${user}/.cache/qsshell/weather.json
+          [ -f /home/${user}/.local/state/qsshell/desktop.json ] || echo '{"items":[],"positions":{}}' > /home/${user}/.local/state/qsshell/desktop.json
+          [ -f /home/${user}/.local/state/qsshell/notifications.json ] || echo '[]' > /home/${user}/.local/state/qsshell/notifications.json
+          [ -f /home/${user}/.local/state/qsshell/shelf.json ] || echo '{"items":[]}' > /home/${user}/.local/state/qsshell/shelf.json
           chown -R ${user}:users /home/${user} /run/quickshell-bar
         '';
         RemainAfterExit = true;

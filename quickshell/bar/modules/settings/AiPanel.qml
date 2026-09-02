@@ -124,7 +124,7 @@ Item {
             x: 24
             y: 24
             width: parent.width - 48
-            spacing: 22
+            spacing: 16
 
             MujoHero {
                 brand: "ai"
@@ -136,169 +136,222 @@ Item {
                 activeState: root.testState === "running" || root.testState === "ok"
             }
 
-            // ── agent CLIs ──
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 10
-                SectionLabel { text: "Assistant CLI" }
-                Text {
-                    Layout.fillWidth: true; wrapMode: Text.WordWrap
-                    text: root.agents.length > 0
-                        ? "Answer “Ask AI” with an installed coding agent. It runs in its read-only mode from an empty scratch directory, and the same choice drives the bar's usage widget."
-                        : "No agent CLI found on PATH. Install one (Claude Code, opencode, Antigravity, Codex, Gemini CLI, Pi) or set a custom command below."
-                    color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                }
-                Flow {
-                    Layout.fillWidth: true; spacing: 7
-                    visible: root.agents.length > 0
-                    Repeater {
-                        model: root.agents
-                        delegate: DisplayChip {
-                            required property var modelData
-                            label: modelData.name
-                            selected: root.usingAgent && (root.activeAgentId === modelData.id || SettingsBus.get("ai.agent", "") === modelData.id)
-                            onClicked: root.useAgent(modelData.id)
-                        }
-                    }
-                }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    Text { text: "Custom"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
-                    TextField {
-                        id: agentCmdField; Layout.fillWidth: true
-                        placeholder: "argv for any other CLI, e.g. aider --no-auto-commits --message"
-                        text: SettingsBus.get("ai.agentCommand", "")
-                        onAccepted: root.bset("ai.agentCommand", text.trim())
-                    }
-                    DialogButton { text: "Save"; onClicked: root.bset("ai.agentCommand", agentCmdField.text.trim()) }
-                }
-            }
+            // ── Assistant CLI Card ──
+            MujoCard {
+                title: "Assistant CLI"
+                iconName: "terminal"
+                badgeText: root.usingAgent && AI.activeAgent ? AI.activeAgent.name : (root.agents.length > 0 ? (root.agents.length + " AVAILABLE") : "NONE")
+                badgeColor: Theme.accent
 
-            // ── provider ──
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 10
-                SectionLabel { text: "API provider" }
-                Flow {
-                    Layout.fillWidth: true; spacing: 7
-                    Repeater {
-                        model: root.presets
-                        delegate: DisplayChip {
-                            required property var modelData
-                            label: modelData.l
-                            selected: root.provider === modelData.v
-                            onClicked: {
-                                root.bset("ai.provider", modelData.v)
-                                if (modelData.v === "ollama" && root.baseUrl === "") root.bset("ai.baseUrl", modelData.url)
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        text: root.agents.length > 0
+                            ? "Answer “Ask AI” with an installed coding agent. It runs in its read-only mode from an empty scratch directory, and the same choice drives the bar's usage widget."
+                            : "No agent CLI found on PATH. Install one (Claude Code, opencode, Antigravity, Codex, Gemini CLI, Pi) or set a custom command below."
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 7
+                        visible: root.agents.length > 0
+
+                        Repeater {
+                            model: root.agents
+                            delegate: DisplayChip {
+                                required property var modelData
+                                label: modelData.name
+                                selected: root.usingAgent && (root.activeAgentId === modelData.id || SettingsBus.get("ai.agent", "") === modelData.id)
+                                onClicked: root.useAgent(modelData.id)
                             }
                         }
                     }
-                }
-            }
 
-            // ── endpoint ──
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 10
-                visible: !root.usingAgent
-                SectionLabel { text: "Endpoint" }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    Text { text: "Base URL"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
-                    TextField {
-                        id: urlField; Layout.fillWidth: true
-                        placeholder: "http://127.0.0.1:11434/v1"
-                        text: root.baseUrl
-                        onAccepted: root.bset("ai.baseUrl", text.trim())
-                    }
-                }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    Text { text: "Model"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
-                    TextField {
-                        id: modelField; Layout.fillWidth: true
-                        placeholder: "e.g. llama3.2, gpt-4o-mini"
-                        text: root.model
-                        onAccepted: root.bset("ai.model", text.trim())
-                    }
-                }
-                // Both endpoint actions share one row. They used to sit on
-                // separate rows, which read as two stray buttons stacked down
-                // the page with a gap between them.
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    DialogButton { text: "Save endpoint"; primary: true; onClicked: { root.bset("ai.baseUrl", urlField.text.trim()); root.bset("ai.model", modelField.text.trim()) } }
-                    // `mujo ai test` covers both backends: GET /models for the
-                    // HTTP path, <bin> --version for an agent CLI.
-                    DialogButton {
-                        text: root.testState === "running" ? "Testing…" : (root.usingAgent ? "Check assistant" : "Test connection")
-                        enabled: root.testState !== "running"
-                        onClicked: root.runTest()
-                    }
                     RowLayout {
-                        Layout.fillWidth: true; spacing: 6
-                        visible: root.testState === "ok" || root.testState === "error"
-                        MaterialIcon { iconName: root.testState === "ok" ? "check_circle" : "error"; pixelSize: 15; color: root.testState === "ok" ? Theme.success : Theme.error }
-                        Text { text: root.testMsg; color: root.testState === "ok" ? Theme.success : Theme.error; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideRight; Layout.fillWidth: true }
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text { text: "Custom"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
+                        TextField {
+                            id: agentCmdField
+                            Layout.fillWidth: true
+                            placeholder: "argv for any other CLI, e.g. aider --no-auto-commits --message"
+                            text: SettingsBus.get("ai.agentCommand", "")
+                            onAccepted: root.bset("ai.agentCommand", text.trim())
+                        }
+                        DialogButton { text: "Save"; onClicked: root.bset("ai.agentCommand", agentCmdField.text.trim()) }
                     }
-                    Item { Layout.fillWidth: true }
                 }
             }
 
-            // ── API key ──
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 10
+            // ── API Provider Card ──
+            MujoCard {
+                title: "API Provider & Endpoint"
+                iconName: "cloud"
+                badgeText: root.provider.toUpperCase()
+                badgeColor: Theme.accent
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 7
+
+                        Repeater {
+                            model: root.presets
+                            delegate: DisplayChip {
+                                required property var modelData
+                                label: modelData.l
+                                selected: root.provider === modelData.v
+                                onClicked: {
+                                    root.bset("ai.provider", modelData.v)
+                                    if (modelData.v === "ollama" && root.baseUrl === "") root.bset("ai.baseUrl", modelData.url)
+                                }
+                            }
+                        }
+                    }
+
+                    // Endpoint settings (when not using agent)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        visible: !root.usingAgent
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text { text: "Base URL"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
+                            TextField {
+                                id: urlField
+                                Layout.fillWidth: true
+                                placeholder: "http://127.0.0.1:11434/v1"
+                                text: root.baseUrl
+                                onAccepted: root.bset("ai.baseUrl", text.trim())
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text { text: "Model"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
+                            TextField {
+                                id: modelField
+                                Layout.fillWidth: true
+                                placeholder: "e.g. llama3.2, gpt-4o-mini"
+                                text: root.model
+                                onAccepted: root.bset("ai.model", text.trim())
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            DialogButton { text: "Save endpoint"; primary: true; onClicked: { root.bset("ai.baseUrl", urlField.text.trim()); root.bset("ai.model", modelField.text.trim()) } }
+                            DialogButton {
+                                text: root.testState === "running" ? "Testing…" : (root.usingAgent ? "Check assistant" : "Test connection")
+                                enabled: root.testState !== "running"
+                                onClicked: root.runTest()
+                            }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                visible: root.testState === "ok" || root.testState === "error"
+                                MaterialIcon { iconName: root.testState === "ok" ? "check_circle" : "error"; pixelSize: 15; color: root.testState === "ok" ? Theme.success : Theme.error }
+                                Text { text: root.testMsg; color: root.testState === "ok" ? Theme.success : Theme.error; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideRight; Layout.fillWidth: true }
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+                    }
+                }
+            }
+
+            // ── API Key Card ──
+            MujoCard {
                 visible: !root.usingAgent
-                SectionLabel { text: "API key" }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    // Labelled like every other field row in this panel, so the
-                    // inputs share one left edge instead of this one starting
-                    // 90px further left than Base URL and Model.
-                    Text { text: "Key"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
-                    TextField {
-                        id: keyField; Layout.fillWidth: true
-                        password: true
-                        placeholder: "Stored in the keyring, not settings.json (optional for local Ollama)"
-                        onAccepted: { root.saveKey(text); text = "" }
+                title: "API Credentials & Keyring"
+                iconName: "key"
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text { text: "API Key"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
+                        TextField {
+                            id: keyField
+                            Layout.fillWidth: true
+                            password: true
+                            placeholder: "Stored in the keyring, not settings.json (optional for local Ollama)"
+                            onAccepted: { root.saveKey(text); text = "" }
+                        }
+                        DialogButton { text: "Save to keyring"; onClicked: { root.saveKey(keyField.text); keyField.text = "" } }
                     }
-                    DialogButton { text: "Save to keyring"; onClicked: { root.saveKey(keyField.text); keyField.text = "" } }
-                }
-                Text {
-                    visible: root.keyState !== ""
-                    text: root.keyState === "saved" ? "Key saved to keyring for “" + root.provider + "”."
-                        : root.keyState === "failed" ? "Failed to save key (is the keyring unlocked?)."
-                        : "Saving…"
-                    color: root.keyState === "failed" ? Theme.error : Theme.textSecondary
-                    font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+
+                    Text {
+                        visible: root.keyState !== ""
+                        text: root.keyState === "saved" ? "Key saved to keyring for “" + root.provider + "”."
+                            : root.keyState === "failed" ? "Failed to save key (is the keyring unlocked?)."
+                            : "Saving…"
+                        color: root.keyState === "failed" ? Theme.error : Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
                 }
             }
 
-            // ── generation ──
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 10
+            // ── Generation Parameters Card ──
+            MujoCard {
                 visible: !root.usingAgent
-                SectionLabel { text: "Generation" }
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    Text { text: "Max tokens"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
-                    TextField {
-                        id: maxTokField; Layout.preferredWidth: 120
-                        text: String(root.maxTokens)
-                        onAccepted: root.bset("ai.maxTokens", parseInt(text) || 1024)
+                title: "Generation Parameters"
+                iconName: "tune"
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text { text: "Max tokens"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
+                        TextField {
+                            id: maxTokField
+                            Layout.preferredWidth: 120
+                            text: String(root.maxTokens)
+                            onAccepted: root.bset("ai.maxTokens", parseInt(text) || 1024)
+                        }
+                        DialogButton { text: "Save"; onClicked: root.bset("ai.maxTokens", parseInt(maxTokField.text) || 1024) }
+                        Item { Layout.fillWidth: true }
                     }
-                    DialogButton { text: "Save"; onClicked: root.bset("ai.maxTokens", parseInt(maxTokField.text) || 1024) }
-                    Item { Layout.fillWidth: true }
                 }
             }
 
-            // ── privacy ──
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 14
-                SectionLabel { text: "Privacy" }
-                PrivacyToggle { skey: "ai.crashAssist"; title: "Crash assistant"; subtitle: "Detect application crashes and offer help. On by default (sending crash data to AI still needs the toggle below)."; def: true }
-                PrivacyToggle { skey: "ai.allowShellContext"; title: "Share shell context"; subtitle: "Let the assistant see the current window / recent commands when you ask. Off by default."; def: false }
-                PrivacyToggle { skey: "ai.allowCrashData"; title: "Share crash details"; subtitle: "Allow “Ask AI” on a crash to include sanitized coredump info. Off by default."; def: false }
-                PrivacyToggle { skey: "ai.confirmActions"; title: "Confirm before applying"; subtitle: "Require a confirmation before applying any AI-suggested action. On by default."; def: true }
+            // ── Privacy & Guardrails Card ──
+            MujoCard {
+                title: "Privacy & Safety Guardrails"
+                iconName: "security"
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    PrivacyToggle { skey: "ai.crashAssist"; title: "Crash assistant"; subtitle: "Detect application crashes and offer help. On by default (sending crash data to AI still needs the toggle below)."; def: true }
+                    PrivacyToggle { skey: "ai.allowShellContext"; title: "Share shell context"; subtitle: "Let the assistant see the current window / recent commands when you ask. Off by default."; def: false }
+                    PrivacyToggle { skey: "ai.allowCrashData"; title: "Share crash details"; subtitle: "Allow “Ask AI” on a crash to include sanitized coredump info. Off by default."; def: false }
+                    PrivacyToggle { skey: "ai.confirmActions"; title: "Confirm before applying"; subtitle: "Require a confirmation before applying any AI-suggested action. On by default."; def: true }
+                }
             }
-            Item { implicitHeight: 4 }
+
+            Item { implicitHeight: 12 }
         }
     }
 }

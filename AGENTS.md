@@ -11,6 +11,9 @@ nh os switch ~/nixconf/                                        # apply (everyday
 pkexec nixos-rebuild switch --flake /home/yurii/nixconf#main   # apply (raw; user accepts the polkit prompt)
 nix flake check                                                # evaluate
 nix flake show                                                 # inspect outputs
+bash tests/run-all-tests.sh                                    # security acceptance tests (checks the RUNNING system)
+bash tests/vm/run.sh                                           # boot the host config as a real installed system in a throwaway VM
+python3 nixos/apps/test-tray-relay.py                          # quarantine tray relay self-check (two private buses, no VM)
 qs -p ./quickshell/bar/shell.qml                               # working-tree test instance; qs kill -i <id> to stop
 nix run .#sandbox                                              # disposable VM + MCP server (see SANDBOX)
 ```
@@ -19,6 +22,13 @@ nix run .#sandbox                                              # disposable VM +
 
 - **`--flake` takes an absolute path.** pkexec runs as root from `/root`, so `.#main` resolves there and fails.
 - **`git add` new files before rebuilding.** The flake source is git; untracked files are invisible to the build.
+- **The host still boots via GRUB.** lanzaboote/Secure Boot is wired up but off: `security.mujo.boot.secureBoot = false`. It is the only switch here that replaces the bootloader, so it stays off until someone walks the runbook in `docs/physical-security.md` §2a. Consequence to keep in mind: with GRUB, physical access is root access (press `e`, append `init=/bin/sh`).
+- **No hibernation.** Swap is re-keyed with a random key every boot (`randomEncryption` in `disko.nix`), so there is no stable key to resume under; NixOS adds `nohibernate` to the kernel params for the same reason. `security.mujo.storage.encryptedSwap` asserts this at build time.
+- **Two hardening switches are deliberately off** because they act during early boot or replace the bootloader: `security.mujo.boot.secureBoot` and `security.mujo.devices.dmaProtection`. Turn them on one at a time, with a known-good generation still selectable in the boot menu.
+- **Quarantine is a real VM, and it is started on demand.** `mujo-quarantine-run <app>` brings up `microvm@mujo-quarantine.service` (not autostarted — an idle domain would hold 4 GB) and forwards the window over waypipe on vsock. Three vsock ports are the entire guest→host surface (agent, waypipe, filtered session bus). Native applications talk to the host bus directly; Flatpaks cannot (zypak needs a guest-local `portal.Flatpak`), so `nixos/apps/tray-relay.py` re-exports their tray item and notifications across. `apps.microvm.gpu` defaults to `"native"` (virtio-gpu `drm_native_context`, i.e. the guest issues amdgpu ioctls that reach the host driver) — the one setting here that trades real security surface for speed; `"virgl"` and `"none"` narrow it. True VFIO passthrough is impossible on this box: one GPU, it drives both monitors, IOMMU off. Limits and verified properties: `docs/application-trust.md` §6.
+- **The trust registry is root-owned on purpose.** `/var/lib/mujo-trust/registry.json` decides where every application runs, so the user cannot write it. Applications self-report over `mujo-trustd` on a unix socket (`begin`/`end`/`violation` only); `graduate`, `revoke`, `tier` and `rollback` are root CLI verbs. Never "fix" a permission error there by loosening the file.
+- **`mujo-trust run <app>` is the entry point** that picks the runtime from the trust state. `apps.trust.launcherIntegration` puts the shell's launcher behind it (`Launch.app()` prefixes `mujo-trust run`, gated on `/etc/mujo/launcher-integration`), but it is **off**: with it on, anything not yet graduated boots a VM on first click. Runbook in `docs/application-trust.md` §8. Off, launching from a menu bypasses the engine.
+- **A denied credential request revokes the application.** `nixos/security/broker.nix` reports every DENY to `mujo-trustd` as a violation — that is the Phase 21 detector. Inert until `security.mujo.broker.acl` is non-empty (no ACL entry, no socket, nothing to deny). Recovery is `sudo mujo-trust rollback <app>` or `sudo mujo-trust graduate <app>`.
 - **Never hardcode `"yurii"`.** Use `config.preferences.user.name` (resolves from gitignored `secrets/username`, fallback in `nixos/core/user.nix`).
 - **Persist state explicitly.** The btrfs root is wiped on boot; only `/persist` survives. Each module declares its own `persistence.data.directories`, `persistence.cache.directories`, `persistence.directories`, or `persistence.files` entries.
 - **Read colors from `self.theme.base00..base0F`** (`modules/flake/theme.nix`), never literals.
@@ -33,9 +43,9 @@ nixos/
 │                 _boot.nix, _networking.nix, _hardware-and-services.nix, disko.nix
 ├── core/         base options, user, persistence, impermanence, nix daemon, hjem, ui-overrides
 ├── desktop/      session, GTK, plymouth, notifications, keyring prompter, quickshell packaging
-├── security/     vaultwarden secrets
+├── security/     modular security architecture (baseline, kernel, boot, storage, network, users, devices, audit, privacy, vault, broker, vaultwarden)
 ├── services/     system daemons (pipewire, mullvad, preload)
-├── apps/         per-app integrations (zen, claude-code, opencode, antigravity, herdr, steam, …)
+├── apps/         per-app integrations + progressive trust & sandboxing (trust, native-sandbox, microvm, zen, claude-code, opencode, antigravity, herdr, steam, …)
 └── overrides/    machine-local drop-ins — see nixos/overrides/README.md
 
 modules/
@@ -45,6 +55,14 @@ modules/
 quickshell/       _default.nix derivations (bar, mujo, mujo-keyring, cursor-tracker, unlock),
                   mujo.sh CLI, C/Python helpers, bar/ (the shell)
 
+tests/            security acceptance test suite (kernel, storage, vault, network, sandbox, microvm, trust, physical, recovery, redteam, performance);
+                  lib.sh holds the shared assertions. These probe the running
+                  system, not the flake, so they fail until you rebuild — that is
+                  the point, a check that cannot fail is not a check.
+tests/vm/         throwaway VM harness: disko formats the real layout, installs
+                  the host config onto it and boots it, running the suite at
+                  startup. Outside importTree, so it only evaluates on request.
+docs/             security specifications (threat-model, security-architecture, storage-model, application-trust, physical-security, privacy-model, performance-budget, security-tests)
 docs/agents/      issue-tracker + domain-doc conventions consumed by skills
 tools/graphify/   graphify install & upgrade scripts
 ```
@@ -55,6 +73,7 @@ tools/graphify/   graphify install & upgrade scripts
 2. Auto-import only **evaluates** a file. To run on the host, the module must define `flake.nixosModules.<name>` **and** be listed as `self.nixosModules.<name>` in `nixos/hosts/main/configuration.nix`. Missing that line = the file does nothing.
 3. `_`-prefixed files are fragments — import them explicitly.
 4. `modules/flake/theme.nix` and `modules/flake/perSystem.nix` are wired directly in `flake.nix`, outside `importTree`.
+5. **`nix flake check` does not evaluate `nixosConfigurations` on its own.** `nixos/hosts/main/checks.nix` re-exports the host toplevel as `checks.hostMain` so it does. Without that the host config can stop evaluating entirely and every check still reports green.
 
 ## SECRETS
 
@@ -134,6 +153,16 @@ opencode — and they are configured to see the same things:
 | Topic | Document |
 |---|---|
 | Desktop shell architecture | `quickshell/bar/AGENTS.md` |
+| Security architecture | `docs/security-architecture.md` |
+| Threat model & invariants | `docs/threat-model.md` |
+| Storage model & vault | `docs/storage-model.md` |
+| Progressive trust engine | `docs/application-trust.md` |
+| Physical & boot security | `docs/physical-security.md` |
+| Privacy & metadata model | `docs/privacy-model.md` |
+| Credential broker & capability profiles | `docs/application-trust.md` §7 |
+| Security test suite layout | `docs/security-tests.md` §4 |
+| Performance budget | `docs/performance-budget.md` |
+| Security tests specification | `docs/security-tests.md` |
 | Machine-local overrides | `nixos/overrides/README.md` |
 | Issues & specs (`gh` in `DamnShabu/mujo`) | `docs/agents/issue-tracker.md` |
 | Domain docs (`CONTEXT.md`, `docs/adr/`) | `docs/agents/domain.md` |
