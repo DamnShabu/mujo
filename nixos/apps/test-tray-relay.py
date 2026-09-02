@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 from dbus_next import Message, MessageType, PropertyAccess
 from dbus_next.aio import MessageBus
@@ -59,7 +60,7 @@ def start_bus(tmp, name):
     for _ in range(200):
         if os.path.exists(sock):
             return proc, f"unix:path={sock}"
-        subprocess.run(["sleep", "0.02"])
+        time.sleep(0.02)
     proc.kill()
     raise RuntimeError(f"{name} bus did not start")
 

@@ -292,7 +292,7 @@ def _discover_steam_client():
 
     is_running = False
     try:
-        res = subprocess.run(["pgrep", "-f", "steam"], capture_output=True)
+        res = subprocess.run(["pgrep", "-f", "steam"], capture_output=True, timeout=5)
         if res.returncode == 0:
             is_running = True
     except Exception:
@@ -1015,7 +1015,7 @@ def cmd_status():
 
     lwe_running = False
     try:
-        res = subprocess.run(["pgrep", "-f", "linux-wallpaperengine"], capture_output=True)
+        res = subprocess.run(["pgrep", "-f", "linux-wallpaperengine"], capture_output=True, timeout=5)
         lwe_running = res.returncode == 0
     except Exception:
         pass
@@ -1034,7 +1034,7 @@ def cmd_status():
 def cmd_stop():
     """Stop running wallpaper engine processes."""
     try:
-        subprocess.run(["pkill", "-f", "linux-wallpaperengine"], capture_output=True)
+        subprocess.run(["pkill", "-f", "linux-wallpaperengine"], capture_output=True, timeout=5)
     except Exception:
         pass
     print(json.dumps({"success": True, "message": "Wallpaper engine processes stopped"}))
