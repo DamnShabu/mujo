@@ -297,16 +297,20 @@ ColumnLayout {
 
                     Rectangle {
                         width: 32; height: 32; radius: Theme.radiusSm
-                        color: SecurityService.inventoryAudited
-                            ? (SecurityService.inventoryClean ? Theme.successDim : Theme.errorDim)
-                            : Theme.surface
+                        color: !SecurityService.inventoryAudited
+                            ? Theme.surface
+                            : SecurityService.inventoryFailed
+                                ? Theme.warningDim
+                                : (SecurityService.inventoryClean ? Theme.successDim : Theme.errorDim)
                         MaterialIcon {
                             anchors.centerIn: parent
-                            iconName: "find_in_page"
+                            iconName: SecurityService.inventoryFailed ? "help" : "find_in_page"
                             pixelSize: 18
-                            color: SecurityService.inventoryAudited
-                                ? (SecurityService.inventoryClean ? Theme.success : Theme.error)
-                                : Theme.textDim
+                            color: !SecurityService.inventoryAudited
+                                ? Theme.textDim
+                                : SecurityService.inventoryFailed
+                                    ? Theme.warning
+                                    : (SecurityService.inventoryClean ? Theme.success : Theme.error)
                         }
                     }
 
@@ -321,11 +325,13 @@ ColumnLayout {
                             font.bold: true
                         }
                         Text {
-                            text: SecurityService.inventoryAudited
-                                ? (SecurityService.inventoryClean
-                                    ? "Clean: No unencrypted keys or tokens found on persistent storage"
-                                    : SecurityService.inventoryFindingsCount + " plaintext item(s) found outside the vault")
-                                : "Audits /persist for unencrypted private keys, tokens, and credentials"
+                            text: !SecurityService.inventoryAudited
+                                ? "Audits /persist for unencrypted private keys, tokens, and credentials"
+                                : SecurityService.inventoryFailed
+                                    ? "Scan did not complete — nothing was verified. Re-run it."
+                                    : (SecurityService.inventoryClean
+                                        ? "Clean: No unencrypted keys or tokens found on persistent storage"
+                                        : SecurityService.inventoryFindingsCount + " plaintext item(s) found outside the vault")
                             color: Theme.textSecondary
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
