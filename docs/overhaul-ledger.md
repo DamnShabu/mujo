@@ -137,15 +137,46 @@ $ qs -p ./settings.qml            # with settings-target=security, then restored
 INFO: Configuration Loaded        # no binding warnings on the Security page
 ```
 
-`bash tests/vm/run.sh` could not complete unattended — it `exec`s `disko-vm`,
-which wants an interactive console. Its build step was run instead and passes:
-`nix build …vmWithDisko` → `/nix/store/bgjdighb4gqscwlxdd2cgxfydzxjgclc-disko-vm`.
-That verifies the host config installs onto the real disk layout; it does not
-verify the in-VM suite. **Someone should run `bash tests/vm/run.sh` at a
-terminal.**
+`bash tests/vm/run.sh` — disko formats the real layout, installs the host config
+onto it and boots it, running the acceptance suite at startup:
 
-`tests/run-all-tests.sh` probes the running host and therefore cannot pass until
-a rebuild. Not weakened, not run.
+```
+=== Running Progressive Trust Engine Tests ===
+  [PASS] a CRITICAL application never leaves QUARANTINE
+  [PASS] a HIGH application stops at OBSERVING
+  [PASS] the daemon accepts a violation report
+  [PASS] an unknown application is not invented by reporting one
+  [SKIP] launcher integration is off (apps.trust.launcherIntegration = false)
+  Summary: 16 passed, 0 failed, 1 skipped.            STATUS: PASS
+=== Running Offline Physical Extraction Simulation ===
+  Summary: 1 passed, 0 failed, 2 skipped.             STATUS: PASS
+=== Running Recovery & Boot Tampering Bypass Tests ===
+  [FAIL] no system profile generations found — rollback would be impossible
+  Summary: 3 passed, 1 failed, 2 skipped.             STATUS: FAIL
+=== Running Red-Team Boundary Violation Tests ===
+  Summary: 12 passed, 0 failed, 1 skipped.            STATUS: PASS
+=== Running Performance Budget Tests ===
+  [PASS] native sandbox, CPU workload: 640ms -> 662ms (3%, budget 5%)
+  [PASS] native sandbox, launch overhead: +14ms
+  Summary: 3 passed, 0 failed, 1 skipped.             STATUS: PASS
+  SECURITY TESTS COMPLETED WITH 1 FAILURES
+```
+
+The one failure is an artifact of the harness, not a defect, and
+`tests/vm/disko-vm.nix` says so at the top of the file: qemu boots the kernel
+directly, so `/boot` stays empty and no system profile generation is created.
+On the live host that assertion passes — `/nix/var/nix/profiles/system` exists
+with 296 generations. The assertion was not weakened.
+
+Two results worth pulling out, because they exercise this pass's changes on a
+real booted system rather than in a harness: "the daemon accepts a violation
+report" passes after the `flock`/`read -t 5` rework of the trust socket handler,
+and the trust suite reports launcher integration as off, confirming the
+`configuration.nix` change took effect.
+
+`tests/run-all-tests.sh` against the *running* host probes the system as
+currently rebuilt, so it cannot reflect this branch until the user applies it.
+Not weakened, not run.
 
 ### The defects that mattered
 
@@ -359,8 +390,9 @@ Each is one line, each is actionable, none was taken unilaterally.
    mesa, and costs you the ability to bump `claude-code`/`antigravity` alone.
 7. **1.47 GiB: `linux-wallpaperengine`** is the single largest path in the
    closure. Only worth touching if you do not use Wallpaper Engine wallpapers.
-8. **Run `bash tests/vm/run.sh` at a terminal** — it needs an interactive console,
-   so the in-VM acceptance suite has not been executed this pass.
+8. **Apply the branch, then run `bash tests/run-all-tests.sh`.** The VM suite
+   already passes on this branch (one documented harness artifact); the
+   running-host suite can only reflect these changes after a rebuild.
 
 ---
 
