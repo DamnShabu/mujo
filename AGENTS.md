@@ -2,7 +2,15 @@
 
 **This file is the source of truth for the repo.** `quickshell/bar/AGENTS.md` covers the desktop shell in depth.
 
-Personal NixOS flake (flake-parts), one host `main`: AMD CPU + AMD GPU (`amdgpu`), dual monitor, Niri/Wayland, btrfs impermanence. No test suite — correctness is `nix flake check` plus a live `qs -p` instance for QML.
+Personal NixOS flake (flake-parts), one host `main`: AMD CPU + AMD GPU (`amdgpu`), dual monitor, Niri/Wayland, btrfs impermanence.
+
+Correctness has three layers, and they check different things. `nix flake check`
+evaluates the flake *and* builds the host toplevel (via `checks.hostMain`), so an
+option conflict or a failed assertion goes red there. The self-checks under
+**SELF-CHECKS** below run offline against no running system and are the ones to
+reach for while editing. `tests/run-all-tests.sh` probes the **running** host, so
+it fails until you rebuild — that is deliberate, a check that cannot fail is not
+a check. QML has no evaluator: use a live `qs -p` instance.
 
 ## COMMANDS
 
@@ -13,9 +21,24 @@ nix flake check                                                # evaluate
 nix flake show                                                 # inspect outputs
 bash tests/run-all-tests.sh                                    # security acceptance tests (checks the RUNNING system)
 bash tests/vm/run.sh                                           # boot the host config as a real installed system in a throwaway VM
-python3 nixos/apps/test-tray-relay.py                          # quarantine tray relay self-check (two private buses, no VM)
 qs -p ./quickshell/bar/shell.qml                               # working-tree test instance; qs kill -i <id> to stop
 nix run .#sandbox                                              # disposable VM + MCP server (see SANDBOX)
+```
+
+## SELF-CHECKS
+
+Offline, no running system, no framework — each is a plain script that prints
+PASS/FAIL and exits non-zero on failure. Non-trivial logic in this repo leaves
+one of these behind rather than a test suite.
+
+```bash
+python3 nixos/apps/test-tray-relay.py            # tray relay: two private buses, no VM
+python3 nixos/sandbox/test-lifetime.py           # sandbox VM lifetime: mcp.py against a fake Machine
+bash nixos/apps/test-trust-registry-lock.sh      # trust registry survives concurrent writers
+bash quickshell/test-screenshot-crop.sh          # screenshot crop bounds guard (ImageMagick only)
+bash quickshell/test-screenshot-ocr-lines.sh     # OCR line boxes (tesseract + ImageMagick)
+qs -p ./quickshell/bar/test-icons.qml            # icon-theme resolution
+qs -p ./quickshell/bar/test-grid.qml             # DesktopGrid occupancy
 ```
 
 ## CORE CONSTRAINTS
@@ -33,7 +56,7 @@ nix run .#sandbox                                              # disposable VM +
 - **Persist state explicitly.** The btrfs root is wiped on boot; only `/persist` survives. Each module declares its own `persistence.data.directories`, `persistence.cache.directories`, `persistence.directories`, or `persistence.files` entries.
 - **Read colors from `self.theme.base00..base0F`** (`modules/flake/theme.nix`), never literals.
 - **Home config is hjem** (`hjem.users."${user}".files/...`), not home-manager.
-- **Check `modules/flake/perSystem.nix` before assuming a package is upstream** — `preload`, `skeuos-gtk` and `quicksnip` are vendored there.
+- **Check `modules/flake/perSystem.nix` before assuming a package is upstream** — `skeuos-gtk` is vendored there, and `cutefetch` is built from `tools/cutefetch/`.
 
 ## LAYOUT
 
@@ -44,7 +67,7 @@ nixos/
 ├── core/         base options, user, persistence, impermanence, nix daemon, hjem, ui-overrides
 ├── desktop/      session, GTK, plymouth, notifications, keyring prompter, quickshell packaging
 ├── security/     modular security architecture (baseline, kernel, boot, storage, network, users, devices, audit, privacy, vault, broker, vaultwarden)
-├── services/     system daemons (pipewire, mullvad, preload)
+├── services/     system daemons (pipewire, mullvad)
 ├── apps/         per-app integrations + progressive trust & sandboxing (trust, native-sandbox, microvm, zen, claude-code, opencode, antigravity, herdr, steam, …)
 └── overrides/    machine-local drop-ins — see nixos/overrides/README.md
 

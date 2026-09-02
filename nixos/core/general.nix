@@ -18,7 +18,25 @@
       hashedPasswordFile = "/persist/passwd";
     };
 
-    # ponytail: allow passwordless activation for nh (nixos-rebuild activate)
+    # Passwordless `nh os switch`.
+    #
+    # Ceiling, stated plainly because it is easy to read this as narrower than
+    # it is: `nixos-rebuild` is root-equivalent by construction. Anything that
+    # can run it without a password can build and activate a generation
+    # containing a root shell, so this rule grants the user passwordless root,
+    # not merely passwordless rebuild. Narrowing the glob would not change that
+    # -- and the glob is not much of a fence either, since any user who can talk
+    # to the nix daemon can realise a store path matching `*-nixos-system-*`.
+    #
+    # What it costs: the sudo password prompt is the boundary that stands
+    # between an application running as this user and root. docs/threat-model.md
+    # A3 (a graduated application that is later compromised) is weaker for it,
+    # and the sudo hardening in nixos/security/users.nix -- timestamp_timeout=5,
+    # passwd_tries=3 -- does not apply on this path.
+    #
+    # Kept because it is a deliberate convenience trade for the machine's only
+    # user, not because it is safe. Delete this block to take the prompt back;
+    # nothing else depends on it.
     security.sudo.extraRules = [
       {
         users = [config.preferences.user.name];

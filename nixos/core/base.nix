@@ -9,7 +9,16 @@
         user = {
           name = lib.mkOption {
             type = lib.types.str;
-            default = "yurii";
+            description = ''
+              The account every other module builds paths and ownership from.
+
+              Deliberately has no default. `nixos/core/user.nix` is the single
+              place that resolves it -- from the gitignored `secrets/username`,
+              falling back to a literal -- and a default here would be a second
+              copy of that literal, which is exactly the hardcoded username the
+              repo rule forbids. If this ever fails to evaluate, the fix is to
+              import `self.nixosModules.user`, not to reintroduce a default.
+            '';
           };
         };
 
@@ -56,7 +65,13 @@
 
         user = lib.mkOption {
           type = lib.types.str;
-          default = "yurii";
+          description = ''
+            The account whose home is bind-mounted out of /persist/userdata and
+            /persist/usercache. No default for the same reason as
+            `preferences.user.name`: `nixos/core/impermanence.nix` sets it from
+            that option, and a literal here would silently keep pointing at the
+            old account when someone changes `secrets/username`.
+          '';
         };
 
         directories = lib.mkOption {
