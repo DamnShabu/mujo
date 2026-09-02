@@ -65,11 +65,17 @@ QtObject {
     // has graduated yet boots a VM on first launch, which is not a change to
     // make silently. See `apps.trust.launcherIntegration` and
     // docs/application-trust.md §8.
-    property bool trustRouting: true
+    // Default false, and that matters: nixos/apps/trust.nix writes the marker
+    // only under `lib.mkIf cfg.launcherIntegration`, so "file missing" *is* the
+    // off state -- the common one. With the default at true, onLoadFailed's
+    // "keep default" kept routing every launch through mujo-run precisely when
+    // the option was off, which is the failure this comment used to describe as
+    // impossible. Absent marker means off.
+    property bool trustRouting: false
     property FileView _trustMarker: FileView {
         path: "/etc/mujo/launcher-integration"
         onLoaded: launch.trustRouting = (text() || "").trim() === "enabled"
-        onLoadFailed: function (err) { /* keep default */ }
+        onLoadFailed: function (err) { launch.trustRouting = false }
     }
 
     // Build an argv from a DesktopEntry, dropping desktop field codes (%U, %F…).
