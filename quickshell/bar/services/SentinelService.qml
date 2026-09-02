@@ -60,8 +60,13 @@ QtObject {
     }
 
     function _runAction(act, pid, val) {
-        actionProc.command = val ? ["mujo", "sentinel", "action", act, String(pid), String(val)]
-                                 : ["mujo", "sentinel", "action", act, String(pid)]
+        // `val !== undefined`, not `val`: renice(pid, 0) is a real call -- reset
+        // to normal priority -- and a truthiness test dropped the argument, so
+        // it would have run `renice -n "" -p <pid>` and failed. kill/term/stop/
+        // cont pass no value at all and still take the short form.
+        actionProc.command = val !== undefined
+            ? ["mujo", "sentinel", "action", act, String(pid), String(val)]
+            : ["mujo", "sentinel", "action", act, String(pid)]
         actionProc.running = true
     }
 

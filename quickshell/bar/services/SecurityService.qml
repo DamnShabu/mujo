@@ -24,10 +24,16 @@ QtObject {
     property string vaultStatus: vaultMounted ? "unlocked" : (vaultContainerPresent ? "locked" : "not_configured")
 
     // ── Memory & Host Isolation ──────────────────────────────────────────────
-    property bool encryptedSwapActive: true
-    property bool coredumpDisabled: true
-    property bool tmpfsTmpActive: true
-    property bool firewallActive: true
+    // All false until a summary actually says otherwise. These drive the four
+    // hardening cards in SecurityGroup, which read "UNVERIFIED" when false --
+    // so an optimistic default here would be the panel asserting a protection
+    // is on before anything checked, and would stay asserted forever if the
+    // summary process failed. _pollTimer has triggeredOnStart, so the real
+    // value arrives one round-trip after load.
+    property bool encryptedSwapActive: false
+    property bool coredumpDisabled: false
+    property bool tmpfsTmpActive: false
+    property bool firewallActive: false
 
     // ── Progressive Application Trust ─────────────────────────────────────────
     property var trustApps: []
@@ -155,19 +161,27 @@ QtObject {
                         security.vaultMountPoint = d.vault.mountPoint || "/run/mujo/vault"
                         security.vaultSubdirectories = d.vault.subdirectories || []
                     }
+                    // `=== true`, not `!== false`: a field the summary omitted
+                    // is a protection nothing confirmed, which is exactly what
+                    // "UNVERIFIED" is for. `!== false` read a missing key as on.
                     if (d.storage) {
-                        security.encryptedSwapActive = d.storage.encryptedSwap !== false
-                        security.coredumpDisabled = d.storage.coredumpDisabled !== false
-                        security.tmpfsTmpActive = d.storage.tmpfsTmp !== false
+                        security.encryptedSwapActive = d.storage.encryptedSwap === true
+                        security.coredumpDisabled = d.storage.coredumpDisabled === true
+                        security.tmpfsTmpActive = d.storage.tmpfsTmp === true
                     }
                     if (d.network) {
-                        security.firewallActive = d.network.firewallActive !== false
+                        security.firewallActive = d.network.firewallActive === true
                     }
                     if (d.overallStatus) {
                         security.overallStatus = d.overallStatus
                     }
                     security.statusUpdated()
-                } catch (e) {}
+                } catch (e) {
+                    // Leave every flag where it is -- false, or the last value a
+                    // summary actually reported. Swallowing this silently was
+                    // how a failed probe kept the panel green.
+                    console.warn("SecurityService: security summary unreadable:", e)
+                }
             }
         }
     }
