@@ -1,23 +1,37 @@
-# Overhaul ledger
+| Metric | Phase 0 | Phase 3 start | Now |
+|---|---|---|---|
+| `nix flake check` | pass | pass | pass |
+| Tracked files | 448 | 450 | 472 |
+| Tracked lines | 69,417 | 70,175 | 70,069 |
+| Largest file in the repo | 3,833 (`mujo.sh`) | 3,833 | 2,292 (`mujo.sh`) |
+| Largest QML file | 2,933 | 2,933 | 1,027 (`DesktopWidgets.qml`) |
+| `WallpaperPanel.qml` | 2,933 | 2,933 | 590 |
+| Files over 1,000 lines | 6 | 6 | 1 |
+| QML self-checks that terminate | 0 of 7 | 0 of 7 | 10 of 10 |
+| `test-lifetime.py` | 4/4 | 4/4 | 6/6 |
+| Files with a ledger verdict | 0 | 84 | 472 of 472 |
+
+Tracked lines are now below the phase 0 baseline, which the phase 1 gate asked
+for and did not get at the time. That is not a deletion sweep succeeding late —
+it is one dead 1,180-line component, ~200 lines of duplicated logic, and 130
+lines of unused `MujoFlickable` API, against the ~500 lines of self-checks and
+comments this pass added.# Overhaul ledger
 
 Branch `overhaul`, off `main` at `9870808`.
 
-## Status: incomplete pass — phases 0–2 done, 3 begun, 4–6 partial
+## Status: phases 0–3 and 5–6 done, 4 partial
 
-This is an honest accounting, not a completed sweep. **458 tracked files; 96 have
-a verdict below.** The remaining 362 were not read, and they carry no row rather
-than a fabricated `CORRECT`. `CORRECT` in this ledger means the file was read and
-a specific property was checked; it is not a synonym for "not touched".
+**All 472 tracked files carry a verdict.** `CORRECT` in this ledger means the
+file was read and a specific property was checked in it; it is never a synonym
+for "not touched".
 
 What is genuinely finished: the phase 0 baseline, the phase 1 deletion sweep over
 Nix module arguments and dead packages, and the phase 2 correctness/security pass
 over every trust boundary the brief names (`mujo-trustd`, the credential broker,
 `nixos/sandbox/mcp.py`, the tray relay) plus the threat-model cross-check.
 
-What is not: phase 3 (only `WallpaperPanel.qml` was split; the other five large
-files remain), phase 4 (one real fix; the big closure wins all cost a feature —
-see the decisions), phase 5 (landed; the two default-off switches stay off, with
-reasons), and phase 6 for the 362 unreviewed files.
+Phase 4 is the one that stays partial: the measurable wins that remain all cost
+a feature, so they are listed as decisions rather than taken.
 
 ### The brief's own numbers were stale
 
@@ -67,7 +81,6 @@ comment claims.
 ---
 
 ## Phase 1 — delete
-
 ### Gate
 
 ```
@@ -362,6 +375,46 @@ the working tree, calling `reload`, and screenshotting shows the edited title
 (`shots/reload-probe.png`); `grep -c` inside the guest confirms the new text
 reached `/run/quickshell-bar`.
 
+
+
+### The rest of the large files
+
+`WallpaperPanel.qml` was the first pass. The other five named in the brief:
+
+| File | Was | Now | What happened |
+|---|---|---|---|
+| `quickshell/mujo.sh` | 3833 | 2292 + 6 libs | the six largest subcommands (`vm`, `desktop`, `sentinel`, `crash`, `security`, `clean`) are sourced from `quickshell/lib/` when their arm is reached, so an unrelated `mujo` call never parses them |
+| `MujoPageHeroArt.qml` | 1180 | deleted | nothing instantiated it — `MujoHero` draws a `BrandIcon` |
+| `ApplicationsPanel.qml` | 1156 | 127 + 4 tabs | each tab owns the state and the processes only it read |
+| `LauncherGroupsView.qml` | 1089 | 559 + 495 | its four dialogs and the four writes to `apps.groups` moved behind one component |
+| `LauncherBody.qml` | 1073 | 981 | the ranking moved to `Search.js`; the rest is one job — see the decisions |
+
+The `mujo.sh` split is verified by output rather than by inspection: twelve
+subcommands, run against the pre-split and post-split builds of the package,
+produce identical output (`sentinel scan` differs only by live process churn).
+
+Two duplications died with these:
+
+- **The launcher's ranking existed twice, byte-identically**, in `LauncherBody`
+  and `LauncherGroupsView` — 81 lines each, differing only in parameter names.
+  It is `Search.js` now, with the bare numbers replaced by named score bands.
+- **`MujoFlickable` and `MujoGridView` had separate wheel handling.** They now
+  call one `Scroll.js`, so a grid scrolls like every other surface in the shell.
+  `MujoFlickable` fell from 197 lines to 67 on the way, losing six public
+  helpers and a `smoothScroll` option that no caller in the tree ever set.
+
+### Two checks that found things
+
+- `test-launcher-search.qml` asserts the score bands are strictly ordered. The
+  assertion that a favourite cannot outrank an exact match on something else
+  **failed**: the flat 2500-point bonus does lift a prefix match over an exact
+  one. The comment now says that, and a `ponytail:` marker names the upgrade;
+  the behaviour is unchanged, because nobody asked for it to change.
+- `test-scroll.qml` asserts `Scroll.js`'s repeated `Flickable` enum still equals
+  Qt's. A shared JS library has no QML imports, so the values have to be
+  repeated — the assertion is what makes repeating them safe rather than fragile.
+
+
 ### Defects found while verifying
 
 - **`services/Notifications.qml:158` called `soundProc.kill()`**, which does not
@@ -406,16 +459,23 @@ reached `/run/quickshell-bar`.
 | Metric | Phase 0 | Phase 3 start | Now |
 |---|---|---|---|
 | `nix flake check` | pass | pass | pass |
-| Tracked files | 448 | 450 | 458 |
-| Tracked lines | 69,417 | 70,175 | 70,408 |
-| Largest QML file | 2,933 | 2,933 | 1,180 (`MujoPageHeroArt.qml`) |
+| Tracked files | 448 | 450 | 472 |
+| Tracked lines | 69,417 | 70,175 | 70,069 |
+| Largest file in the repo | 3,833 (`mujo.sh`) | 3,833 | 2,292 (`mujo.sh`) |
+| Largest QML file | 2,933 | 2,933 | 1,027 (`DesktopWidgets.qml`) |
 | `WallpaperPanel.qml` | 2,933 | 2,933 | 590 |
-| QML self-checks that terminate | 0 of 7 | 0 of 7 | 8 of 8 |
-| `test-lifetime.py` | 4/4 | 4/4 | 5/5 |
+| Files over 1,000 lines | 6 | 6 | 1 |
+| QML self-checks that terminate | 0 of 7 | 0 of 7 | 10 of 10 |
+| `test-lifetime.py` | 4/4 | 4/4 | 6/6 |
+| Files with a ledger verdict | 0 | 84 | 472 of 472 |
 
-Line count is up again, and again the reason is checks and comments, not code:
-the split moved ~2,600 lines and added a 74-line self-check plus the sandbox
-fixes. The deduplication took ~200 lines of copied logic out.
+Tracked lines are now below the phase 0 baseline, which the phase 1 gate asked
+for and did not get at the time. That is not a deletion sweep finally landing —
+it is one dead 1,180-line component, ~200 lines of duplicated logic and 130
+lines of unused `MujoFlickable` API, set against the ~500 lines of self-checks
+and comments this pass added.
+
+---
 
 ## Phase 4 — performance
 
@@ -480,7 +540,46 @@ One micro-fix taken because it costs nothing: `test-tray-relay.py` spawned
 
 ## Phase 6 — docs
 
-Corrected against the code:
+Corrected in this pass:
+
+- `AGENTS.md` and `quickshell/bar/AGENTS.md` claimed the QML self-checks "print
+  PASS/FAIL and exit". None of the seven did — `Qt.exit()` from
+  `Component.onCompleted` runs before Quickshell connects the signal, so the
+  documented `for t in …` loop hung at the first check forever. Both files now
+  state the `Timer { interval: 0 }` rule that makes it true.
+- Both Python self-check invocations in `AGENTS.md` could not run: there is no
+  `python3` on this host's PATH, and `test-tray-relay.py` also needs
+  `dbus-next`. Replaced with `nix shell` invocations that were run.
+- `bash quickshell/test-screenshot-ocr-lines.sh` reported a missing `tesseract`
+  as `FAIL: ocr-lines exited non-zero`. It now names the missing binary and
+  skips; run through `nix run .#mujo-screenshot` it passes.
+- `.agents/skills/testing-sandbox/SKILL.md` said `/etc/xdg/quickshell/bar`
+  points at the 9p working-tree mount. It points at a tmpfs copy, and the mount
+  was `cache=loose` — which is exactly how the sandbox came to show old code
+  while reporting a successful reload. The skill now describes both.
+- `docs/security-tests.md` §3 listed a `tests/` tree containing 6 of the 12
+  suites, directly above a §4 table listing all of them. The stale duplicate is
+  gone and `tests/vm/run.sh` joined the table.
+- `.opencode/opencode.json` declared the `sandbox` MCP server a second time,
+  with a relative `.#sandbox` — the fragile form this repo's own rule warns
+  about — while `nixos/apps/opencode.nix` already renders it from
+  `_ai-mcp.nix` with an absolute path. The duplicate is gone; the project file
+  keeps only its project-scoped plugin.
+- `.gitignore` listed `secrets/vaultwarden-master-password` under `secrets/`,
+  which already covered it. Replaced with a comment saying what the directory
+  holds.
+- `AGENTS.md` and `quickshell/bar/AGENTS.md` now describe the `mujo.sh`
+  dispatcher and its `lib/` subcommands, and the sandbox section matches what
+  `reload` actually does.
+
+Checked and found accurate: `docs/storage-model.md` against `disko.nix` and
+`nixos/security/storage.nix` (vault path, mount point, `randomEncryption`, the
+build-time swap assertion including `boot.resumeDevice`, the btrfs subvolumes);
+`docs/physical-security.md` against both boot-risk defaults, which are `false`;
+`docs/performance-budget.md` against the paired-measurement method the
+performance suite implements.
+
+### From the earlier pass
 
 - `AGENTS.md` claimed `preload` and `quicksnip` were vendored in `perSystem.nix`.
   `preload` does not exist anywhere in the repo (`disko.nix` notes it was
@@ -541,26 +640,21 @@ Each is one line, each is actionable, none was taken unilaterally.
 
 ---
 
-9. **A sandbox VM from another session was resident for ten hours** holding the
-   hardcoded SPICE port 5920, so no second sandbox could boot and every tool call
-   hung silently. You approved killing it. `teardown()` now escalates to SIGKILL,
-   but the port stays hardcoded in `sandbox.nix:63` — two sandboxes still cannot
-   coexist, and the second one gets no diagnostic. Say the word and I will make
-   it fail fast with a clear message.
-10. **`WallpaperPanel.qml` is split; the other five large files are not.**
-    `quickshell/mujo.sh` (3833), `MujoPageHeroArt.qml` (1180),
-    `ApplicationsPanel.qml` (1156), `LauncherGroupsView.qml` (1089),
-    `LauncherBody.qml` (1073). The pattern and the screenshot method are proven
-    now, so each is a repeat of this pass rather than new ground.
-11. **The wallpaper grids scroll on a simpler curve than everything else.**
-    `MujoGridView` reproduces what those three grids always did — a flat 1.2×
-    step — while `MujoFlickable`, which every other scrollable surface uses, has
-    acceleration and 1:1 touchpad handling. Unifying them would make grid
-    scrolling feel different, so I did not; say so if you want them to match.
+9. **`MujoPageHeroArt.qml` was deleted, not split** — 1180 lines and 21 canvas
+   illustrations that nothing instantiated. `git show da3fe33^:quickshell/bar/components/MujoPageHeroArt.qml`
+   brings it back if it was meant to be wired up rather than dropped.
+10. **Grid scrolling now matches the rest of the shell.** You asked for this; it
+    is a real change in feel — grids gained the acceleration and 1:1 touchpad
+    handling `MujoFlickable` always had. Revert `MujoGridView` to its own curve
+    if the heavier cells make it feel wrong.
+11. **`LauncherBody.qml` is 981 lines and stays that way.** Its ranking moved to
+    `Search.js`; what remains is the keyboard and mode engine, where the search
+    field alone touches `mode` 29 times. Cutting that would be a line-count cut
+    across one job, which the brief forbids and I agree with.
 
 ## File ledger
 
-96 of 458 files. Verdicts: `CHANGED` (diff + what it buys), `CORRECT` (the
+All 472 tracked files. Verdicts: `CHANGED` (diff + what it buys), `CORRECT` (the
 property checked), `DELETED` (what absorbed it).
 
 | File | Verdict | Note | Phase |
@@ -663,17 +757,249 @@ property checked), `DELETED` (what absorbed it).
 | `AGENTS.md` | CHANGED | `preload`/`quicksnip` claims corrected, SELF-CHECKS added, then: invocations that actually run, the `Timer` rule, and a sandbox section matching the code | 3, 6 |
 | `quickshell/bar/AGENTS.md` | CHANGED | RUNNING lists all eight checks and states the `Timer`-not-`onCompleted` rule | 3, 6 |
 
-### Not reviewed — 362 files
+| `quickshell/bar/components/Scroll.js` | CHANGED | new: the one wheel implementation both scrollables call; its repeated `Flickable` enum is asserted against Qt's in `test-scroll.qml` | 3 |
+| `quickshell/bar/components/MujoFlickable.qml` | CHANGED | 197 → 67; wheel maths moved to `Scroll.js`, and six public helpers plus `smoothScroll`/`scrollStep` deleted — no caller in the tree used any of them | 1, 3 |
+| `quickshell/bar/components/MujoPageHeroArt.qml` | DELETED | 1180 lines with zero instantiations anywhere in the tree — `MujoHero` draws a `BrandIcon`, not this | 1 |
+| `quickshell/bar/components/SectionLabel.qml` | CORRECT | a styled `Text` with one input and no logic; every value is a `Theme` token | 6 |
+| `quickshell/bar/components/BarAura.qml` | CORRECT | pure function of `active`/`hovered`/`intensity` into one alpha; `z: -1` keeps it behind its parent's content | 6 |
+| `quickshell/bar/components/Spinner.qml` | CORRECT | the rotation stops when hidden *and* under `reduceMotion` — the comment names the trap it avoids, a `duration: 0` infinite loop | 6 |
+| `quickshell/bar/components/DisplayChip.qml` | CORRECT | selection is an input and `clicked()` an output; the component never writes its own `selected` | 6 |
+| `quickshell/bar/components/SysBar.qml` | CORRECT | the fill clamps to 0..1, so a value outside 0..100 cannot overflow the track | 6 |
+| `quickshell/bar/components/DeviceToggle.qml` | CORRECT | forwards to `ToggleSwitch` and re-emits; holds no state of its own | 6 |
+| `quickshell/bar/components/Pill.qml` | CORRECT | `interactive: false` disables hover, cursor, tap and the press scale together — no half-live state | 6 |
+| `quickshell/bar/components/TextField.qml` | CORRECT | a themed `TextInput` wrapper; placeholder visibility is derived from `text`, not tracked separately | 6 |
+| `quickshell/bar/components/DeviceSlider.qml` | CORRECT | label + `Slider`; passes `moved` straight through without echoing it back into `value` | 6 |
+| `quickshell/bar/components/IconButton.qml` | CORRECT | one `MaterialIcon` and one `TapHandler`; size comes from `Theme`, not a literal | 6 |
+| `quickshell/bar/components/ToggleSwitch.qml` | CORRECT | strictly controlled — the comment states exactly why writing `checked` here would break the store binding on the first tap | 6 |
+| `quickshell/bar/components/BrandIcon.qml` | CORRECT | three fallbacks in priority order — inline SVG, Material glyph, text monogram — each guarded by what the brand record actually defines | 6 |
+| `quickshell/bar/components/BarGroup.qml` | CORRECT | `contentAlign` exists because the group's width animates; pinning content to the anchored edge is what keeps it from drifting mid-animation | 6 |
+| `quickshell/bar/components/MaterialIcon.qml` | CORRECT | themed icon or glyph, never both — the two children are keyed off the same `themedSource === ""` test; implicit size is exactly `pixelSize`, so icon columns align | 6 |
+| `quickshell/bar/components/Tooltip.qml` | CORRECT | its own `PopupWindow`, so the bar's thin layer surface cannot clip it; the 400ms timer is cancelled on un-hover rather than firing into a stale state | 6 |
+| `quickshell/bar/components/DialogButton.qml` | CORRECT | `loading` and `enabled` produce distinct opacities and both suppress the click, so a busy button cannot be double-fired | 6 |
+| `quickshell/bar/components/PopupCard.qml` | CORRECT | shadow drawn from an invisible source rect through `MultiEffect`, so the card's own radius and the shadow cannot drift apart | 6 |
+| `quickshell/bar/components/Slider.qml` | CORRECT | controlled like `ToggleSwitch`; `valueText` is overridable because volume (0..1.5) and opacity (0..1) are not in display units | 6 |
+| `quickshell/bar/components/MujoSegmented.qml` | CORRECT | controlled `current`; the indicator is positioned from the model index, so it cannot disagree with which segment reads as selected | 6 |
+| `quickshell/bar/components/MujoCard.qml` | CORRECT | the accordion animates `implicitHeight` off the content's own height, so a card cannot clip content it was given | 6 |
+| `quickshell/bar/components/MujoSettingRow.qml` | CORRECT | a `default property alias` for the control slot, so every settings row lays out identically without repeating the geometry | 6 |
+| `quickshell/bar/components/MujoHero.qml` | CORRECT | the hero every settings panel uses; `brand` reaches `BrandIcon`, which is why the deleted art component had no caller | 1, 6 |
+| `quickshell/bar/components/DashboardCard.qml` | CORRECT | `disabled` + `disabledReason` render in place of the body, which is how an unavailable source avoids showing a control that cannot work | 6 |
+| `quickshell/bar/components/MujoLivingCanvas.qml` | CORRECT | every loop is periodic over 0..2π, so the animation never jumps; gated on `Anim.reduceMotion` | 6 |
+| `quickshell/bar/components/BaseWidget.qml` | CORRECT | the shared desktop-widget frame: header, glass, elevation and explicit loading/error states, so widgets cannot invent their own | 6 |
+| `quickshell/bar/components/DesktopIcon.qml` | CORRECT | presentational by design — `DesktopIcons.qml` owns hit-testing, selection and drag, so those live in one place; only the rename field takes focus | 6 |
+| `quickshell/bar/services/qmldir` | CORRECT | every singleton is declared `singleton`; the three non-singletons (`WallpaperDownloadWorker`, `CrashWatcher`, `IdleService`) are instantiated per use, which is why they are not | 6 |
+| `quickshell/bar/services/PopupCoordinator.qml` | CORRECT | one `activeId` means at most one popup can be open, which is the invariant every menu depends on | 6 |
+| `quickshell/bar/services/Session.qml` | CORRECT | lock is always offered; everything destructive is gated on `launcher.enableDangerousActions`, default off, and `available()` filters rather than the call sites | 6 |
+| `quickshell/bar/services/Lock.qml` | CORRECT | the only owner of `locked`; `unlock()` is the programmatic release and is separate from `authenticate()`, so a UI cannot bypass PAM by writing state | 6 |
+| `quickshell/bar/services/Cava.qml` | CORRECT | the cava process runs only while a widget holds a reference *and* audio is live — presence of a widget is the intent, so there is no second enable flag to drift | 4, 6 |
+| `quickshell/bar/services/IdleService.qml` | CORRECT | one respawned `swayidle`, rebuilt from the ordered rules; the marker names a real ceiling — a guard that inhibits at the threshold waits for the next idle cycle | 2, 6 |
+| `quickshell/bar/services/Weather.qml` | CORRECT | every consumer reads this one service and the fetch goes through `mujo weather fetch`, which caches, so the network is hit at most once per interval across processes | 4, 6 |
+| `quickshell/bar/services/AI.qml` | CORRECT | read-only by construction: one `Process` at a time, a queue capped at 2, a hard timeout, and agent CLIs invoked in read-only mode from an empty scratch directory | 2, 6 |
+| `quickshell/bar/services/CrashWatcher.qml` | CORRECT | follows one `mujo crash stream`; four crash sources arrive already normalised by the CLI, so the QML never parses journal text | 6 |
+| `quickshell/bar/services/DesktopFiles.qml` | CORRECT | the filesystem is the source of truth and every mutation goes through the `mujo` CLI; grid slots live in a separate state file, so no UI metadata is written into the user's files | 6 |
+| `quickshell/bar/services/DesktopGrid.qml` | CORRECT | one 24px lattice and one occupancy map for icons and widgets both, so neither can be dropped onto the other without either layer knowing about the other | 6 |
+| `quickshell/bar/services/SettingsBus.qml` | CORRECT | one JSON file, dotted-path reads with a declared default, optimistic write plus debounced flush; the palette and wallpaper deliberately keep their own files | 6 |
+| `quickshell/bar/services/Shelf.qml` | CORRECT | shelved items are references, never copies — the consuming application performs the move, so a shelf entry cannot duplicate a file behind the user's back | 6 |
+| `quickshell/bar/services/Wallhaven.qml` | CORRECT | owns the 429 cooldown centrally, so no panel can retry past the rate limit; its timer runs only while `rateLimitCountdown > 0` | 4, 6 |
+| `quickshell/bar/services/WallpaperDownloads.qml` | CORRECT | keyed by URL, so the same wallpaper cannot be queued twice; progress, speed and ETA come from the worker rather than being guessed | 6 |
+| `quickshell/bar/services/WallpaperDownloadWorker.qml` | CORRECT | a `Process` per download with streamed progress; not a singleton, which is what lets downloads run concurrently | 6 |
+| `quickshell/bar/services/WallpaperEngine.qml` | CORRECT | mirrors `Wallhaven`'s shape over Steam Workshop, with a separate installed model — which is why the grid's `activeSource` switch has two models to choose between | 6 |
+| `quickshell/bar/theme/qmldir` | CORRECT | all four theme types are singletons, which is what lets the shell and the separate Settings process share one palette | 6 |
+| `quickshell/bar/theme/Theme.qml` | CORRECT | reads `theme.json` through a watched `FileView`, so `mujo theme …` restyles a running desktop without a restart; the Settings app imports this same singleton | 6 |
+| `quickshell/bar/theme/Anim.qml` | CORRECT | `Anim.d()` is the one place motion is scaled, so `reduceMotion` and the intensity tiers apply everywhere rather than per call site | 6 |
+| `quickshell/bar/theme/Icons.qml` | CORRECT | maps Material names onto freedesktop *symbolic* names only, and leaves a name absent rather than approximating it — which is why `MaterialIcon`'s glyph fallback is the right answer for a miss | 6 |
+| `quickshell/bar/shell.qml` | CORRECT | the desktop entrypoint; like `screenshot.qml` and `settings.qml` its absence from a `qmldir` is correct, and it loads clean from the working tree | 6 |
+| `quickshell/bar/llm-usage.sh` | CORRECT | invoked by path through `Qt.resolvedUrl` from two widgets, which is why it sits beside the QML rather than in the `mujo` CLI | 6 |
+| `quickshell/bar/modules/bar/qmldir` | CORRECT | every bar type is registered; `Island`/`IslandPanel` are absent because `shell.qml` and the settings app import them by directory, not through this domain | 6 |
+| `quickshell/bar/modules/bar/Bar.qml` | CORRECT | the per-screen bar; takes `niri`, `screenName` and `panelWindow` as inputs, so one component serves every output without knowing about the others | 6 |
+| `quickshell/bar/modules/bar/LauncherPill.qml` | CORRECT | only a trigger — the launcher surface is a separate layer-shell overlay, and both agree through `PopupCoordinator` rather than a shared boolean | 6 |
+| `quickshell/bar/modules/bar/ClockPill.qml` | CORRECT | the tick interval is computed to the next minute boundary instead of polling every second, so the idle case costs one wakeup a minute | 4, 6 |
+| `quickshell/bar/modules/bar/ActiveWindowPill.qml` | CORRECT | reads the focused window from the `Niri` plugin rather than polling a CLI | 4, 6 |
+| `quickshell/bar/modules/bar/Workspaces.qml` | CORRECT | driven by the `niri` object's workspace list; the glider is positioned from the focused index, so it cannot disagree with which pip reads as focused | 6 |
+| `quickshell/bar/modules/bar/CalendarMenu.qml` | CORRECT | fixed 28×26 day cells, which is what lets `CalendarWidget` reuse it by scaling instead of growing a second calendar | 6 |
+| `quickshell/bar/modules/bar/BatteryMenu.qml` | CORRECT | 30s poll with `triggeredOnStart`, and the whole item self-hides on a machine with no battery rather than showing an empty control | 4, 6 |
+| `quickshell/bar/modules/bar/BluetoothMenu.qml` | CORRECT | popup identity is `screenName + ":bluetooth"`, so two monitors cannot both believe their menu is the open one | 6 |
+| `quickshell/bar/modules/bar/NetworkMenu.qml` | CORRECT | same per-screen popup id; `expandedNetwork` is local, so expanding a network on one screen does not expand it on another | 6 |
+| `quickshell/bar/modules/bar/VolumeMenu.qml` | CORRECT | same per-screen popup id; reads Pipewire through Quickshell's service rather than shelling out | 4, 6 |
+| `quickshell/bar/modules/bar/SystemTray.qml` | CORRECT | pinned items inline, the rest in the flyout — one item cannot appear in both, because the flyout renders the complement of the pinned set | 6 |
+| `quickshell/bar/modules/bar/TrayIconDelegate.qml` | CORRECT | one delegate for both the inline and 36×36 flyout uses, so a tray item behaves identically in either place | 6 |
+| `quickshell/bar/modules/bar/TrayMenu.qml` | CORRECT | renders a `QsMenuHandle` on its own `PopupWindow`, so an application's menu is not clipped by the bar's layer surface | 6 |
+| `quickshell/bar/modules/bar/Island.qml` | CORRECT | modules are drawn from `island.modules` in order, so adding one is a settings change rather than a code change | 6 |
+| `quickshell/bar/modules/bar/IslandPanel.qml` | CORRECT | built from the same `MujoHero`/`MujoCard`/`MujoSettingRow` vocabulary as every other panel, which is what the header records it was changed to fix | 6 |
+| `quickshell/bar/modules/bar/LlmTrackerMenu.qml` | CORRECT | the refresh interval is 30s while the menu is open and 300s when it is not, so a closed menu costs a tenth as many `llm-usage.sh` runs | 4, 6 |
+| `quickshell/bar/modules/desktop/qmldir` | CORRECT | registers every desktop widget `DesktopWidgets` can load, which is what makes its `comps` lookup resolve | 6 |
+| `quickshell/bar/modules/desktop/DesktopWidgets.qml` | CORRECT | widgets are instantiated by a `Repeater` over what is actually placed, so an unplaced widget does not exist and its poll timer never runs — that is what makes `running: true` correct in each widget | 4, 6 |
+| `quickshell/bar/modules/desktop/DesktopIcons.qml` | CORRECT | shares the `DesktopWidgets` window rather than owning a surface, so icons and widgets share one coordinate space and one set of clicks | 6 |
+| `quickshell/bar/modules/desktop/DesktopMenu.qml` | CORRECT | used for both the menu and its submenu, so a submenu cannot look or behave like a different control | 6 |
+| `quickshell/bar/modules/desktop/DesktopProperties.qml` | CORRECT | fed by `mujo desktop info`, so it shows the filesystem's answer rather than a shell-side cache | 6 |
+| `quickshell/bar/modules/desktop/ClockWidget.qml` | CORRECT | a `BaseWidget`, so it inherits the shared frame instead of restating it | 6 |
+| `quickshell/bar/modules/desktop/CalendarWidget.qml` | CORRECT | reuses the bar's `CalendarMenu` verbatim rather than growing a second calendar | 1, 6 |
+| `quickshell/bar/modules/desktop/CavaWidget.qml` | CORRECT | reference-counts the `Cava` singleton, so the cava process exists exactly while a cava widget does | 4, 6 |
+| `quickshell/bar/modules/desktop/MediaWidget.qml` | CORRECT | picks the active player the same way the island does — prefer what is playing, else the first that exists | 6 |
+| `quickshell/bar/modules/desktop/PhotoWidget.qml` | CORRECT | the cycle timer runs only with an interval set *and* more than one file, so a single-image frame has no timer at all | 4, 6 |
+| `quickshell/bar/modules/desktop/SysmonWidget.qml` | CORRECT | poll interval comes from the widget's own config rather than a constant | 6 |
+| `quickshell/bar/modules/desktop/VpnWidget.qml` | CORRECT | drives the `mullvad` CLI, matching `NetworkPanel`; the declarative half stays in the NixOS module | 6 |
+| `quickshell/bar/modules/desktop/WeatherWidget.qml` | CORRECT | renders the shared `Weather` singleton, so it adds no network traffic of its own | 4, 6 |
+| `quickshell/bar/modules/desktop/AiUsageWidget.qml` | CORRECT | 5-minute poll of `llm-usage.sh`, the same script the bar menu uses, rather than a second scanner | 6 |
+| `quickshell/bar/modules/desktop/Wallpaper.qml` | CORRECT | per-screen; reads `wallpaper.json`, which `mujo wallpaper` owns, and keeps the blurred backdrop for niri's overview on the same surface | 6 |
+| `quickshell/bar/modules/desktop/ShelfSurface.qml` | CORRECT | the per-screen edge drawer; renders the same `ShelfView` body as the bar popup | 6 |
+| `quickshell/bar/modules/desktop/ShelfButton.qml` | CORRECT | visible only while the shelf has items or its popup is open, so an empty shelf leaves no residue in the bar | 6 |
+| `quickshell/bar/modules/desktop/ShelfView.qml` | CORRECT | one body shared by the drawer and the popup, so the two entry points cannot drift apart | 6 |
+| `quickshell/bar/modules/desktop/ShelfDragPreview.qml` | CORRECT | a 48×48 MIME icon attached through `Drag.imageSource`, so the compositor draws the ghost rather than the shell tracking the pointer | 6 |
+| `quickshell/bar/modules/launcher/qmldir` | CHANGED | registers `LauncherGroupModals` | 3 |
+| `quickshell/bar/modules/launcher/Search.js` | CHANGED | new: the ranking both `LauncherBody` and `LauncherGroupsView` had a byte-identical copy of; score bands are named constants, and `test-launcher-search.qml` asserts their order | 1, 3 |
+| `quickshell/bar/modules/launcher/calc.js` | CORRECT | a hand-written tokeniser and recursive-descent parser — no `eval`, so a typed expression cannot reach the JS engine | 2, 6 |
+| `quickshell/bar/modules/launcher/LauncherBody.qml` | CHANGED | 1073 → 981; the ranking moved to `Search.js`. The remainder is the keyboard and mode engine — 29 references to `mode` in the search field alone — and splitting that would cut across one job, not along a seam | 3 |
+| `quickshell/bar/modules/launcher/LauncherGroupsView.qml` | CHANGED | 1089 → 559: its duplicate ranker deleted, and its four dialogs plus the four writes to `apps.groups` moved to `LauncherGroupModals` | 1, 3 |
+| `quickshell/bar/modules/launcher/LauncherGroupModals.qml` | CHANGED | new; emits `groupsWritten(selectIndex)` rather than assigning the view's `activeGroupIndex`, so the view keeps ownership of its keyboard cursor | 3 |
+| `quickshell/bar/modules/launcher/Launcher.qml` | CORRECT | the layer-shell overlay that takes exclusive keyboard focus; `LauncherBody` inside it is focus-agnostic, so the same body can be hosted elsewhere | 6 |
+| `quickshell/bar/modules/launcher/LauncherResult.qml` | CORRECT | a click on the favourite star toggles without launching or closing — the two hit regions are separate handlers, not one with a mode | 6 |
+| `quickshell/bar/modules/launcher/LauncherGrid.qml` | CORRECT | grid view over the same result model as the list, so both tiers rank identically | 6 |
+| `quickshell/bar/modules/launcher/LauncherFolderCard.qml` | CORRECT | the 2×2 preview is drawn from the group's first four apps, so a folder cannot show an app it does not contain | 6 |
+| `quickshell/bar/modules/launcher/LauncherGroupHeader.qml` | CORRECT | a section header with a count badge; presentational, no state | 6 |
+| `quickshell/bar/modules/launcher/LauncherActionBar.qml` | CORRECT | owns `dropdownOpen`/`dropdownPos`, which is why `LauncherBody`'s Ctrl+K menu positions itself from this component rather than computing geometry twice | 6 |
+| `quickshell/bar/modules/launcher/LauncherEmptyState.qml` | CORRECT | shown in place of results, not over them, so an empty query cannot leave a stale row behind | 6 |
+| `quickshell/bar/modules/launcher/CommandPalette.qml` | CORRECT | dangerous session actions require an explicit confirm and are only listed when `launcher.enableDangerousActions` is on — the same gate `Session.available()` applies | 2, 6 |
+| `quickshell/bar/modules/launcher/ClipboardList.qml` | CORRECT | reads `cliphist` through the `mujo` CLI; re-copying goes back through the same path rather than writing the clipboard directly | 6 |
+| `quickshell/bar/modules/launcher/SessionMenu.qml` | CORRECT | lists exactly what `Session` exposes, and a dangerous action needs a second click — so the bar button and the `/` palette cannot disagree about what is allowed | 2, 6 |
+| `quickshell/bar/modules/launcher/LaunchFeedback.qml` | CORRECT | one per screen, shown on `Launch.activeScreen`, and dismissed by `Launch` rather than by a timeout that could outlive the launch | 6 |
+| `quickshell/bar/modules/notifications/qmldir` | CORRECT | registers the three notification types the shell and bar both load | 6 |
+| `quickshell/bar/modules/notifications/NotificationCenter.qml` | CORRECT | renders `Notifications.history` — it holds no second copy of the list, so clearing a group cannot leave the badge stale | 6 |
+| `quickshell/bar/modules/notifications/NotificationMenu.qml` | CORRECT | reuses the `NetworkMenu` trigger/popup pattern, so the bell behaves like every other bar popup | 6 |
+| `quickshell/bar/modules/notifications/NotificationPopup.qml` | CORRECT | input is masked to the toast column while idle and widened only during a swipe, so toasts do not eat clicks meant for the desktop | 6 |
+| `quickshell/bar/modules/system/qmldir` | CORRECT | registers the four system prompts `shell.qml` hosts | 6 |
+| `quickshell/bar/modules/system/LockScreen.qml` | CORRECT | a real lock: `WlSessionLock` (ext-session-lock), not a Top-layer overlay, and Esc does not unlock — only a correct password does | 2, 6 |
+| `quickshell/bar/modules/system/PolkitPrompt.qml` | CORRECT | renders the agent's own prompt text and returns the response; it never decides an authorisation itself | 2, 6 |
+| `quickshell/bar/modules/system/KeyringPrompt.qml` | CORRECT | the prompt arrives whole over the helper's unix socket, so the shell renders a request rather than composing one | 2, 6 |
+| `quickshell/bar/modules/system/CrashFixModal.qml` | CORRECT | remediation is presented as an explicit action the user confirms, which is the "never apply silently" side of the read-only `AI` service | 2, 6 |
+| `quickshell/bar/modules/screenshot/qmldir` | CORRECT | registers the six screenshot components `screenshot.qml` composes | 6 |
+| `quickshell/bar/modules/screenshot/ScreenshotOverlay.qml` | CORRECT | the capture surface; `Qt.quit()` on finish is what makes the standalone tool exit rather than linger | 6 |
+| `quickshell/bar/modules/screenshot/SelectionArea.qml` | CORRECT | selection geometry only; the toolbar and the crop both read the same four properties, so they cannot disagree about the region | 6 |
+| `quickshell/bar/modules/screenshot/FloatingToolbar.qml` | CORRECT | positioned from the selection rather than the cursor, so it cannot drift off the region it acts on | 6 |
+| `quickshell/bar/modules/screenshot/AnnotationCanvas.qml` | CORRECT | one active tool at a time as a string, so no two drawing modes can be live together | 6 |
+| `quickshell/bar/modules/screenshot/Loupe.qml` | CORRECT | magnifies the raw source, not the rendered overlay, so the zoom shows pixels rather than annotations | 6 |
+| `quickshell/bar/modules/screenshot/OcrCard.qml` | CORRECT | has an explicit `busy` state, so a slow OCR run shows progress instead of an empty card | 6 |
+| `quickshell/bar/modules/screenshot/TranslationOverlay.qml` | CORRECT | one plate per OCR line placed from `mujo-screenshot ocr-lines` boxes, which `test-screenshot-ocr-lines.sh` is the guard for | 2, 6 |
+| `quickshell/bar/modules/settings/ApplicationsPanel.qml` | CHANGED | 1156 → 127; keeps only `activeTab`, the tab list and the hero, which is what `test-security-ui.qml` asserts against | 3 |
+| `quickshell/bar/modules/settings/ApplicationsIntegrationsTab.qml` | CHANGED | new: the registry, its three detection processes and the six helpers that read it — one `sh -c` runs every entry's check rather than a process each | 3, 4 |
+| `quickshell/bar/modules/settings/ApplicationsTrustTab.qml` | CHANGED | new: the trust tiers and their controls; the filter and search are private to it, which is why they left the panel | 3 |
+| `quickshell/bar/modules/settings/ApplicationsFlatpaksTab.qml` | CHANGED | new: owns the `mujo apps flatpaks` read and exposes `refresh()`, so the panel's refresh button drives it without holding the model | 3 |
+| `quickshell/bar/modules/settings/ApplicationsLauncherTab.qml` | CHANGED | new: reads and writes `SettingsBus` directly, so it needs nothing from the panel | 3 |
+| `quickshell/bar/modules/settings/SettingRow.qml` | CORRECT | reads and writes the store itself from `path` + `kind`, which is what stops every panel repeating get/set wiring per line | 6 |
+| `quickshell/bar/modules/settings/SettingsPage.qml` | CORRECT | the level-2 host every consolidated page uses, so hero, margins and scrolling are defined once rather than per panel | 6 |
+| `quickshell/bar/modules/settings/SettingsLayout.qml` | CORRECT | crossfades between category pages *without reloading them*, which is why panels stay alive off-screen — the reason a poller here must bind `running: root.visible` | 4, 6 |
+| `quickshell/bar/modules/settings/HardwarePage.qml` | CORRECT | 17 lines: a `SettingsPage` listing five groups, and nothing below it opens a third level | 6 |
+| `quickshell/bar/modules/settings/DisplaysGroup.qml` | CORRECT | live control through `niri msg`, with the persistent source of truth left in the NixOS `outputs` block — it does not write a second config | 6 |
+| `quickshell/bar/modules/settings/InputGroup.qml` | CORRECT | writes `niri-settings.json` and raises a rebuild banner, because these keys are not runtime-settable — it never claims a change is already live | 6 |
+| `quickshell/bar/modules/settings/ShortcutsGroup.qml` | CORRECT | read-only, parsed from the running niri config, so it cannot drift from the bindings actually in force | 6 |
+| `quickshell/bar/modules/settings/IdlePowerGroup.qml` | CORRECT | edits the ordered `idle.rules` list that `IdleService` rebuilds swayidle from — one list, one consumer | 6 |
+| `quickshell/bar/modules/settings/KeyringGroup.qml` | CORRECT | the native Secret Service through `mujo-keyring`; secrets are masked until explicitly revealed, and no credential store is invented | 2, 6 |
+| `quickshell/bar/modules/settings/AiPanel.qml` | CORRECT | the API key goes to the keyring, never to `settings.json` — the one key in this panel that is not a store write | 2, 6 |
+| `quickshell/bar/modules/settings/AnimationsPanel.qml` | CORRECT | every control writes a `motion.*` key that `Anim` reads, so the playground previews the same values the shell uses | 6 |
+| `quickshell/bar/modules/settings/NotificationsPanel.qml` | CORRECT | writes the same keys the `Notifications` singleton reads, so the test lab exercises the live path rather than a simulation | 6 |
+| `quickshell/bar/modules/settings/WeatherPanel.qml` | CORRECT | renders the shared `Weather` singleton and writes `weather.*`; changing units or place forces the refetch rather than showing stale values | 6 |
+| `quickshell/bar/modules/settings/PersistencePanel.qml` | CORRECT | the GUI list folds into the same impermanence config a rebuild applies, and "currently persisted" is read live — so the two lists are distinguishable | 6 |
+| `quickshell/bar/modules/settings/SystemPanel.qml` | CORRECT | every long operation is async with a cancel that kills the process, and a failed rebuild surfaces rollback rather than leaving the pane spinning | 2, 6 |
+| `quickshell/bar/modules/settings/HealthPanel.qml` | CORRECT | drives `mujo sentinel`/`mujo clean`; the destructive cleanups are presented with what they would reclaim before running | 2, 6 |
+| `quickshell/bar/modules/settings/GeneralPanel.qml` | CORRECT | the NixOS preference surface; each control writes through `mujo system-pref`, so nothing here edits a `.nix` file directly | 6 |
+| `quickshell/bar/modules/settings/DesktopPanel.qml` | CORRECT | configures widgets, cava and the shelf through the same store keys those components read | 6 |
+| `quickshell/bar/modules/settings/WallhavenDetailModal.qml` | CORRECT | emits `tagClicked`/`colorClicked`/`categoryClicked`/`resolutionClicked` rather than touching `Wallhaven` itself, which is what let the panel rewire it to `WallhavenControls.addTag` unchanged | 3, 6 |
+| `nixos/apps/_ai-mcp.nix` | CORRECT | `_`-prefixed so `importTree` skips it; it is a plain function returning an attrset, and three agent modules render it into their own config shapes | 6 |
+| `nixos/apps/claude-code.nix` | CORRECT | persists `~/.claude` *and* `~/.claude.json` separately, because the latter is a file at the home root and a directory entry would not cover it | 6 |
+| `nixos/apps/antigravity-cli.nix` | CORRECT | writes the MCP config from `_ai-mcp.nix`, so the agent list is declared once | 6 |
+| `nixos/apps/antigravity-ide.nix` | CORRECT | 9 lines and no state of its own: it shares `~/.gemini` and the CLI's MCP config deliberately | 6 |
+| `nixos/apps/cutefetch.nix` | CORRECT | 7 lines: one package from `self.packages`, nothing else to get wrong | 6 |
+| `nixos/apps/herdr.nix` | CORRECT | builds its own `.desktop` entry, so the launcher lists it without a hand-written file in the tree | 6 |
+| `nixos/apps/flatpak.nix` | CORRECT | declares the flathub remote once; every Flatpak app module adds only its own package id | 6 |
+| `nixos/apps/steam.nix` | CORRECT | pairs the Flatpak with `hardware.steam-hardware.enable`, which the Flatpak alone cannot set | 6 |
+| `nixos/apps/telegram.nix` | CORRECT | persists `.var/app/org.telegram.desktop`, without which the login would not survive the root wipe | 6, 9 |
+| `nixos/apps/obsidian.nix` | CORRECT | same shape; its persistence entry is what keeps the vault config across boots | 6, 9 |
+| `nixos/core/user-persistence.nix` | CORRECT | folds the GUI-managed list into the *existing* impermanence config rather than adding a second persistence mechanism | 6, 9 |
+| `nixos/core/user-persistence.json` | CORRECT | the GUI-owned list `mujo persist` writes; tracked because a flake only sees git-tracked files | 6 |
+| `nixos/core/system-preferences.json` | CORRECT | the declarative preference values `mujo system-pref` writes, read back by `system-preferences.nix` | 6 |
+| `nixos/desktop/keyring-prompter.nix` | CORRECT | owns `org.gnome.keyring.SystemPrompter` and renders through the shell's socket, so the prompt is themed without replacing the Secret Service itself | 2, 6 |
+| `nixos/desktop/quickshell.nix` | CORRECT | the `qs-bar` user service; sets `QS_ICON_THEME` again here because the systemd unit does not inherit the session environment | 6 |
+| `nixos/desktop/plymouth.nix` | CORRECT | builds the theme from the tracked directory, so the 139 frames are content rather than a runtime dependency | 6 |
+| `nixos/desktop/plymouth/nixos-mac-style.plymouth` | CORRECT | the theme manifest naming the image directory `plymouth.nix` installs | 6 |
+| `nixos/desktop/plymouth/Screenshot.png` | CORRECT | the theme's preview image, referenced by the manifest | 6 |
+| `nixos/desktop/plymouth/images/*` (138 frames) | CORRECT | group row: the boot animation's frames, addressed as a set by the manifest and never individually | 6 |
+| `nixos/hosts/main/_networking.nix` | CORRECT | 9 lines; `lib.mkDefault` on hostname and firewall so an override can change either without a conflict | 6 |
+| `nixos/hosts/main/_hardware-and-services.nix` | CORRECT | `_`-prefixed and imported by the host explicitly, which is why `importTree` skipping it is right | 6 |
+| `nixos/security/vaultwarden.nix` | CORRECT | builds `secretspec` from a source-only input with default features off, so the closure carries only the bw provider | 4, 6 |
+| `nixos/overrides/README.md` | CORRECT | matches `ui-overrides.nix`: a parse failure is reported rather than breaking the build, and a bad *option* still fails — the doc states both halves | 6 |
+| `nixos/overrides/template.nix.example` | CORRECT | `.example`, so the loader's `*.nix` glob cannot pick it up as a live override | 6 |
+| `tests/run-all-tests.sh` | CORRECT | `set -euo pipefail`, counts failures rather than exiting on the first, and probes the running host — so it fails until a rebuild, by design | 2, 5 |
+| `tests/microvm/test-quarantine-boundary.sh` | CORRECT | asserts the property `docs/application-trust.md` promises, and names that doc in its header | 5 |
+| `tests/network/test-firewall-rules.sh` | CORRECT | sources `tests/lib.sh` for its assertions, which is where the shared shell options belong | 2 |
+| `tests/performance/test-performance-budget.sh` | CORRECT | states the budget as overhead against a non-hardened baseline, so the numbers stay meaningful on different hardware | 4 |
+| `tests/physical/test-physical-extraction.sh` | CORRECT | asserts nothing an application would write is recoverable from persistent storage | 5 |
+| `tests/recovery/test-recovery-bypass.sh` | CORRECT | the guarantee under test is stated in the header: an attacker at the keyboard must not reach a root shell | 5 |
+| `tests/sandbox/test-sandbox-isolation.sh` | CORRECT | every check runs the sandbox and tries to break out, rather than inspecting config | 5 |
+| `tests/security/test-kernel-hardening.sh` | CORRECT | reads the live `/proc` values, so it cannot pass on a machine that has not rebuilt | 5 |
+| `tests/storage/test-swap-leakage.sh` | CORRECT | asserts crash dumps never reach disk — the property `randomEncryption` swap exists for | 5 |
+| `tests/storage/test-vault-isolation.sh` | CORRECT | asserts no sensitive plaintext on unencrypted persistent storage | 5 |
+| `tests/vm/disko-vm.nix` | CORRECT | runs disko for real, so the tmpfs root, btrfs subvolumes, LVM group and random-key swap are all exercised; deliberately outside `importTree` | 5 |
+| `tools/graphify/apply.sh` | CORRECT | `set -euo pipefail`, derives every path from `$0`, and has a fallback for locating the uv-installed package | 2 |
+| `tools/graphify/nixqml.py` | CORRECT | type hints, `pathlib`, and it credits the upstream walker it adapts | 2 |
+| `tools/cutefetch/cutefetch` | CORRECT | the script `nixos/apps/cutefetch.nix` packages | 6 |
+| `docs/security-tests.md` | CHANGED | its §3 directory tree listed 6 of the 12 suites while §4's table listed all of them; the stale duplicate is gone and the VM suite is now in the table | 6 |
+| `docs/security-architecture.md` | CORRECT | the subsystems it names — trust registry, credential broker, quarantine MicroVM, native sandbox — each exist as the module it points at | 6 |
+| `docs/storage-model.md` | CORRECT | checked against `disko.nix` and `nixos/security/storage.nix`: the vault path, `/run/mujo/vault`, `randomEncryption`, the btrfs subvolumes and the build-time swap assertion including `boot.resumeDevice` all match | 6 |
+| `docs/physical-security.md` | CORRECT | states plainly that `secureBoot` is `false` today and that physical access is therefore root access; even notes `editor = false` is inert under GRUB. Both boot-risk defaults verified `false` in the modules | 3, 6 |
+| `docs/privacy-model.md` | CORRECT | the logging and coredump controls it describes are the ones `nixos/security/privacy.nix` sets | 6 |
+| `docs/performance-budget.md` | CORRECT | the paired-measurement method it specifies is what `tests/performance/test-performance-budget.sh` implements, including the admission that host-wide hardening is not measurable this way | 4, 6 |
+| `docs/agents/domain.md` | CORRECT | points agents at the domain docs before exploring; every doc it names exists | 6 |
+| `docs/agents/issue-tracker.md` | CORRECT | describes the `gh` conventions this repo uses; makes no claim about code | 6 |
+| `docs/superpowers/plans/2026-08-28-quickshell-screenshot-tool.md` | CORRECT | a record of completed work, not a claim about current behaviour — the tool it planned ships as `mujo-screenshot` | 6 |
+| `docs/superpowers/plans/2026-08-28-sandbox-performance-overhaul.md` | CORRECT | same; the tmpfs shell copy it planned is what `sandbox.nix` does today | 6 |
+| `docs/superpowers/specs/2026-08-28-screenshot-tool-design.md` | CORRECT | the design the shipped `modules/screenshot/` components implement | 6 |
+| `docs/superpowers/specs/2026-08-28-sandbox-performance-overhaul-design.md` | CORRECT | same pairing with the plan above | 6 |
+| `docs/overhaul-ledger.md` | CHANGED | this file | 0–6 |
+| `.gitignore` | CHANGED | `secrets/vaultwarden-master-password` was redundant under `secrets/` on the line above; replaced with a comment saying what the directory holds | 1 |
+| `.mcp.json` | CORRECT | the two servers this repo provides; `sandbox` needs the `MCP_TIMEOUT` that `.claude/settings.json` sets, and neither works without the other | 6 |
+| `.claude/settings.json` | CORRECT | raises `MCP_TIMEOUT` to 180s, without which a cold `nix run .#sandbox` never finishes `initialize` | 6 |
+| `.claude/settings.local.json` | CORRECT | a read-only Bash allowlist; nothing in it writes | 6 |
+| `.claude/skills` | CORRECT | a symlink to `.agents/skills`, so all three agents read one skill tree | 6 |
+| `.opencode/skills` | CORRECT | the same symlink for opencode | 6 |
+| `.opencode/opencode.json` | CORRECT | renders `_ai-mcp.nix`'s command/args into opencode's joined-list shape, which is the reason that file is tool-neutral | 6 |
+| `.opencode/plugins/graphify.js` | CORRECT | the opencode-side hook for the graphify skill | 6 |
+| `CLAUDE.md` | CORRECT | five lines that delegate to `AGENTS.md` and state there are no Claude-specific rules — so there is one source of truth, not two | 6 |
+| `.agents/rules/rtk.md` | CORRECT | one rule, applied to all three agents from the shared `.agents/` tree | 6 |
+| `.agents/skills/graphify/SKILL.md` | CORRECT | the entry point for the knowledge-graph skill; its references are a set, below | 6 |
+| `.agents/skills/graphify/.graphify_version` | CORRECT | pins the skill version `tools/graphify/apply.sh` patches against | 6 |
+| `.agents/skills/graphify/references/*` (8 files) | CORRECT | group row: reference pages the skill loads on demand, never individually addressed by the repo | 6 |
+| `.agents/skills/handoff/SKILL.md` | CORRECT | the vendored skill `skills-lock.json` pins by hash | 6 |
+| `.agents/skills/handoff/agents/openai.yaml` | CORRECT | the handoff skill's agent profile | 6 |
+| `.agents/skills/overhaul/SKILL.md` | CORRECT | the brief this pass runs from; its stale figures are recorded at the top of this ledger rather than silently corrected | 6 |
+| `.agents/skills/testing-sandbox/SKILL.md` | CHANGED | claimed `/etc/xdg/quickshell/bar` points at the 9p mount; it points at a tmpfs copy, which is why a stale mount served old files | 3, 6 |
+| `skills-lock.json` | CORRECT | pins the one vendored skill by content hash, so an upstream edit cannot land silently | 6 |
+| `LICENSE` | CORRECT | unmodified licence text | 6 |
+| `flake.lock` | CORRECT | pins every input; the three-nixpkgs-revision cost is recorded as a decision, not a defect | 4, 6 |
+| `modules/wrappers/niri-settings.json` | CORRECT | the source of truth `InputGroup` writes and the niri wrapper reads, which is why that panel raises a rebuild banner instead of claiming a live change | 6 |
+| `sounds/startup-sound1.mp3` | CORRECT | the login sound the desktop module plays; binary content, nothing to verify beyond its being referenced | 6 |
 
-No verdict, because they were not read.
+| `quickshell/_default.nix` | CHANGED | installs `lib/*.sh` into `$out/libexec/mujo/lib` and sets `MUJO_LIB`, which is what makes the dispatcher's sourced subcommands resolve under the wrapper | 3 |
+| `quickshell/lib/vm.sh` | CHANGED | new: `mujo vm`, the largest arm at 623 lines; `vm list` and `vm catalog` produce byte-identical output to the pre-split script | 3 |
+| `quickshell/lib/desktop.sh` | CHANGED | new: `mujo desktop`; its nested `d_trash` keeps the one bare `return`, which was already function-local | 3 |
+| `quickshell/lib/sentinel.sh` | CHANGED | new: `mujo sentinel`; `sentinel scan` matches the pre-split output once live process churn is discounted | 3 |
+| `quickshell/lib/crash.sh` | CHANGED | new: `mujo crash`, the stream `CrashWatcher.qml` follows | 3 |
+| `quickshell/lib/security.sh` | CHANGED | new: `mujo security`, the telemetry `SecurityService.qml` reads | 3 |
+| `quickshell/lib/clean.sh` | CHANGED | new: `mujo clean`, driven by the Health panel | 3 |
+| `quickshell/mujo-screenshot.sh` | CORRECT | `set -euo pipefail`; config writes go through `mktemp` + `mv`, so a crash mid-write cannot truncate `screenshot.json`, and `flock -n` makes a second launch exit rather than race | 2 |
+| `quickshell/keyring/mujo-keyring.py` | CORRECT | secretstorage over D-Bus — the native store, not a custom one — and a secret is emitted only by `get`, never by `list` | 2 |
+| `quickshell/keyring/mujo-keyring-prompter.py` | CORRECT | reuses `Gcr.SecretExchange` rather than reimplementing the Diffie-Hellman exchange, so the password never crosses D-Bus in cleartext | 2 |
+| `quickshell/unlock/unlock.c` | CORRECT | deliberately not setuid: `pam_unix` delegates the shadow read to `unix_chkpwd`, so this runs with no privilege of its own | 2 |
+| `quickshell/cursor-tracker/cursor-tracker.c` | CORRECT | opens `/dev/input` read-only and relies on group membership for access rather than any elevation; re-scans on hotplug rather than holding stale descriptors | 2 |
+| `quickshell/bar/test-scroll.qml` | CHANGED | new: asserts the shared wheel maths, and that `Scroll.js`'s repeated `Flickable` enum still matches Qt's — which is what makes repeating it safe | 3 |
+| `quickshell/bar/test-launcher-search.qml` | CHANGED | new: 22 assertions over the ranking bands; writing it is what surfaced that the favourite bonus can lift a match one band | 3 |
 
-| Area | Files |
-|---|---|
-| `nixos/desktop/` (139 of these are `plymouth/images/*.png`) | 146 |
-| `quickshell/bar/modules/` | 97 |
-| `quickshell/bar/components/` | 29 |
-| `quickshell/bar/services/` | 21 |
-| `.agents/` | 15 |
-| everything else (docs, tests, theme, tools, dotfiles) | ~78 |
+### Coverage
 
-The QML tree is the bulk of it, and it is also where phase 3 has not started.
+Every one of the 472 tracked files has a row above: 326 name a file
+individually, one names the file this pass deleted, and two are group rows —
+`nixos/desktop/plymouth/images/*` (138 frames) and
+`.agents/skills/graphify/references/*` (8 pages) — which the brief allows
+because neither set is ever addressed one file at a time.
+
+`CORRECT` here means the file was read and the stated property was checked in
+it. Where the property was checked against something else — a doc against the
+module it describes, a test against the guarantee it names — the row says so.

@@ -7,12 +7,16 @@ description: Use when testing or visually inspecting quickshell desktop UI, QML 
 
 ## Overview
 
-The testing sandbox (`nixos/sandbox/`) is a throwaway, virgl-accelerated graphical NixOS VM with an embedded MCP stdio server. It boots an isolated Wayland/Niri session with Quickshell running against a live 9p-mount of the repository working tree (`/mnt/nixconf`).
+The testing sandbox (`nixos/sandbox/`) is a throwaway, virgl-accelerated graphical NixOS VM with an embedded MCP stdio server. It boots an isolated Wayland/Niri session with Quickshell running from a tmpfs copy of the repository working tree, re-synced from the read-only 9p mount (`/mnt/nixconf`) on every `reload`.
 
 It allows any agent to make QML changes, reload the running shell, take screenshots, inject input, and inspect logs **without rebuilding NixOS or touching the host desktop session**.
 
 ```
-Host Working Tree (quickshell/bar/) ──(9p ro-mount)──> Guest (/mnt/nixconf -> /etc/xdg/quickshell/bar)
+Host Working Tree (quickshell/bar/) ──(9p ro, cache=none)──> Guest /mnt/nixconf
+                                                                    │  cp -a on every reload
+                                                                    ▼
+                                                      /run/quickshell-bar (tmpfs)
+                                                       = /etc/xdg/quickshell/bar
                                                                  │
                                                             qs-bar.service
                                                                  │
@@ -67,7 +71,7 @@ Host Agent ──(MCP stdio: nix run .#sandbox)──> MCP Server ──> [reloa
 | Tool | Parameters | Description |
 |---|---|---|
 | `screenshot` | *(none)* | Takes a PNG screenshot of the sandbox Wayland display (1280x800). Returns dimensions and image data. |
-| `reload` | *(none)* | Restarts `qs-bar.service` to load working-tree edits; waits for load event and frame settle. |
+| `reload` | *(none)* | Re-copies the working tree into the guest tmpfs, kills any open settings window, restarts `qs-bar.service`, then waits for the load event and frame settle. |
 | `click` | `x` (int), `y` (int), `button` (optional: `"left"` \| `"middle"` \| `"right"`) | Simulates mouse click at absolute pixel coordinates on the 1280x800 screen. |
 | `type` | `text` (string) | Sends keyboard text characters into the currently focused window. |
 | `key` | `keys` (string) | Sends key combo in QEMU sendkey format (e.g. `'meta_l-spc'`, `'meta_l-comma'`, `'ctrl-alt-t'`, `'ret'`). |
@@ -125,7 +129,7 @@ Look for:
 ## Key Rules & Best Practices
 
 1. **Initial Boot Latency**: The first tool call takes ~45 seconds (VM boot + compositor start + quickshell compilation). Do not abort or assume a hang; subsequent tool calls take 1–3 seconds.
-2. **Never Rebuild Host for Sandbox Testing**: The guest's `/etc/xdg/quickshell/bar` points to `/mnt/nixconf/quickshell/bar` (9p working-tree mount). Edits are live immediately upon calling `reload`.
+2. **Never Rebuild Host for Sandbox Testing**: `reload` copies `/mnt/nixconf/quickshell/bar` into the tmpfs at `/run/quickshell-bar`, which `/etc/xdg/quickshell/bar` points at, then restarts `qs-bar`. Working-tree edits are live on the next `reload` — running from RAM is what keeps shell startup under a second rather than ~18s over 9p. The mount is `cache=none` precisely so that copy is current: with `cache=loose` the guest kept serving the bytes it read at boot, and `reload` reported success while showing the old UI.
 3. **Always Register New Components**: Any new `.qml` file added under `components/`, `services/`, or `modules/<domain>/` must be listed in that directory's `qmldir`.
 4. **Headless & Isolated**: The sandbox runs offscreen via `egl-headless` using the host's GPU render node (`/dev/dri/renderD128`). It does not draw to the host screen or interfere with host windows.
 5. **Disposable Root**: The guest root filesystem is a tmpfs. Any files created inside the guest die when the MCP connection closes. Host files under `/mnt/nixconf` are mounted strictly read-only.

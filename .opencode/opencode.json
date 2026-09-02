@@ -2,12 +2,5 @@
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
     ".opencode/plugins/graphify.js"
-  ],
-  "mcp": {
-    "sandbox": {
-      "type": "local",
-      "command": ["nix", "run", ".#sandbox"],
-      "enabled": true
-    }
-  }
+  ]
 }

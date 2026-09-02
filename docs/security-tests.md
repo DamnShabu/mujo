@@ -53,29 +53,7 @@ This test procedure verifies that removing the physical NVMe drive yields no sen
 
 ---
 
-## 3. Automated Test Directory Layout
-
-The test suite in `tests/` mirrors this specification:
-
-```
-tests/
-├── run-all-tests.sh               # Consolidated test harness
-├── security/
-│   └── test-kernel-hardening.sh   # Validates sysctls, ptrace, and BPF protections
-├── storage/
-│   ├── test-vault-isolation.sh    # Verifies LUKS2 container boundaries & tmpfs root
-│   └── test-swap-leakage.sh       # Verifies swap and coredump leak policies
-├── network/
-│   └── test-firewall-rules.sh     # Validates firewall and network stack hardening
-├── sandbox/
-│   └── test-sandbox-isolation.sh  # Verifies sandbox boundary containment
-└── physical/
-    └── test-physical-extraction.sh# Offline storage analysis simulator
-```
-
----
-
-## 4. Suite Layout
+## 3. Suite Layout
 
 `bash tests/run-all-tests.sh` runs everything. Each file probes the **running
 system**, never the flake, so the suite is red until the configuration has been
@@ -94,6 +72,7 @@ applied — a check that cannot fail is not a check.
 | `tests/recovery/test-recovery-bypass.sh` | SEC-011 | unauthenticated recovery, boot tampering, hibernation |
 | `tests/redteam/test-boundary-violations.sh` | — | the full escape matrix, every expected result DENIED |
 | `tests/performance/test-performance-budget.sh` | — | isolation overhead against the budget |
+| `tests/vm/run.sh` | — | the storage model itself: installs the host config onto real disko-formatted disks in a throwaway VM |
 
 ### On the performance suite
 

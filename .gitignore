@@ -2,8 +2,8 @@ result
 result-*
 __pycache__/
 .direnv/
+# The vault master password and anything else under secrets/ stays untracked.
 secrets/
-secrets/vaultwarden-master-password
 .pi/
 .pi-subagents/
 .directory
