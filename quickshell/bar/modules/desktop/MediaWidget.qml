@@ -71,6 +71,11 @@ BaseWidget {
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 cache: true
+                // The disc never exceeds the 96 px its container caps at, so a
+                // 1400x1400 cover would spend ~7 MB to paint 96x96. Same cap
+                // the Overview card's copy of this art already uses.
+                sourceSize.width: 96
+                sourceSize.height: 96
             }
 
             // Vinyl center hole

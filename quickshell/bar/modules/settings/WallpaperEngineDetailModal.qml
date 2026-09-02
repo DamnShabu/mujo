@@ -190,6 +190,10 @@ Rectangle {
                         asynchronous: true
                         cache: true
                         smooth: true
+                        // Same cap as the wallhaven modal: fit mode scales into
+                        // the box anyway, and the modal never exceeds 960x680.
+                        sourceSize.width: 960
+                        sourceSize.height: 680
 
                         Spinner {
                             anchors.centerIn: parent

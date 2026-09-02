@@ -74,6 +74,20 @@ BaseWidget {
             fillMode: root.fitMode === "fit" ? Image.PreserveAspectFit : Image.PreserveAspectCrop
             asynchronous: true
             cache: false
+            // Decode near the on-screen size, not at the camera's. A 24 MP
+            // photo is ~48 MB of RGBA to paint a frame a few hundred pixels
+            // wide, and `cache: false` pays that again on every rotation.
+            // Quantised to 256 px steps because width and height animate when
+            // the widget is resized, and an unquantised binding would re-decode
+            // the photo on every frame of that animation.
+            // ponytail: the 2x box keeps crop-fill sharp for aspect mismatches
+            // up to 2:1 either way; a true panorama in a tall frame still
+            // softens. Derive the box from the source's own aspect
+            // (implicitWidth/implicitHeight, known after first load) if it shows.
+            readonly property int decodeBox: Math.max(256,
+                Math.ceil(2 * Math.max(width, height) / 256) * 256)
+            sourceSize.width: decodeBox
+            sourceSize.height: decodeBox
         }
     }
 }

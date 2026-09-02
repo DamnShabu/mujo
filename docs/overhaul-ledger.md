@@ -1,37 +1,23 @@
-| Metric | Phase 0 | Phase 3 start | Now |
-|---|---|---|---|
-| `nix flake check` | pass | pass | pass |
-| Tracked files | 448 | 450 | 472 |
-| Tracked lines | 69,417 | 70,175 | 70,069 |
-| Largest file in the repo | 3,833 (`mujo.sh`) | 3,833 | 2,292 (`mujo.sh`) |
-| Largest QML file | 2,933 | 2,933 | 1,027 (`DesktopWidgets.qml`) |
-| `WallpaperPanel.qml` | 2,933 | 2,933 | 590 |
-| Files over 1,000 lines | 6 | 6 | 1 |
-| QML self-checks that terminate | 0 of 7 | 0 of 7 | 10 of 10 |
-| `test-lifetime.py` | 4/4 | 4/4 | 6/6 |
-| Files with a ledger verdict | 0 | 84 | 472 of 472 |
-
-Tracked lines are now below the phase 0 baseline, which the phase 1 gate asked
-for and did not get at the time. That is not a deletion sweep succeeding late —
-it is one dead 1,180-line component, ~200 lines of duplicated logic, and 130
-lines of unused `MujoFlickable` API, against the ~500 lines of self-checks and
-comments this pass added.# Overhaul ledger
+# Overhaul ledger
 
 Branch `overhaul`, off `main` at `9870808`.
 
-## Status: phases 0–3 and 5–6 done, 4 partial
+## Status: phases 0–6 done
 
 **All 472 tracked files carry a verdict.** `CORRECT` in this ledger means the
 file was read and a specific property was checked in it; it is never a synonym
 for "not touched".
 
-What is genuinely finished: the phase 0 baseline, the phase 1 deletion sweep over
-Nix module arguments and dead packages, and the phase 2 correctness/security pass
-over every trust boundary the brief names (`mujo-trustd`, the credential broker,
+The phase 0 baseline, the phase 1 deletion sweep over Nix module arguments and
+dead packages, and the phase 2 correctness/security pass over every trust
+boundary the brief names (`mujo-trustd`, the credential broker,
 `nixos/sandbox/mcp.py`, the tray relay) plus the threat-model cross-check.
 
-Phase 4 is the one that stays partial: the measurable wins that remain all cost
-a feature, so they are listed as decisions rather than taken.
+Phase 4 was left partial by the earlier pass and is now closed: all five shapes
+the brief names have been swept, and the one that had not been — full-resolution
+image decode into small views — turned up four sites and was fixed. What remains
+unchanged in phase 4 is only the closure size, where every further win costs a
+feature; those are decisions 5–7 below, not work left undone.
 
 ### The brief's own numbers were stale
 
@@ -460,7 +446,7 @@ Two duplications died with these:
 |---|---|---|---|
 | `nix flake check` | pass | pass | pass |
 | Tracked files | 448 | 450 | 472 |
-| Tracked lines | 69,417 | 70,175 | 70,069 |
+| Tracked lines | 69,417 | 70,175 | 70,242 |
 | Largest file in the repo | 3,833 (`mujo.sh`) | 3,833 | 2,292 (`mujo.sh`) |
 | Largest QML file | 2,933 | 2,933 | 1,027 (`DesktopWidgets.qml`) |
 | `WallpaperPanel.qml` | 2,933 | 2,933 | 590 |
@@ -469,15 +455,111 @@ Two duplications died with these:
 | `test-lifetime.py` | 4/4 | 4/4 | 6/6 |
 | Files with a ledger verdict | 0 | 84 | 472 of 472 |
 
-Tracked lines are now below the phase 0 baseline, which the phase 1 gate asked
-for and did not get at the time. That is not a deletion sweep finally landing —
-it is one dead 1,180-line component, ~200 lines of duplicated logic and 130
-lines of unused `MujoFlickable` API, set against the ~500 lines of self-checks
-and comments this pass added.
+The 70,242 figure counts this ledger, which is 1,085 lines that did not exist at
+phase 0. Net of it the tree is **69,157 lines against a 69,417 baseline** — 260
+below, which is what the phase 1 gate asked for and did not get at the time. That
+is not a deletion sweep finally landing: it is one dead 1,180-line component,
+~200 lines of duplicated logic and 130 lines of unused `MujoFlickable` API, set
+against the ~500 lines of self-checks and comments the pass added.
+
+Two notes on reproducing these numbers, because the obvious way gets them wrong.
+The phase 0 baseline was measured on the **working tree** at session start, which
+already carried the 79-file staged security tree later landed in `05f4601` — so
+`git ls-tree 9870808` counts 60,897 and is not a comparison point for it. And
+`git ls-files | xargs wc -l` is the measure throughout; "excluding `docs/`" gives
+67,155 today but the baseline included `docs/`, so the two do not subtract.
 
 ---
 
 ## Phase 4 — performance
+
+### Gate
+
+```
+$ nix flake check
+building '/nix/store/p8k4620rm9swcd4pxv91kssm19c5sm46-nixos-system-main-26.11.20260719.241313f.drv'...
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux
+
+$ cd quickshell/bar && for t in icons grid notifications shelf settings-ui \
+      security-ui desktop wallpaper-panel scroll; do qs -p "./test-$t.qml"; done
+PASS  Icons: 88 actions + 48 file types resolve
+PASS  DesktopGrid: all occupancy checks green
+PASS  Notifications: daemon, icon resolver, grouping, and history tests succeeded
+PASS  Shelf: state management, URI/path normalization, deduplication, and icon resolution verified
+PASS  settings UI: rows bind, page hosts, routing resolves
+PASS  security UI: service binds, trust tab renders, vault controls active
+PASS  desktop layout: 0 items placed, no overlaps, grid agrees
+PASS  wallpaper panel: components resolve, tag query parses
+PASS  scroll: enum matches Qt, both components resolve, wheel maths hold
+
+$ bash nixos/apps/test-trust-registry-lock.sh
+ok: registry lock keeps every concurrent update (unlocked loses 19)
+
+$ python3 nixos/sandbox/test-lifetime.py
+6/6 sandbox lifetime checks passed
+
+$ python3 nixos/apps/test-tray-relay.py
+ok: tray items cross from the guest bus to the host bus
+
+$ bash tests/vm/run.sh                    # phase 6's re-run on the final tree
+  [PASS] native sandbox, CPU workload: 664ms -> 691ms (4%, budget 5%)
+  [PASS] native sandbox, launch overhead: +18ms
+  [PASS] storage write throughput: 3764 MB/s (136ms for 512MiB, informational)
+  Summary: 3 passed, 0 failed, 1 skipped.             STATUS: PASS
+  SECURITY TESTS COMPLETED WITH 1 FAILURES
+```
+
+Same single failure as the run recorded under phase 2, and the same harness
+artifact: qemu boots the kernel directly, `/boot` stays empty, so no system
+profile generation exists for the recovery suite to roll back to. Not weakened.
+The performance numbers land within a few ms of that earlier run (640→664 ms
+CPU, +14→+18 ms launch), so the image changes cost nothing measurable there.
+
+Sandbox after the change: shell reaches `INFO: Configuration Loaded` with no QML
+error, and the bar renders identically to the phase 0 screenshots. The only
+journal warnings are the sandbox's own missing hardware (no pipewire, no network
+backend, no bluez, no wallpaper file).
+
+### Four full-resolution decodes into small views
+
+The brief names "images loaded at full resolution into small views" as a phase 4
+shape, and the earlier pass did not sweep it. Four `Image`s had no `sourceSize`
+while the rest of the shell already sets one — `NotificationCenter`,
+`NotificationPopup`, `TrayIconDelegate` and all three wallpaper grids do. These
+four were the gaps in an existing convention, not a new one.
+
+| Where | Decoded | Painted into | Now |
+|---|---|---|---|
+| `PhotoWidget.qml` | the camera's full resolution, **again on every rotation** (`cache: false`) | a 288×216 default frame | quantised 2× box (768² at the default size) |
+| `MediaWidget.qml` | whatever the player publishes (covers run to 1400²) | a disc capped at 96 px | 96×96 |
+| `WallhavenDetailModal.qml` | the full wallhaven image, to 5120×2880 | a pane inside a 960×680 modal | 960×680 |
+| `WallpaperEngineDetailModal.qml` | same | same | 960×680 |
+
+`PhotoWidget` was the worst of the four and is the only one with a tradeoff. It
+crop-fills, so the decode box has to cover the frame after cover-scaling, and the
+source's aspect ratio is not known until it has already been decoded once. The
+box is therefore `2 × max(width, height)`, which keeps crop-fill sharp for aspect
+mismatches up to 2:1 either way and covers every camera aspect ratio in use
+(3:2 and 16:9 included). A true panorama in a tall frame still softens; that
+ceiling and its upgrade path are stated at the binding.
+
+The 256 px quantisation is not tidiness. The widget's `width` and `height` are
+animated on resize, so a binding straight to them would re-decode the photo on
+every frame of that animation — strictly worse than the full-resolution decode it
+replaces.
+
+**Evidence limit, stated rather than papered over.** None of these four could be
+rendered in the sandbox: desktop widgets do not composite there at all (a plain
+`clock` widget, with none of this change in it, is equally invisible), album art
+needs an MPRIS player, and both modals need network. What the sandbox does prove
+is that the shell loads clean and the bar is unchanged. Beyond that: the two
+modals are lossless by construction — `PreserveAspectFit` scales into the box
+regardless, and the box *is* the modal's own maximum — and `MediaWidget` takes
+the cap its container already enforced and that the Overview card's copy of the
+same art has used all along.
+
+### The earlier pass
 
 One change taken, because it cost nothing:
 
@@ -514,6 +596,25 @@ can be bumped alone — but it is not free either. See decisions.
 
 One micro-fix taken because it costs nothing: `test-tray-relay.py` spawned
 `sleep 0.02` as a subprocess up to 200 times to poll for a socket. `time.sleep`.
+
+### The other four shapes, swept and clean
+
+Recorded so the next pass does not hunt them again.
+
+- **Per-frame property bindings** — none. Every `Canvas` repaint in the shell is
+  event-driven (`onLevelsChanged`, `onPhaseChanged`, a drag), never timer-driven.
+  `MujoLivingCanvas` gates its phase animation on `root.visible` *and*
+  `Anim.illustrations`; `Cava` is reference-counted through `acquire`/`release`
+  and its `Process` is bound to `cava.active`, so the visualiser holds no process
+  when nothing is showing it.
+- **`Process` in a loop** — none. No `Process` is declared inside a `Repeater`
+  delegate anywhere in `modules/` or `services/`.
+- **Timers polling where a watcher exists** — the remaining `running: true`
+  timers are all on surfaces that are showing when they run: the clock and
+  battery pills, and desktop widgets, which `DesktopWidgets.qml` instantiates
+  only for entries the user actually placed in `widgets.json`. `LlmTrackerMenu`
+  already backs its own poll off from 30 s to 300 s when the menu is closed.
+- **Nix `import`s inside `mkIf` branches** — none in the tree.
 
 ---
 
@@ -740,7 +841,7 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/modules/settings/qmldir` | CHANGED | registers the five new settings components | 3 |
 | `quickshell/bar/test-wallpaper-panel.qml` | CHANGED | new: loads the panel through all four tabs and asserts `TagQuery` against the behaviour it replaced | 3 |
 | `quickshell/bar/services/Notifications.qml` | CHANGED | `soundProc.kill()` → `running = false`; `Process` has no `kill()`, and the `TypeError` silently aborted `playSound()` | 3 |
-| `quickshell/bar/modules/settings/WallpaperEngineDetailModal.qml` | CHANGED | null-guard on `wallpaperItem.is_local`, which threw on every evaluation while the modal was closed | 3 |
+| `quickshell/bar/modules/settings/WallpaperEngineDetailModal.qml` | CHANGED | null-guard on `wallpaperItem.is_local`, which threw on every evaluation while the modal was closed; `sourceSize` capped at the modal's 960×680 like its wallhaven twin | 3, 4 |
 | `quickshell/bar/test-icons.qml` | CHANGED | checks moved into `Timer { interval: 0 }` so the process exits; `Qt.exit()` from `onCompleted` is a no-op | 3 |
 | `quickshell/bar/test-grid.qml` | CHANGED | same | 3 |
 | `quickshell/bar/test-notifications.qml` | CHANGED | same; also the first run of this check to reach its verdict, once `Process.kill` stopped throwing | 3 |
@@ -834,8 +935,8 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/modules/desktop/ClockWidget.qml` | CORRECT | a `BaseWidget`, so it inherits the shared frame instead of restating it | 6 |
 | `quickshell/bar/modules/desktop/CalendarWidget.qml` | CORRECT | reuses the bar's `CalendarMenu` verbatim rather than growing a second calendar | 1, 6 |
 | `quickshell/bar/modules/desktop/CavaWidget.qml` | CORRECT | reference-counts the `Cava` singleton, so the cava process exists exactly while a cava widget does | 4, 6 |
-| `quickshell/bar/modules/desktop/MediaWidget.qml` | CORRECT | picks the active player the same way the island does — prefer what is playing, else the first that exists | 6 |
-| `quickshell/bar/modules/desktop/PhotoWidget.qml` | CORRECT | the cycle timer runs only with an interval set *and* more than one file, so a single-image frame has no timer at all | 4, 6 |
+| `quickshell/bar/modules/desktop/MediaWidget.qml` | CHANGED | `sourceSize` 96×96 on the album art, the cap its own container already enforces — the Overview card's copy of the same art had it, this one did not | 4, 6 |
+| `quickshell/bar/modules/desktop/PhotoWidget.qml` | CHANGED | decodes photos at a quantised 2× box instead of full camera resolution; with `cache: false` the full-size decode was paid again on every rotation | 4, 6 |
 | `quickshell/bar/modules/desktop/SysmonWidget.qml` | CORRECT | poll interval comes from the widget's own config rather than a constant | 6 |
 | `quickshell/bar/modules/desktop/VpnWidget.qml` | CORRECT | drives the `mullvad` CLI, matching `NetworkPanel`; the declarative half stays in the NixOS module | 6 |
 | `quickshell/bar/modules/desktop/WeatherWidget.qml` | CORRECT | renders the shared `Weather` singleton, so it adds no network traffic of its own | 4, 6 |
@@ -902,7 +1003,7 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/modules/settings/HealthPanel.qml` | CORRECT | drives `mujo sentinel`/`mujo clean`; the destructive cleanups are presented with what they would reclaim before running | 2, 6 |
 | `quickshell/bar/modules/settings/GeneralPanel.qml` | CORRECT | the NixOS preference surface; each control writes through `mujo system-pref`, so nothing here edits a `.nix` file directly | 6 |
 | `quickshell/bar/modules/settings/DesktopPanel.qml` | CORRECT | configures widgets, cava and the shelf through the same store keys those components read | 6 |
-| `quickshell/bar/modules/settings/WallhavenDetailModal.qml` | CORRECT | emits `tagClicked`/`colorClicked`/`categoryClicked`/`resolutionClicked` rather than touching `Wallhaven` itself, which is what let the panel rewire it to `WallhavenControls.addTag` unchanged | 3, 6 |
+| `quickshell/bar/modules/settings/WallhavenDetailModal.qml` | CHANGED | `sourceSize` capped at the modal's own 960×680 maximum; fit mode scales into that box anyway, so a 5120×2880 preview was decoding ~59 MB to paint a pane that cannot exceed it | 3, 4, 6 |
 | `nixos/apps/_ai-mcp.nix` | CORRECT | `_`-prefixed so `importTree` skips it; it is a plain function returning an attrset, and three agent modules render it into their own config shapes | 6 |
 | `nixos/apps/claude-code.nix` | CORRECT | persists `~/.claude` *and* `~/.claude.json` separately, because the latter is a file at the home root and a directory entry would not cover it | 6 |
 | `nixos/apps/antigravity-cli.nix` | CORRECT | writes the MCP config from `_ai-mcp.nix`, so the agent list is declared once | 6 |
