@@ -25,6 +25,12 @@ Rectangle {
 
     HoverHandler { id: rowHh }
 
+    // The control inside carries the interactive role; the row groups the label
+    // and helper text with it so a screen reader reads them together.
+    Accessible.role: Accessible.Grouping
+    Accessible.name: root.title
+    Accessible.description: root.description
+
     // The row content sits flush with the card's content column so icons and
     // controls line up with the card header and its divider. The hover
     // highlight is a separate rectangle that bleeds outwards into the card's

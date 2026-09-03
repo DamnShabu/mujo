@@ -51,20 +51,26 @@ Scope {
         return "{ " + g.join(" || ") + "; } && exit 0; " + cmd
     }
 
+    // `security.lockOnSuspend`: swayidle's before-sleep hook is the only place
+    // the session can be locked *before* the machine sleeps, so this is what the
+    // switch controls.
+    readonly property bool lockOnSuspend: SettingsBus.get("security.lockOnSuspend", true)
+
     readonly property var cmdline: {
-        if (!enabled || !rules || !rules.length) return []
+        if (!enabled) return []
         var a = ["swayidle", "-w"]
-        for (var i = 0; i < rules.length; i++) {
-            var r = rules[i]
+        var rs = rules || []
+        for (var i = 0; i < rs.length; i++) {
+            var r = rs[i]
             var t = Math.max(1, parseInt(r.timeoutSec) || 0)
             if (!t) continue
             a.push("timeout", String(t), _guard(r, _on(r)))
             var res = _resume(r)
             if (res) a.push("resume", res)
         }
-        // Always lock before the machine actually sleeps.
-        a.push("before-sleep", root._lockCmd)
-        return a
+        if (lockOnSuspend) a.push("before-sleep", root._lockCmd)
+        // Nothing to watch for: no rules and no sleep hook.
+        return a.length > 2 ? a : []
     }
 
     property bool _pendingReload: false

@@ -15,7 +15,7 @@ Item {
     property bool launcherOpen: false
 
     // Transparent panel — the bar reads as detached floating groups over the
-    // wallpaper, not an edge-to-edge slab. Each cluster is its own BarGroup.
+    // wallpaper, not an edge-to-edge slab. Each cluster is its own BarCluster.
 
     // Catch clicks on empty / transparent space of the bar to dismiss open GUIs.
     MouseArea {
@@ -24,15 +24,19 @@ Item {
         onClicked: PopupCoordinator.closeAll()
     }
 
+    // Gap between pills inside a cluster (`bar.spacing`). The right cluster runs
+    // two px tighter because it holds bare icons, not pills.
+    readonly property int clusterGap: SettingsBus.get("bar.spacing", 6)
+
     // Left cluster: launcher trigger + workspaces + active window nexus
-    BarGroup {
+    BarCluster {
         id: leftGroup
         anchors {
             verticalCenter: parent.verticalCenter
             left: parent.left
             leftMargin: Theme.barMargin
         }
-        spacing: Theme.groupPadding + 2   // pills need more air than icons do
+        spacing: root.clusterGap
         contentAlign: Qt.AlignLeft        // pinned left, so a leaving pill never shifts the launcher
         auraColor: Theme.accent
 
@@ -72,14 +76,14 @@ Item {
 
     // Right cluster: data-driven (WP-17). `bar.rightModules` sets both order and
     // visibility — drop a name to hide it, reorder to rearrange.
-    BarGroup {
+    BarCluster {
         id: rightGroup
         anchors {
             verticalCenter: parent.verticalCenter
             right: parent.right
             rightMargin: Theme.barMargin
         }
-        spacing: Theme.groupPadding
+        spacing: Math.max(0, root.clusterGap - 2)
         contentAlign: Qt.AlignRight
         auraColor: Theme.accent
 

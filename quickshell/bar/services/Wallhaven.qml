@@ -131,6 +131,7 @@ QtObject {
         searchProc.currentSeq = wh._activeSearchSeq
         searchProc.isReset = resetPage
         searchProc.command = ["mujo", "wallpaper", "search", JSON.stringify(payload)]
+        searchTimeoutTimer.restart()
         searchProc.running = true
     }
 
@@ -141,6 +142,7 @@ QtObject {
     }
 
     function cancel() {
+        searchTimeoutTimer.stop()
         if (searchProc.running) {
             searchProc.running = false
             wh.loading = false
@@ -223,6 +225,7 @@ QtObject {
         property bool isReset: true
         stdout: StdioCollector {
             onStreamFinished: {
+                searchTimeoutTimer.stop()
                 if (searchProc.currentSeq !== wh._activeSearchSeq) return
                 wh.loading = false
                 wh.loadingMore = false
@@ -284,6 +287,23 @@ QtObject {
                     wh.errorType = "parse_error"
                     wh.searchFailed(wh.error, wh.errorType)
                 }
+            }
+        }
+    }
+
+    // Safety Search Timeout Timer
+    property Timer _searchTimeout: Timer {
+        id: searchTimeoutTimer
+        interval: 26000
+        repeat: false
+        onTriggered: {
+            if (searchProc.running) {
+                searchProc.running = false
+                wh.loading = false
+                wh.loadingMore = false
+                wh.error = "Connection timed out. Please check your network."
+                wh.errorType = "timeout"
+                wh.searchFailed(wh.error, wh.errorType)
             }
         }
     }

@@ -17,7 +17,8 @@ ShellRoot {
         height: 600
 
         SecurityGroup { id: secGroup }
-        ApplicationsPanel { id: appsPanel }
+        ApplicationsTrustTab { id: trustView }
+        ApplicationsGroup { id: appsGroup }
     }
 
     // Quickshell connects Qt.exit() only once the config has finished
@@ -36,13 +37,16 @@ ShellRoot {
             // 2. SecurityGroup component instantiation
             check("SecurityGroup instantiated", secGroup !== null)
 
-            // 3. ApplicationsPanel component & Progressive Trust tab
-            check("ApplicationsPanel instantiated", appsPanel !== null)
-            check("ApplicationsPanel has trust tab in tabs", appsPanel.tabs.some(function(t) { return t.id === "trust" }))
+            // 3. Progressive Trust now lives on the Security page, not in the
+            //    Applications tab strip. Both halves of that move are checked.
+            check("Trust view instantiated", trustView !== null)
+            check("ApplicationsGroup instantiated", appsGroup !== null)
+            check("Applications no longer carries a trust tab",
+                  !appsGroup.tabs.some(function (t) { return t.id === "trust" }))
+            check("Applications keeps its three own tabs", appsGroup.tabs.length === 3)
 
-            // Test tab switching to trust
-            appsPanel.activeTab = "trust"
-            check("ApplicationsPanel activeTab switches to trust", appsPanel.activeTab === "trust")
+            appsGroup.activeTab = "flatpaks"
+            check("Applications activeTab switches", appsGroup.activeTab === "flatpaks")
 
             if (root.fails.length === 0) {
                 console.log("PASS  security UI: service binds, trust tab renders, vault controls active")

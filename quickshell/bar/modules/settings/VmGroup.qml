@@ -348,7 +348,7 @@ ColumnLayout {
     }
 
     MujoCard {
-        title: "Virtual machines"
+        title: "Virtual Machines"
         iconName: "dns"
         badgeText: String(root.vmData.activeCount || 0) + " / " + String(root.vmData.totalCount || 0) + " ACTIVE"
         collapsible: false

@@ -13,4 +13,3 @@ TrayIconDelegate TrayIconDelegate.qml
 TrayMenu TrayMenu.qml
 LlmTrackerMenu LlmTrackerMenu.qml
 Island Island.qml
-IslandPanel IslandPanel.qml

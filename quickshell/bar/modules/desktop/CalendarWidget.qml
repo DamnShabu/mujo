@@ -22,6 +22,7 @@ BaseWidget {
 
         CalendarMenu {
             id: cal
+            showWeekNumbers: SettingsBus.get("desktop.calendar.showWeekNumbers", false)
             anchors.centerIn: parent
             transformOrigin: Item.Center
             scale: Math.max(0.4, Math.min(parent.width / Math.max(1, cal.implicitWidth),

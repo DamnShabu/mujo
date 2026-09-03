@@ -1,12 +1,13 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
 import Quickshell
 import Quickshell.Io
 import "../../theme"
 import "../../components"
 import "../../services"
 
-// The settings shell: fixed 260px sidebar (brand, omni-search, 4–5 categories
+// The settings shell: fixed 260px sidebar (brand, omni-search, seven categories
 // with a sliding glider and count badges) + a fluid content pane that crossfades
 // between category pages without reloading them.
 //
@@ -14,18 +15,19 @@ import "../../services"
 // Nothing here routes to a third level.
 //
 // Categories are data:
-//   { key, label, icon, brand, page: Component }               consolidated
-//   { key, label, icon, brand, panels: [{ key, label, icon, comp }] }
+//   { key, label, icon, brand, subtitle, badge, page: Component, keys: [...] }
 //
-// `panels` is the transitional form — a category whose domains are still the
-// old one-file-per-panel pages shows them on an in-page chip rail instead of a
-// card column. Migrating a category means swapping its `panels` for a `page`;
-// nothing else in here changes.
+// `keys` are the routing aliases the category answers to, so every panel key
+// that existed before the seven-category consolidation still resolves through
+// route() — `mujo settings wallpaper`, `mujo settings dnd`, and the omni-search
+// all enter here.
 Item {
     id: layout
 
     property var categories: []
-    property var searchIndex: []          // [{ title, desc, cat, key }] — key routes like route()
+    property var searchIndex: []          // [{ title, desc, cat, key, card }] — key routes
+                                          // like route(); card names a MujoCard
+                                          // title to scroll to on arrival.
 
     property string current: categories.length > 0 ? categories[0].key : ""
     readonly property int currentIndex: {
@@ -35,37 +37,67 @@ Item {
     }
     readonly property var currentCategory: categories.length > 0 ? categories[currentIndex] : ({ label: "", icon: "" })
 
-    // catKey → selected panel key, for categories still on the chip rail.
-    property var panelSel: ({})
-    function selectPanel(catKey, panelKey) {
-        var m = {}
-        for (var k in panelSel) m[k] = panelSel[k]
-        m[catKey] = panelKey
-        panelSel = m
-    }
-    function panelOf(cat) {
-        if (!cat.panels || cat.panels.length === 0) return ""
-        return panelSel[cat.key] || cat.panels[0].key
-    }
 
-    // Accepts a category key, a panel key, or any key a page claims via
-    // `keys: [...]` — so `mujo settings wallpaper`, Overview's cards and the
-    // omni-search all keep working through one entry point.
-    function route(key) {
+    // A search hit names the card it lives on. The page it belongs to may not
+    // be loaded yet, so the name is parked here and the category host flushes
+    // it once its Loader has produced an item.
+    property string pendingCard: ""
+
+    // Accepts a category key or any key a page claims via `keys: [...]` — so
+    // `mujo settings wallpaper`, `mujo settings dnd` and the omni-search all
+    // keep working through one entry point. `card` is optional and names a
+    // MujoCard title on the destination page.
+    function route(key, card) {
         if (!key) return
         for (var i = 0; i < categories.length; i++) {
             var c = categories[i]
-            if (c.key === key) { current = key; clearSearch(); return }
-            if (c.keys && c.keys.indexOf(key) >= 0) { current = c.key; clearSearch(); return }
-            for (var p = 0; c.panels && p < c.panels.length; p++) {
-                if (c.panels[p].key === key) {
-                    current = c.key
-                    selectPanel(c.key, key)
-                    clearSearch()
-                    return
-                }
+            if (c.key === key || (c.keys && c.keys.indexOf(key) >= 0)) {
+                layout.pendingCard = card || ""
+                current = c.key
+                clearSearch()
+                Qt.callLater(layout.flushPendingCard)
+                return
             }
         }
+    }
+
+    // Set by the current category host so route() can reach the live page.
+    // Deliberately `var`, not `Item`: revealCard is duck-typed across
+    // SettingsPage (six categories) and WallpapersPage (which cannot be one,
+    // because its grids need the full viewport). They share no base type that
+    // could declare the function, so the call is guarded rather than typed.
+    property var currentPage: null
+    function flushPendingCard() {
+        if (layout.pendingCard === "" || !layout.currentPage) return
+        if (typeof layout.currentPage.revealCard !== "function") {
+            layout.pendingCard = ""
+            return
+        }
+        layout.currentPage.revealCard(layout.pendingCard)
+        layout.pendingCard = ""
+    }
+
+    // Below this the sidebar drops its labels and becomes an icon rail: at 260px
+    // of chrome a 700px window leaves too little for a card column.
+    //
+    // searchExpanded overrides it, because an icon-only search box cannot be
+    // typed into. It has to be its own flag rather than searchField.activeFocus:
+    // the field is hidden while compact, and a hidden item cannot take focus, so
+    // keying off focus would never let the rail open.
+    property bool searchExpanded: false
+    readonly property bool compact: layout.width < 860 && !layout.searchExpanded
+
+    function focusSearch() {
+        layout.searchExpanded = true
+        Qt.callLater(function () { searchField.forceActiveFocus() })
+    }
+
+    // Sidebar arrow-key navigation. Clamped rather than wrapping: at seven
+    // entries a wrap reads as a jump, not as continuing in the same direction.
+    function step(d) {
+        if (categories.length === 0) return
+        var i = Math.max(0, Math.min(categories.length - 1, currentIndex + d))
+        current = categories[i].key
     }
 
     // ── Omni-search ──────────────────────────────────────────────────────────
@@ -73,7 +105,11 @@ Item {
     property int searchSel: 0
     readonly property bool searching: query.trim() !== ""
 
-    function clearSearch() { query = ""; searchField.text = "" }
+    function clearSearch() {
+        query = ""
+        searchField.text = ""
+        layout.searchExpanded = false
+    }
 
     function score(e, q) {
         var t = e.title.toLowerCase(), d = e.desc.toLowerCase(), c = e.cat.toLowerCase()
@@ -98,7 +134,7 @@ Item {
     }
     function activateResult(i) {
         if (i < 0 || i >= results.length) return
-        route(results[i].key)
+        route(results[i].key, results[i].card)
     }
 
     // ── External routing ─────────────────────────────────────────────────────
@@ -122,9 +158,12 @@ Item {
 
         // ═════ SIDEBAR ═══════════════════════════════════════════════════════
         Rectangle {
-            Layout.preferredWidth: 260
+            Layout.preferredWidth: layout.compact ? 64 : 260
             Layout.fillHeight: true
             color: Theme.surface
+            Behavior on Layout.preferredWidth {
+                NumberAnimation { duration: Anim.d(Anim.standard); easing.type: Anim.easeStandard }
+            }
 
             Rectangle {
                 anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
@@ -146,6 +185,7 @@ Item {
                     BrandIcon { brand: "mujo"; size: 28; Layout.alignment: Qt.AlignVCenter }
 
                     Text {
+                        visible: !layout.compact
                         text: "Settings"
                         color: Theme.text
                         font.family: Theme.fontFamily
@@ -157,6 +197,7 @@ Item {
                     Item { Layout.fillWidth: true }
 
                     Rectangle {
+                        visible: !layout.compact
                         implicitWidth: mujoBadge.implicitWidth + 8
                         implicitHeight: 18
                         radius: Theme.radiusSm
@@ -185,22 +226,41 @@ Item {
                     border.color: searchField.activeFocus ? Theme.accent : Theme.border
                     Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
+                    // Ctrl+F is unambiguous. "/" is the fast path, but it is also a
+                    // character people type into the Wallhaven query, the API
+                    // base URL and the persistence path box — so it only grabs
+                    // focus when a text field does not already have it.
+                    // echoMode is the cheap "is this a text input" test.
+                    Shortcut {
+                        sequences: ["Ctrl+F"]
+                        onActivated: layout.focusSearch()
+                    }
+
                     Shortcut {
                         sequence: "/"
-                        onActivated: searchField.forceActiveFocus()
+                        enabled: {
+                            var f = layout.Window.activeFocusItem
+                            return !f || f.echoMode === undefined
+                        }
+                        onActivated: layout.focusSearch()
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.IBeamCursor
-                        onClicked: searchField.forceActiveFocus()
+                        onClicked: layout.focusSearch()
                     }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 8
-                        spacing: 8
+                        // Compact: no room for a query, so the box becomes a
+                        // centred magnifier. Clicking or Ctrl+F focuses the
+                        // field, which clears `compact` and expands the rail.
+                        anchors.leftMargin: layout.compact ? 0 : 10
+                        anchors.rightMargin: layout.compact ? 0 : 8
+                        spacing: layout.compact ? 0 : 8
+
+                        Item { visible: layout.compact; Layout.fillWidth: true }
 
                         MaterialIcon {
                             iconName: "search"
@@ -209,9 +269,12 @@ Item {
                             Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
                         }
 
+                        Item { visible: layout.compact; Layout.fillWidth: true }
+
                         TextInput {
                             id: searchField
-                            Layout.fillWidth: true
+                            visible: !layout.compact
+                            Layout.fillWidth: !layout.compact
                             color: Theme.text
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeBody
@@ -225,6 +288,9 @@ Item {
                             Keys.onUpPressed: if (layout.searching) layout.searchSel = Math.max(layout.searchSel - 1, 0)
                             Keys.onReturnPressed: layout.activateResult(layout.searchSel)
                             Keys.onEscapePressed: { if (text === "") Qt.quit(); else layout.clearSearch() }
+                            // Let the rail collapse again once the user leaves an
+                            // empty search behind.
+                            onActiveFocusChanged: if (!activeFocus && text === "") layout.searchExpanded = false
 
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -236,6 +302,7 @@ Item {
                         }
 
                         Rectangle {
+                            visible: !layout.compact
                             implicitWidth: hintTxt.implicitWidth + 10
                             implicitHeight: 18
                             radius: Theme.radiusSm
@@ -260,10 +327,25 @@ Item {
                     }
                 }
 
-                // Category rail — five entries, a sliding glider, count badges.
+                // Category rail — one row per category, a sliding glider, count
+                // badges. Focusable, so Up/Down walk the categories without
+                // the pointer.
                 Item {
+                    id: navRail
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+
+                    activeFocusOnTab: true
+                    Keys.onUpPressed: layout.step(-1)
+                    Keys.onDownPressed: layout.step(1)
+                    // Keys has no onHome/onEndPressed attached signal.
+                    Keys.onPressed: function (event) {
+                        if (event.key === Qt.Key_Home) { layout.step(-layout.categories.length); event.accepted = true }
+                        else if (event.key === Qt.Key_End) { layout.step(layout.categories.length); event.accepted = true }
+                    }
+
+                    Accessible.role: Accessible.PageTabList
+                    Accessible.name: "Settings categories"
 
                     readonly property int rowH: 42
                     readonly property int rowGap: 4
@@ -277,7 +359,11 @@ Item {
                         radius: Theme.radiusMd
                         y: layout.currentIndex * (parent.rowH + parent.rowGap)
                         color: Theme.accentDim
-                        border.color: Theme.withAlpha(Theme.accent, 0.45)
+                        // The glider doubles as the rail's focus ring: a full-strength
+                        // accent border means "arrow keys move this".
+                        border.color: navRail.activeFocus ? Theme.accent : Theme.withAlpha(Theme.accent, 0.45)
+                        border.width: navRail.activeFocus ? 2 : 1
+                        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
                         opacity: layout.searching ? 0 : 1
                         Behavior on y { NumberAnimation { duration: Anim.d(Anim.standard); easing.type: Anim.easeStandard } }
                         Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast) } }
@@ -305,9 +391,7 @@ Item {
                                 required property int index
 
                                 readonly property bool isActive: layout.currentIndex === index && !layout.searching
-                                readonly property int count: modelData.badge !== undefined
-                                    ? modelData.badge
-                                    : (modelData.panels ? modelData.panels.length : 0)
+                                readonly property int count: modelData.badge !== undefined ? modelData.badge : 0
 
                                 width: parent.width
                                 height: 42
@@ -317,9 +401,14 @@ Item {
 
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 10
-                                    spacing: 10
+                                    // Compact: the icon centres in the rail and the
+                                    // label and badge drop out. Accessible.name on
+                                    // the row still carries the category name.
+                                    anchors.leftMargin: layout.compact ? 0 : 12
+                                    anchors.rightMargin: layout.compact ? 0 : 10
+                                    spacing: layout.compact ? 0 : 10
+
+                                    Item { visible: layout.compact; Layout.fillWidth: true }
 
                                     MaterialIcon {
                                         iconName: navItem.modelData.icon
@@ -328,7 +417,10 @@ Item {
                                         Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
                                     }
 
+                                    Item { visible: layout.compact; Layout.fillWidth: true }
+
                                     Text {
+                                        visible: !layout.compact
                                         text: navItem.modelData.label
                                         color: navItem.isActive ? Theme.text : (navHh.hovered ? Theme.text : Theme.textSecondary)
                                         font.family: Theme.fontFamily
@@ -340,7 +432,7 @@ Item {
                                     }
 
                                     Rectangle {
-                                        visible: navItem.count > 0
+                                        visible: navItem.count > 0 && !layout.compact
                                         implicitWidth: Math.max(18, cntTxt.implicitWidth + 10)
                                         implicitHeight: 18
                                         radius: Theme.radiusSm
@@ -359,11 +451,17 @@ Item {
                                     }
                                 }
 
+                                Accessible.role: Accessible.PageTab
+                                Accessible.name: navItem.modelData.label
+                                Accessible.description: navItem.modelData.subtitle || ""
+                                Accessible.checked: navItem.isActive
+
                                 HoverHandler { id: navHh; cursorShape: Qt.PointingHandCursor }
                                 TapHandler {
                                     onTapped: {
                                         layout.clearSearch()
                                         layout.current = navItem.modelData.key
+                                        navRail.forceActiveFocus()
                                     }
                                 }
                             }
@@ -373,12 +471,15 @@ Item {
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: Theme.border }
 
-                // Footer: active theme + close
+                // Footer: active theme + close. Compact drops the theme chip —
+                // its label does not fit — and keeps the close button, which is
+                // the one control with no other route.
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
 
                     Rectangle {
+                        visible: !layout.compact
                         Layout.fillWidth: true
                         implicitHeight: 30
                         radius: Theme.radiusSm
@@ -402,10 +503,14 @@ Item {
                         TapHandler { onTapped: layout.route("appearance") }
                     }
 
+                    Item { visible: layout.compact; Layout.fillWidth: true }
+
                     IconButton {
                         iconName: "close"
                         onClicked: Qt.quit()
                     }
+
+                    Item { visible: layout.compact; Layout.fillWidth: true }
                 }
             }
         }
@@ -519,7 +624,6 @@ Item {
 
                             readonly property bool isCurrent: layout.currentIndex === index && !layout.searching
                             property bool loaded: false
-                            readonly property bool hasPanels: modelData.panels !== undefined && modelData.panels.length > 0
 
                             anchors.fill: parent
                             enabled: isCurrent
@@ -527,73 +631,25 @@ Item {
                             opacity: isCurrent ? 1 : 0
                             Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.enter); easing.type: Anim.easeStandard } }
 
-                            onIsCurrentChanged: if (isCurrent) loaded = true
-                            Component.onCompleted: if (isCurrent) loaded = true
+                            // Pages load on first visit and are then kept alive,
+                            // so each category holds its own scroll position.
+                            onIsCurrentChanged: if (isCurrent) { loaded = true; catHost.publish() }
+                            Component.onCompleted: if (isCurrent) { loaded = true; catHost.publish() }
 
-                            ColumnLayout {
+                            // Hand the live page to the layout so route() can
+                            // scroll it to a named card.
+                            function publish() {
+                                if (!isCurrent) return
+                                layout.currentPage = pageLoader.item
+                                layout.flushPendingCard()
+                            }
+
+                            Loader {
+                                id: pageLoader
                                 anchors.fill: parent
-                                spacing: 0
-
-                                // Chip rail — only for categories still split
-                                // across the legacy one-panel-per-domain pages.
-                                MujoFlickable {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 44
-                                    visible: catHost.hasPanels
-                                    contentWidth: railRow.implicitWidth + 48
-                                    flickableDirection: Flickable.HorizontalFlick
-
-                                    RowLayout {
-                                        id: railRow
-                                        height: parent.height
-                                        x: 24
-                                        spacing: 6
-
-                                        Repeater {
-                                            model: catHost.hasPanels ? catHost.modelData.panels : []
-                                            delegate: DisplayChip {
-                                                required property var modelData
-                                                label: modelData.label
-                                                selected: layout.panelOf(catHost.modelData) === modelData.key
-                                                onClicked: layout.selectPanel(catHost.modelData.key, modelData.key)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Item {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-
-                                    // Consolidated page
-                                    Loader {
-                                        anchors.fill: parent
-                                        active: catHost.loaded && !catHost.hasPanels
-                                        sourceComponent: catHost.hasPanels ? null : catHost.modelData.page
-                                    }
-
-                                    // Legacy panels: loaded on first visit, then
-                                    // kept alive so their scroll position holds.
-                                    Repeater {
-                                        model: catHost.hasPanels ? catHost.modelData.panels : []
-
-                                        delegate: Loader {
-                                            id: panelLoader
-                                            required property var modelData
-
-                                            readonly property bool isCurrentPanel: layout.panelOf(catHost.modelData) === modelData.key
-                                            property bool seen: false
-
-                                            anchors.fill: parent
-                                            active: catHost.loaded && seen
-                                            visible: isCurrentPanel
-                                            sourceComponent: modelData.comp
-
-                                            onIsCurrentPanelChanged: if (isCurrentPanel) seen = true
-                                            Component.onCompleted: if (isCurrentPanel) seen = true
-                                        }
-                                    }
-                                }
+                                active: catHost.loaded
+                                sourceComponent: catHost.modelData.page
+                                onLoaded: catHost.publish()
                             }
                         }
                     }

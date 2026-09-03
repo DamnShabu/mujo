@@ -60,7 +60,7 @@ ColumnLayout {
     Component.onCompleted: bindsProc.running = true
 
     MujoCard {
-        title: "Keyboard shortcuts"
+        title: "Keyboard Shortcuts"
         iconName: "keyboard_command_key"
         badgeText: root.binds.length + " BINDS"
 

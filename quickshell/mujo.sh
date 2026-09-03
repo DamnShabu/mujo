@@ -525,7 +525,9 @@ WIDGETS_CONF="${HOME}/.config/qsshell/widgets.json"
 # source of truth for what exists; DESKTOP_POS holds only where each item sits
 # on the grid, kept deliberately outside ~/Desktop so UI metadata never lands
 # among the user's own files.
+# shellcheck disable=SC2034  # read by lib/desktop.sh, which is sourced below
 DESKTOP_DIR="${XDG_DESKTOP_DIR:-${HOME}/Desktop}"
+# shellcheck disable=SC2034  # read by lib/desktop.sh, which is sourced below
 DESKTOP_POS="${HOME}/.local/state/qsshell/desktop-icons.json"
 
 # WP-02: the one unified settings store. Everything except the color palette
@@ -765,7 +767,7 @@ theme_sync() {
   # Format hex for fish (without '#')
   local f_surf_act="${surface_act#\#}"
   local f_text="${text#\#}" f_text_sec="${text_sec#\#}" f_text_dim="${text_dim#\#}"
-  local f_accent="${accent#\#}" f_success="${success#\#}" f_warning="${warning#\#}"
+  local f_accent="${accent#\#}" f_success="${success#\#}"
   local f_error="${error#\#}" f_magenta="${magenta#\#}" f_cyan="${cyan#\#}" f_orange="${orange#\#}"
 
   local qscfg_dir="${HOME}/.config/quickshell"
@@ -1404,7 +1406,11 @@ case "${CMD}" in
             LON="$(jq -r '.results[0].longitude // empty' <<<"${GEO}")"
             CITY="$(jq -r '.results[0].name // empty' <<<"${GEO}")"
           fi
-          if [[ -z "${LAT}" || -z "${LON}" ]]; then
+          # privacy.locationAccess gates the IP fallback only: an explicit city
+          # is the user naming their own location, an IP lookup is a request to
+          # a third party that reveals it.
+          if [[ -z "${LAT}" || -z "${LON}" ]] \
+            && [[ "$(jq -r '.privacy.locationAccess // true' "${SETTINGS_CONF}")" == "true" ]]; then
             IP="$(curl -fsSL --connect-timeout 2 --max-time 5 "http://ip-api.com/json" 2>/dev/null)"
             LAT="$(jq -r '.lat // empty' <<<"${IP}")"
             LON="$(jq -r '.lon // empty' <<<"${IP}")"

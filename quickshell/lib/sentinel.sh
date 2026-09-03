@@ -9,7 +9,10 @@ mujo_sentinel() {
     SUB="$1"; shift
     case "${SUB}" in
       scan)
-        CARD="$(ls -d /sys/class/drm/card* 2>/dev/null | grep -E 'card[0-9]+$' | head -1 || echo '')"
+        CARD=""
+        for c in /sys/class/drm/card[0-9]*; do
+          [[ -d "${c}" && "${c}" =~ card[0-9]+$ ]] && { CARD="${c}"; break; }
+        done
         GPU_BUSY="null"; VRAM_USED="null"; VRAM_TOTAL="null"
         if [[ -n "${CARD}" && -d "${CARD}/device" ]]; then
           [[ -r "${CARD}/device/gpu_busy_percent" ]] && GPU_BUSY="$(cat "${CARD}/device/gpu_busy_percent" 2>/dev/null || echo null)"

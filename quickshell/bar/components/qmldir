@@ -1,4 +1,4 @@
-BarGroup BarGroup.qml
+BarCluster BarCluster.qml
 Pill Pill.qml
 IconButton IconButton.qml
 DialogButton DialogButton.qml
@@ -20,7 +20,7 @@ MujoLivingCanvas MujoLivingCanvas.qml
 DeviceSlider DeviceSlider.qml
 DeviceToggle DeviceToggle.qml
 DisplayChip DisplayChip.qml
-DashboardCard DashboardCard.qml
+FocusRing FocusRing.qml
 BarAura BarAura.qml
 BaseWidget BaseWidget.qml
 

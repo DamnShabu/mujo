@@ -108,14 +108,16 @@ mujo_vm() {
             icon="linux"
             check_str="${inferred_os,,}-${vm_name,,}"
             case "${check_str}" in
+              # Apple and BSD first: "darwin" and "freebsd" both contain "win"/"bsd"
+              # substrings that the broader arms below would otherwise swallow.
+              *macos*|*darwin*|*osx*) category="Apple"; icon="macos" ;;
+              *freebsd*|*bsd*) category="BSD"; icon="freebsd" ;;
               *windows*|*win*) category="Windows"; icon="windows" ;;
               *ubuntu*) category="Linux"; icon="ubuntu" ;;
               *fedora*) category="Linux"; icon="fedora" ;;
               *arch*) category="Linux"; icon="arch" ;;
               *debian*) category="Linux"; icon="debian" ;;
               *alpine*) category="Linux"; icon="alpine" ;;
-              *macos*|*darwin*|*osx*) category="Apple"; icon="macos" ;;
-              *freebsd*|*bsd*) category="BSD"; icon="freebsd" ;;
               *nixos*|*sandbox*) category="NixOS"; icon="nixos" ;;
               *) category="Linux"; icon="terminal" ;;
             esac
@@ -407,7 +409,7 @@ EOF
             REPO_PATH="${HOME}/nixconf"
             [[ -d "${REPO_PATH}" ]] || REPO_PATH="$(git rev-parse --show-toplevel 2>/dev/null || echo "${HOME}/nixconf")"
             (
-              cd "${REPO_PATH}"
+              cd "${REPO_PATH}" || exit 1
               export MUJO_SANDBOX_STANDALONE=1
               # setsid: the driver must outlive the process group of whatever
               # shell quickshell ran this in, or a stray SIGTERM takes the VM.
@@ -450,7 +452,7 @@ EOF
 
         # Start Quickemu / QEMU launcher in background
         (
-          cd "${VM_DIR}"
+          cd "${VM_DIR}" || exit 1
           if command -v quickemu >/dev/null 2>&1; then
             nohup quickemu --vm "${VM_NAME}.conf" --display "${DISPLAY_BACKEND}" --viewer none >"${VM_DIR}/${VM_NAME}.log" 2>&1 &
           else
@@ -467,7 +469,7 @@ EOF
         
         if [[ "${DISPLAY_BACKEND}" == "spice" && "${LAUNCH_VIEWER}" == "true" ]]; then
           (
-            for i in $(seq 1 40); do
+            for _ in $(seq 1 40); do
               sleep 0.2
               if [[ -S "${VM_DIR}/${VM_NAME}.sock" || -S "${VM_DIR}/${VM_NAME}/${VM_NAME}.sock" || -f "${VM_DIR}/${VM_NAME}.spice" || -f "${VM_DIR}/${VM_NAME}/${VM_NAME}.spice" || -f "${VM_DIR}/${VM_NAME}.ports" || -f "${VM_DIR}/${VM_NAME}/${VM_NAME}.ports" ]]; then
                 break
@@ -609,7 +611,7 @@ EOF
         ;;
 
       delete)
-        [[ $# -ge 1 ]] || { echo "Usage: mujo vm delete <name>" >&2; exit 1; }
+        [[ $# -ge 1 && -n "$1" ]] || { echo "Usage: mujo vm delete <name>" >&2; exit 1; }
         VM_NAME="$1"
         if [[ "${VM_NAME}" == "mujo-sandbox" || "${VM_NAME}" == "sandbox" ]]; then
           pkill -f "qemu.*mujo-sandbox|nixos-test-driver.*mujo-sandbox" 2>/dev/null || true
@@ -618,7 +620,7 @@ EOF
           exit 0
         fi
         "$0" vm stop "${VM_NAME}" --force 2>/dev/null || true
-        rm -rf "${VM_DIR}/${VM_NAME}.conf" "${VM_DIR}/${VM_NAME}".* "${VM_DIR}/${VM_NAME}-"* "${VM_DIR}/${VM_NAME}" 2>/dev/null || true
+        rm -rf "${VM_DIR}/${VM_NAME:?}.conf" "${VM_DIR}/${VM_NAME:?}".* "${VM_DIR}/${VM_NAME:?}-"* "${VM_DIR}/${VM_NAME:?}" 2>/dev/null || true
         echo "Deleted VM ${VM_NAME}"
         ;;
 

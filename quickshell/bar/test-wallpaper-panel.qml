@@ -2,11 +2,12 @@ import QtQuick
 import Quickshell
 import "modules/settings"
 import "modules/settings/TagQuery.js" as TagQuery
+import "services"
 
-// Self-check for the wallpaper panel and the tag-query parsing its two search
+// Self-check for the wallpapers page and the tag-query parsing its two search
 // boxes share. Run: qs -p ./test-wallpaper-panel.qml
 //
-// Read-only: instantiating the panel starts a `mujo wallpaper list` read and
+// Read-only: instantiating the page starts a `mujo wallpaper list` read and
 // nothing else, and TagQuery is pure string handling.
 ShellRoot {
     id: root
@@ -19,13 +20,13 @@ ShellRoot {
         width: 1200
         height: 800
 
-        // Held in a Loader so the checks can drop it again: the panel keeps a
+        // Held in a Loader so the checks can drop it again: the page keeps a
         // watched FileView and a `mujo wallpaper list` Process alive, and the
         // engine will not exit while they are.
         Loader {
             id: panelLoader
             anchors.fill: parent
-            sourceComponent: WallpaperPanel {}
+            sourceComponent: WallpapersPage {}
         }
     }
 
@@ -38,9 +39,9 @@ ShellRoot {
         interval: 0
         running: true
         onTriggered: {
-            // 1. The panel and the components it was split into resolve and load.
-            check("WallpaperPanel instantiated", root.panel !== null)
-            check("panel defaults to the library tab", root.panel.tab === "library")
+            // 1. The page and the two groups it was split into resolve and load.
+            check("WallpapersPage instantiated", root.panel !== null)
+            check("page defaults to the library tab", root.panel.tab === "library")
             for (const tab of ["library", "wallhaven", "wallpaperengine", "effects"]) {
                 root.panel.tab = tab
                 check("tab switches to " + tab, root.panel.tab === tab)
@@ -75,12 +76,23 @@ ShellRoot {
             check("one-letter tail falls back to the query", TagQuery.lastToken("nature f") === "nature f")
             check("trailing space keeps the whole query", TagQuery.lastToken("nature ") === "nature")
 
+            // 6. Wallhaven error state & properties
+            check("Wallhaven service has error property", Wallhaven.error !== undefined)
+            check("Wallhaven service has errorType property", Wallhaven.errorType !== undefined)
+            Wallhaven.error = "Connection timed out"
+            Wallhaven.errorType = "timeout"
+            check("Wallhaven error set", Wallhaven.error === "Connection timed out")
+            check("Wallhaven errorType set", Wallhaven.errorType === "timeout")
+            Wallhaven.error = ""
+            Wallhaven.errorType = ""
+            check("Wallhaven error cleared", Wallhaven.error === "" && Wallhaven.errorType === "")
+
             panelLoader.sourceComponent = null
 
             if (root.fails.length === 0) {
-                console.log("PASS  wallpaper panel: components resolve, tag query parses")
+                console.log("PASS  wallpapers page: components resolve, tag query parses, error pill handling verified")
             } else {
-                console.log("FAIL  wallpaper panel: " + root.fails.length + " check(s) failed")
+                console.log("FAIL  wallpapers page: " + root.fails.length + " check(s) failed")
                 for (const f of root.fails) console.log("        - " + f)
             }
             Qt.exit(root.fails.length === 0 ? 0 : 1)

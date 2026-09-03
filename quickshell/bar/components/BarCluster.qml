@@ -2,7 +2,9 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 
-// Mujo Floating Pill Cluster (無常)
+// Mujo Floating Pill Cluster (無常) — named BarCluster, not BarGroup: the
+// settings tree has its own BarGroup, and a same-name component here shadowed
+// it wherever a settings page imported both directories.
 // Detached, living container with ambient edge luminescence, soft backdrop refraction,
 // and fluid layout width transitions as widgets enter/exit.
 Rectangle {

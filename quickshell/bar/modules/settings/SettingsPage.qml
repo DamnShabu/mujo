@@ -27,6 +27,43 @@ Item {
 
     default property alias content: col.children
 
+    // Reveal a named MujoCard. Omni-search calls this so a hit on
+    // "Storage Reclamation" lands on the card rather than the top of the page.
+    // Cards live inside the *Group children, not directly in `col`, so the
+    // lookup recurses. Returns false when no card carries that title.
+    function revealCard(cardTitle) {
+        var card = page._findCard(col, cardTitle)
+        if (!card) return false
+        var maxY = Math.max(0, flick.contentHeight - flick.height)
+        var p = card.mapToItem(col, 0, 0)
+        scrollAnim.stop()
+        scrollAnim.to = Math.max(0, Math.min(p.y, maxY))
+        scrollAnim.start()
+        return true
+    }
+
+    // MujoCard is the only thing here carrying both `title` and `collapsible`,
+    // which keeps MujoHero and MujoSettingRow (both of which have a `title`)
+    // from matching.
+    function _findCard(node, cardTitle) {
+        var kids = node.children
+        for (var i = 0; i < kids.length; i++) {
+            var c = kids[i]
+            if (c.collapsible !== undefined && c.title === cardTitle) return c
+            var hit = page._findCard(c, cardTitle)
+            if (hit) return hit
+        }
+        return null
+    }
+
+    NumberAnimation {
+        id: scrollAnim
+        target: flick
+        property: "contentY"
+        duration: Anim.d(Anim.enter)
+        easing.type: Easing.OutCubic
+    }
+
     MujoFlickable {
         id: flick
         anchors.fill: parent

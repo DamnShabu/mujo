@@ -1,6 +1,9 @@
-// Hardware & security — displays, idle/power, input, shortcuts, machines and
-// the keyring, as one scrolling column of cards. Two levels deep: this page,
-// then its cards. Nothing below opens a sub-page.
+import QtQuick
+import QtQuick.Layouts
+import "../../theme"
+import "../../components"
+
+// Hardware & Devices — displays, idle/power, input, shortcuts, and virtual machines.
 SettingsPage {
     brand: "display"
     title: "Hardware"
@@ -12,6 +15,5 @@ SettingsPage {
     InputGroup {}
     ShortcutsGroup {}
     VmGroup {}
-    KeyringGroup {}
-    SecurityGroup {}
 }
+
