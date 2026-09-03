@@ -48,7 +48,7 @@ Rectangle {
     Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Anim.easeStandard } }
 
     anchors.fill: parent
-    color: "#d9000000"
+    color: Theme.mediaDim
     z: 100
 
     // Intercept clicks on background scrim to dismiss
@@ -154,7 +154,7 @@ Rectangle {
                     Layout.fillHeight: true
                     Layout.preferredWidth: 3
                     radius: Theme.radiusMd
-                    color: "#05070a"
+                    color: Theme.mediaBackdrop
                     border.color: Theme.border
                     clip: true
 
@@ -195,7 +195,7 @@ Rectangle {
                         radius: Theme.radiusSm
                         implicitHeight: 24
                         implicitWidth: resPillRow.implicitWidth + 14
-                        color: "#cc000000"
+                        color: Theme.mediaScrim
                         border.color: Theme.border
 
                         RowLayout {
@@ -225,7 +225,7 @@ Rectangle {
                         radius: Theme.radiusSm
                         implicitHeight: 22
                         implicitWidth: purBadgeRow.implicitWidth + 12
-                        color: "#cc000000"
+                        color: Theme.mediaScrim
 
                         RowLayout {
                             id: purBadgeRow

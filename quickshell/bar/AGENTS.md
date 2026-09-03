@@ -34,7 +34,7 @@ llm-usage.sh    AI-assistant token usage scanner
 theme/          Theme.qml (design tokens), Anim.qml (motion), Brand.qml (identity)
 components/     shared UI primitives
 services/       singletons: settings bus, notifications, launch, lock, weather, cava, …
-modules/        feature domains: bar/ launcher/ notifications/ desktop/ system/ settings/
+modules/        feature domains: bar/ launcher/ notifications/ desktop/ system/ screenshot/ settings/
 ```
 
 Every directory carries a `qmldir`. Read it to see what a domain exposes rather than listing the tree.
@@ -51,7 +51,7 @@ qs -p ./test-shelf.qml            # staging shelf state & icon resolution
 qs -p ./test-settings-ui.qml      # settings row binding & routing
 qs -p ./test-security-ui.qml      # SecurityService binding & the trust tab
 qs -p ./test-desktop.qml          # icon placement vs. a widget, against the real ~/Desktop
-qs -p ./test-wallpaper-panel.qml  # wallpaper panel components & TagQuery parsing
+qs -p ./test-wallpaper-panel.qml  # Wallpapers page components & TagQuery parsing
 qs -p ./test-scroll.qml           # shared wheel scrolling, and that Flickable's enum still matches
 qs list --all                     # active instances
 qs kill -i <id>                   # terminate one
@@ -76,17 +76,22 @@ verdict and then hangs forever.
    import "../../components"
    import "../../services"
    ```
-   Same-directory types need no import.
+   Same-directory types need no import. Anything from the Quickshell API itself
+   (`DesktopEntries`, `Quickshell.execDetached`, `Process`) needs its own
+   `import Quickshell` / `import Quickshell.Io` — omitting it is a runtime
+   `ReferenceError` per binding, not a load failure, so it survives a clean start.
 4. Persist any new config path by declaring it in the owning NixOS module (see root `AGENTS.md` → **CORE CONSTRAINTS**).
 
 ## SETTINGS APP
 
-`settings.qml` is only a frame: the window, the five sidebar categories, and the omni-search index — all data. The machinery lives in `modules/settings/`:
+`settings.qml` is only a frame: the window, the seven sidebar categories, and the omni-search index — all data. The machinery lives in `modules/settings/`:
 
-- **`SettingsLayout.qml`** — 260px sidebar (brand, `/` omni-search, categories with a sliding glider and count badges) and the content pane. Owns routing: `SettingsBus.onNavigate` and `~/.config/qsshell/settings-target` (what `mujo settings <key>` writes) both go through `route()`, which resolves a category key, a panel key, or a key a category claims in `keys: [...]`.
+- **`SettingsLayout.qml`** — 260px sidebar (brand, `/` omni-search, categories with a sliding glider and count badges) and the content pane. Owns routing: `SettingsBus.onNavigate` and `~/.config/qsshell/settings-target` (what `mujo settings <key>` writes) both go through `route()`, which resolves a category key or any key a category claims in `keys: [...]`.
 - **`SettingsPage.qml`** — one category page: hero plus a scrolling column of `MujoCard`s. **Navigation stops here.** Level 1 is the sidebar category, level 2 is a card. No sub-pages, no modal overlays — an "open X" affordance becomes an inline card (`visible:` on the card), the way VM provisioning did.
 - **`SettingRow.qml`** — one store-backed setting: `path` + `kind` (`toggle` | `slider` | `segment` | `text`). Anything with a bespoke control uses `MujoSettingRow` directly and fills its default control slot.
 - **`<Domain>Group.qml`** — the cards of one domain: a plain `ColumnLayout`, no scroll and no hero of its own, dropped into a page.
-- **`<Domain>Panel.qml`** — not migrated yet: owns its Flickable and hero, and appears on that category's in-page chip rail. Migrating a category means splitting its panels into `*Group.qml` files, adding a `<Category>Page.qml`, and swapping the category's `panels:` for `page:` + `keys:`.
+- **`SearchIndex.js`** — the omni-search rows, in their own `.pragma library` so `test-settings-ui.qml` asserts against the data the app ships. Every `card:` value must match a `MujoCard` title on the destination page verbatim; the test checks that.
 
-Pages and panels **stay alive once visited** so scroll position survives switching category. Anything that polls must therefore bind `running: root.visible` rather than `running: true` — an invisible parent propagates `visible: false` to its children, so that stops the timer when the category is off screen.
+The `<Domain>Panel.qml` shape is gone — every category is a `<Category>Page.qml` composed of `*Group.qml` files. A new domain adds a group and lists it on a page; it never adds a panel or an in-page chip rail.
+
+Pages **stay alive once visited** so scroll position survives switching category. Anything that polls must therefore bind `running: root.visible` rather than `running: true` — an invisible parent propagates `visible: false` to its children, so that stops the timer when the category is off screen.

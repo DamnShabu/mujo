@@ -69,7 +69,7 @@ and then hangs forever.
 - **A denied credential request revokes the application.** `nixos/security/broker.nix` reports every DENY to `mujo-trustd` as a violation — that is the Phase 21 detector. Inert until `security.mujo.broker.acl` is non-empty (no ACL entry, no socket, nothing to deny). Recovery is `sudo mujo-trust rollback <app>` or `sudo mujo-trust graduate <app>`.
 - **Never hardcode `"yurii"`.** Use `config.preferences.user.name` (resolves from gitignored `secrets/username`, fallback in `nixos/core/user.nix`).
 - **Persist state explicitly.** The btrfs root is wiped on boot; only `/persist` survives. Each module declares its own `persistence.data.directories`, `persistence.cache.directories`, `persistence.directories`, or `persistence.files` entries.
-- **Read colors from `self.theme.base00..base0F`** in Nix (`modules/flake/theme.nix`) and `Theme.*` in QML — for anything that is *shell chrome*: backgrounds, surfaces, borders, text, accents, state colours. Three things are deliberately literal and must stay that way, because they are data rather than theming: **brand colours** (`quickshell/bar/theme/Brand.qml` — Mullvad's yellow is Mullvad's, not the user's), **user-selectable palettes** (the accent swatches in `AppearancePanel.qml`, note colours in `NotesWidget.qml`, the pickers in `DesktopPanel.qml` and `IslandPanel.qml`), and **black/white primitives** used for shadows, scrims and low-alpha overlays. Roughly 270 of the ~279 hex literals in `quickshell/bar/` fall in those three groups; a handful in the wallpaper detail modals do not and are theme leaks worth closing when someone touches them, but only against a token with the same value, since changing one changes the render.
+- **Read colors from `self.theme.base00..base0F`** in Nix (`modules/flake/theme.nix`) and `Theme.*` in QML — for anything that is *shell chrome*: backgrounds, surfaces, borders, text, accents, state colours. Four things are deliberately literal, because they are data rather than theming: **brand colours** (`quickshell/bar/theme/Brand.qml` — Mullvad's yellow is Mullvad's, not the user's), **user-selectable palettes** (accent swatches in `ThemeGroup.qml`, note colours in `NotesWidget.qml`, background swatches in `WallpaperEffectsGroup.qml` and `IslandGroup.qml`, file-type colours in `ShelfView.qml`), **media chrome** (`Theme.mediaBackdrop`/`mediaDim`/`mediaScrim`/`mediaPanel`/`mediaShield`/`ratingStar` — the wallpaper browsers show other people's images, so their surround must not carry the user's accent), and **black/white primitives** for shadows, scrims and low-alpha overlays. Those four groups plus `Theme.qml`'s own presets account for every one of the ~618 hex literals in `quickshell/bar/`; a new one outside them is a bug.
 - **Home config is hjem** (`hjem.users."${user}".files/...`), not home-manager.
 - **Check `modules/flake/perSystem.nix` before assuming a package is upstream** — `skeuos-gtk` is vendored there, and `cutefetch` is built from `tools/cutefetch/`.
 
@@ -90,7 +90,8 @@ modules/
 ├── flake/        theme.nix (palette), perSystem.nix (vendored packages + wrapper-modules)
 └── wrappers/     nix-wrapper-modules: fish, kitty, niri, environment (login shell + CLI toolset)
 
-quickshell/       _default.nix derivations (bar, mujo, mujo-keyring, cursor-tracker, unlock),
+quickshell/       _default.nix derivations (bar, mujo, mujo-screenshot, mujo-keyring,
+                  mujo-wallpaper-engine, cursor-tracker, unlock),
                   mujo.sh CLI + lib/ (its six largest subcommands), C/Python helpers, bar/ (the shell)
 
 tests/            security acceptance test suite (kernel, storage, vault, network, sandbox, microvm, trust, physical, recovery, redteam, performance);

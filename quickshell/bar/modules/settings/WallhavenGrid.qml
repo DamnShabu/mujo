@@ -78,7 +78,7 @@ MujoGridView {
                 anchors { bottom: parent.bottom; left: parent.left; margins: 6 }
                 visible: !wh_hh.hovered && !isDlActive && itemData.dimension_x !== undefined
                 radius: Theme.radiusSm
-                color: "#cc000000"
+                color: Theme.mediaScrim
                 implicitWidth: dimLabel.implicitWidth + 10
                 implicitHeight: 18
 
@@ -125,7 +125,7 @@ MujoGridView {
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 4 }
                 implicitHeight: 40
                 radius: Theme.radiusSm
-                color: "#ee090c14"
+                color: Theme.mediaPanel
                 border.color: Theme.accent
                 visible: isDlActive
                 z: 20
@@ -203,7 +203,7 @@ MujoGridView {
             Rectangle {
                 anchors.fill: parent
                 radius: parent.radius
-                color: "#cc000000"
+                color: Theme.mediaScrim
                 opacity: wh_hh.hovered && !isDlActive ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast) } }
