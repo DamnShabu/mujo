@@ -51,7 +51,7 @@ Rectangle {
     Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Anim.easeStandard } }
 
     anchors.fill: parent
-    color: "#d9000000"
+    color: Theme.mediaDim
     z: 100
 
     // Intercept clicks on background scrim to dismiss
@@ -172,7 +172,7 @@ Rectangle {
                     Layout.fillHeight: true
                     Layout.preferredWidth: 3
                     radius: Theme.radiusMd
-                    color: "#05070a"
+                    color: Theme.mediaBackdrop
                     border.color: Theme.border
                     clip: true
 
@@ -234,7 +234,7 @@ Rectangle {
                             radius: Theme.radiusSm
                             implicitHeight: 24
                             implicitWidth: purityBadgeRow.implicitWidth + 14
-                            color: "#cc000000"
+                            color: Theme.mediaScrim
                             border.color: {
                                 var pur = root.details && root.details.purity ? root.details.purity : (root.wallpaperItem ? root.wallpaperItem.purity : "sfw")
                                 if (pur === "sfw") return Theme.success
@@ -278,7 +278,7 @@ Rectangle {
                             radius: Theme.radiusSm
                             implicitHeight: 24
                             implicitWidth: ratingRow.implicitWidth + 14
-                            color: "#cc000000"
+                            color: Theme.mediaScrim
                             border.color: Theme.border
 
                             RowLayout {
@@ -288,7 +288,7 @@ Rectangle {
                                 MaterialIcon {
                                     iconName: "star"
                                     pixelSize: 13
-                                    color: "#ffca28"
+                                    color: Theme.ratingStar
                                 }
                                 Text {
                                     text: root.wallpaperItem ? (root.wallpaperItem.rating + " / 5") : ""

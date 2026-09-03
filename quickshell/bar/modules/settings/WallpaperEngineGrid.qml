@@ -77,7 +77,7 @@ MujoGridView {
             Rectangle {
                 anchors.fill: parent
                 visible: WallpaperEngine.blurNsfw && (itemData.purity === "nsfw" || itemData.age_rating === "Mature") && !we_hh.hovered && !isWeDlActive
-                color: "#ee0f121a"
+                color: Theme.mediaShield
 
                 ColumnLayout {
                     anchors.centerIn: parent
@@ -119,7 +119,7 @@ MujoGridView {
                 radius: Theme.radiusSm
                 implicitHeight: 18
                 implicitWidth: weTypeTxt.implicitWidth + 10
-                color: "#cc000000"
+                color: Theme.mediaScrim
 
                 Text {
                     id: weTypeTxt
@@ -137,7 +137,7 @@ MujoGridView {
                 anchors { bottom: parent.bottom; left: parent.left; margins: 6 }
                 visible: !we_hh.hovered && !isWeDlActive && itemData.rating !== undefined && itemData.rating > 0
                 radius: Theme.radiusSm
-                color: "#cc000000"
+                color: Theme.mediaScrim
                 implicitWidth: weRatingLabel.implicitWidth + 10
                 implicitHeight: 18
 
@@ -145,7 +145,7 @@ MujoGridView {
                     id: weRatingLabel
                     anchors.centerIn: parent
                     spacing: 2
-                    MaterialIcon { iconName: "star"; pixelSize: 11; color: "#ffca28" }
+                    MaterialIcon { iconName: "star"; pixelSize: 11; color: Theme.ratingStar }
                     Text {
                         text: "" + itemData.rating
                         color: "#ffffff"
@@ -174,7 +174,7 @@ MujoGridView {
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 4 }
                 implicitHeight: 40
                 radius: Theme.radiusSm
-                color: "#ee090c14"
+                color: Theme.mediaPanel
                 border.color: Theme.accent
                 visible: isWeDlActive
                 z: 20
@@ -252,7 +252,7 @@ MujoGridView {
             Rectangle {
                 anchors.fill: parent
                 radius: parent.radius
-                color: "#cc000000"
+                color: Theme.mediaScrim
                 opacity: we_hh.hovered && !isWeDlActive ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast) } }
