@@ -12,7 +12,7 @@ import "../../services"
 // Input Architecture:
 // - Always-on-top, mostly click-through PanelWindow.
 // - Input mask covers only the sleek resting edge tab when idle, expanding
-//   to the full interactive lane when hovering or during active drag staging.
+//   to the full interactive lane during active drag staging.
 // - Features ambient living edge luminescence, MultiEffect elevation shadows,
 //   specular rim lighting, and a holographic drag-target harbor.
 Variants {
@@ -40,10 +40,14 @@ Variants {
         readonly property int laneH: Math.max(180, Math.round(win.height * Shelf.stripLength))
         readonly property int laneY: Math.round((win.height - laneH) / 2)
 
-        // Open state management with anti-flicker boundary grace
+        // Open state management with anti-flicker boundary grace.
+        // Hover alone never opens the lane — only an active drag does. A drop
+        // pins it open so the freshly staged items stay reachable until the
+        // pointer leaves.
         property bool _grace: false
         property bool _forceClosed: false
-        readonly property bool open: !_forceClosed && (edgeDrop.containsDrag || drop.containsDrag || laneHover.hovered || notchHh.hovered || _grace)
+        property bool _pinned: false
+        readonly property bool open: !_forceClosed && (edgeDrop.containsDrag || drop.containsDrag || _grace || (_pinned && laneHover.hovered))
 
         Connections {
             target: edgeDrop
@@ -84,10 +88,7 @@ Variants {
             x: win.onRight ? win.width - width : 0
             visible: !win.open
 
-            HoverHandler {
-                id: notchHh
-                cursorShape: Qt.PointingHandCursor
-            }
+            HoverHandler { id: notchHh }
 
             DropArea {
                 id: edgeDrop
@@ -100,6 +101,7 @@ Variants {
                         Shelf.addUriList(e.getDataAsString("text/uri-list") || e.getDataAsString("text/plain"))
                     }
                     e.accept(Qt.CopyAction)
+                    win._pinned = true
                 }
             }
 
@@ -148,7 +150,7 @@ Variants {
 
             HoverHandler {
                 id: laneHover
-                onHoveredChanged: if (!hovered) win._forceClosed = false
+                onHoveredChanged: if (!hovered) { win._forceClosed = false; win._pinned = false }
             }
 
             DropArea {
@@ -162,6 +164,7 @@ Variants {
                         Shelf.addUriList(e.getDataAsString("text/uri-list") || e.getDataAsString("text/plain"))
                     }
                     e.accept(Qt.CopyAction)
+                    win._pinned = true
                 }
             }
 
