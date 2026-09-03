@@ -21,6 +21,13 @@ Item {
     property string valueText: Math.round(root.value) + root.format
     signal moved(real value)
 
+    // Spoken label, filled in by SettingRow from the row title.
+    property string a11yName: ""
+    // One arrow press. Ranges are wildly different (0..1 opacity, 24..56 px,
+    // 50..1000 clips), so step from the span rather than a fixed number, and
+    // never below a hundredth for the fractional sliders.
+    readonly property real step: Math.max((root.to - root.from) / 100, 0.01)
+
     implicitHeight: 22
     implicitWidth: 160
 
@@ -75,7 +82,7 @@ Item {
 
         // Floating Value Callout Bubble
         Rectangle {
-            visible: root.showValueBubble && (sliderArea.containsMouse || sliderArea.pressed)
+            visible: root.showValueBubble && (sliderArea.containsMouse || sliderArea.pressed || root.activeFocus)
             anchors.bottom: parent.top
             anchors.bottomMargin: 6
             anchors.horizontalCenter: parent.horizontalCenter
@@ -113,7 +120,23 @@ Item {
         anchors.margins: -root.hitPad
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onPressed: mouse => root.setFromX(mouse.x)
+        onPressed: mouse => { root.forceActiveFocus(); root.setFromX(mouse.x) }
         onPositionChanged: mouse => { if (pressed) root.setFromX(mouse.x) }
     }
+
+    activeFocusOnTab: true
+    Keys.onLeftPressed: root.moved(Math.max(root.from, root.value - root.step))
+    Keys.onRightPressed: root.moved(Math.min(root.to, root.value + root.step))
+    // Keys has no onHome/onEndPressed attached signal; these come through the
+    // generic handler.
+    Keys.onPressed: function (event) {
+        if (event.key === Qt.Key_Home) { root.moved(root.from); event.accepted = true }
+        else if (event.key === Qt.Key_End) { root.moved(root.to); event.accepted = true }
+    }
+
+    FocusRing { ringRadius: 4 }
+
+    Accessible.role: Accessible.Slider
+    Accessible.name: root.a11yName
+    Accessible.description: root.valueText
 }

@@ -15,6 +15,10 @@ Rectangle {
     property bool checked: false
     signal toggled(bool checked)
 
+    // Spoken label. SettingRow fills this from the row title, so every
+    // declarative setting is named without the caller repeating itself.
+    property string a11yName: ""
+
     implicitWidth: 38
     implicitHeight: 20
     radius: height / 2
@@ -52,4 +56,16 @@ Rectangle {
         gesturePolicy: TapHandler.ReleaseWithinBounds
         onTapped: root.toggled(!root.checked)
     }
+
+    activeFocusOnTab: true
+    Keys.onSpacePressed: root.toggled(!root.checked)
+    Keys.onReturnPressed: root.toggled(!root.checked)
+
+    FocusRing { ringRadius: root.radius }
+
+    Accessible.role: Accessible.CheckBox
+    Accessible.name: root.a11yName
+    Accessible.checked: root.checked
+    Accessible.onToggleAction: root.toggled(!root.checked)
+    Accessible.onPressAction: root.toggled(!root.checked)
 }

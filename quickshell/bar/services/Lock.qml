@@ -42,7 +42,7 @@ QtObject {
         property bool sent: false
         stdinEnabled: true
         // Write the password only once the process is actually running, then
-        // close stdin so the helper's fgets() returns (mirrors AiPanel keyring).
+        // close stdin so the helper's fgets() returns (mirrors AiGroup keyring).
         onRunningChanged: {
             if (running && !sent) { write(pw + "\n"); stdinEnabled = false; sent = true }
         }

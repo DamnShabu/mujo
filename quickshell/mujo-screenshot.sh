@@ -76,7 +76,8 @@ cmd_save() {
   local out_dir
   out_dir=$(get_config "saveDirectory" "${HOME}/Pictures/Screenshots")
   mkdir -p "$out_dir"
-  local filename="Screenshot_$(date +%Y-%m-%d_%H-%M-%S).png"
+  local filename
+  filename="Screenshot_$(date +%Y-%m-%d_%H-%M-%S).png"
   local dest="${out_dir}/${filename}"
   cp "$CROPPED_SHOT" "$dest"
   wl-copy -t image/png < "$CROPPED_SHOT"

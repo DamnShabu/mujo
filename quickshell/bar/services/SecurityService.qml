@@ -10,12 +10,12 @@ QtObject {
 
     readonly property bool enabled: true
 
-    // ── Verified Boot & Kernel ────────────────────────────────────────────────
+    // ââ Verified Boot & Kernel ââââââââââââââââââââââââââââââââââââââââââââââââ
     property bool secureBootActive: false
     property bool tpmActive: false
     property string lockdownMode: "none"
 
-    // ── Storage Vault ─────────────────────────────────────────────────────────
+    // ââ Storage Vault âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     property bool vaultContainerPresent: false
     property string vaultContainerSize: ""
     property bool vaultMounted: false
@@ -23,7 +23,7 @@ QtObject {
     property var vaultSubdirectories: []
     property string vaultStatus: vaultMounted ? "unlocked" : (vaultContainerPresent ? "locked" : "not_configured")
 
-    // ── Memory & Host Isolation ──────────────────────────────────────────────
+    // ââ Memory & Host Isolation ââââââââââââââââââââââââââââââââââââââââââââââ
     // All false until a summary actually says otherwise. These drive the four
     // hardening cards in SecurityGroup, which read "UNVERIFIED" when false --
     // so an optimistic default here would be the panel asserting a protection
@@ -35,7 +35,7 @@ QtObject {
     property bool tmpfsTmpActive: false
     property bool firewallActive: false
 
-    // ── Progressive Application Trust ─────────────────────────────────────────
+    // ââ Progressive Application Trust âââââââââââââââââââââââââââââââââââââââââ
     property var trustApps: []
     property int quarantinedAppsCount: 0
     property int observingAppsCount: 0
@@ -44,7 +44,7 @@ QtObject {
     property int totalAppsCount: 0
     property bool launcherIntegrationActive: false
 
-    // ── Sensitive Inventory Audit ────────────────────────────────────────────
+    // ââ Sensitive Inventory Audit ââââââââââââââââââââââââââââââââââââââââââââ
     property bool inventoryAudited: false
     property bool inventoryClean: false
     // Distinct from "audited and not clean": the scan did not produce a result
@@ -54,7 +54,7 @@ QtObject {
     property int inventoryFindingsCount: 0
     property string inventoryOutput: ""
 
-    // ── Overall Health & Status ──────────────────────────────────────────────
+    // ââ Overall Health & Status ââââââââââââââââââââââââââââââââââââââââââââââ
     property string overallStatus: "secure" // "secure", "attention", "warning"
 
     signal statusUpdated()
@@ -100,12 +100,19 @@ QtObject {
         actionProc.running = true
     }
 
+    // The CLI is `mujo-vault`, a separate root binary -- `mujo` has no vault verb.
+    // Both go through pkexec; the polkit rule in nixos/security/vault.nix grants
+    // wheel members YES without a password prompt.
+    //
+    // Unlock needs a terminal: cryptsetup reads the LUKS passphrase from a tty,
+    // and a headless Process gives it none, so it would block until killed.
     function openVault() {
-        _runAction(["mujo", "vault", "open"])
+        Quickshell.execDetached(["kitty", "--title", "mujō — unlock vault", "-e", "pkexec", "mujo-vault", "open"])
     }
 
+    // Closing only unmounts and drops the mapper, so it needs no input.
     function closeVault() {
-        _runAction(["mujo", "vault", "close"])
+        _runAction(["pkexec", "mujo-vault", "close"])
     }
 
     function auditInventory() {
@@ -142,7 +149,7 @@ QtObject {
         _runAction(["mujo", "trust", "revoke", appName])
     }
 
-    // ── Background Processes ──────────────────────────────────────────────────
+    // ââ Background Processes ââââââââââââââââââââââââââââââââââââââââââââââââââ
     property Process statusProc: Process {
         command: ["mujo", "security", "summary"]
         stdout: StdioCollector {

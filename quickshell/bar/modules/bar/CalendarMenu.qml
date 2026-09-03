@@ -39,6 +39,31 @@ ColumnLayout {
     onViewYearChanged: root.gridCells = root.buildGrid()
     onViewMonthChanged: root.gridCells = root.buildGrid()
 
+    // Off for the bar's popup; the desktop calendar widget turns it on from
+    // `desktop.calendar.showWeekNumbers`.
+    property bool showWeekNumbers: false
+
+    // ISO-8601 week: weeks start Monday and week 1 is the one holding Jan 4th.
+    function isoWeek(year, month, day) {
+        var d = new Date(Date.UTC(year, month, day))
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7))
+        var jan1 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+        return Math.ceil(((d - jan1) / 86400000 + 1) / 7)
+    }
+
+    // Week number of grid row `i`, taken from that row's 4th cell (Wednesday),
+    // which is always inside the week the row shows even at a month boundary.
+    function rowWeek(i) {
+        var c = root.gridCells[i * 7 + 3]
+        if (!c) return ""
+        var m = root.viewMonth, y = root.viewYear
+        if (!c.inMonth) {
+            if (i === 0) { m -= 1; if (m < 0) { m = 11; y -= 1 } }
+            else { m += 1; if (m > 11) { m = 0; y += 1 } }
+        }
+        return root.isoWeek(y, m, c.day)
+    }
+
     function isToday(day, inMonth) {
         return inMonth && day === root.today.getDate() && root.viewMonth === root.today.getMonth() && root.viewYear === root.today.getFullYear()
     }
@@ -93,51 +118,89 @@ ColumnLayout {
         }
     }
 
-    GridLayout {
+    RowLayout {
         Layout.fillWidth: true
-        columns: 7
-        rowSpacing: 4
-        columnSpacing: 4
+        spacing: 4
 
-        Repeater {
-            model: root.dayLabels
-            delegate: Text {
-                Layout.preferredWidth: 28
+        // Week-number gutter. A sibling column rather than an 8th grid column so
+        // the day grid keeps its fixed 7-wide shape and the widget's uniform
+        // scale still works.
+        ColumnLayout {
+            visible: root.showWeekNumbers
+            spacing: 4
+
+            Text {
+                Layout.preferredWidth: 20
                 horizontalAlignment: Text.AlignHCenter
-                text: modelData
+                text: "WK"
                 color: Theme.textDim
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSizeLabel - 1
                 font.letterSpacing: 0.5
-                font.capitalization: Font.AllUppercase
+            }
+
+            Repeater {
+                model: Math.ceil(root.gridCells.length / 7)
+                delegate: Text {
+                    required property int index
+                    Layout.preferredWidth: 20
+                    Layout.preferredHeight: 26
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: root.rowWeek(index)
+                    color: Theme.textDim
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
+                }
             }
         }
 
-        Repeater {
-            model: root.gridCells
-            delegate: Rectangle {
-                id: dayCell
-                required property var modelData
-                property bool isToday: root.isToday(modelData.day, modelData.inMonth)
-                property bool hovered: dayArea.containsMouse
-                Layout.preferredWidth: 28
-                Layout.preferredHeight: 26
-                radius: Theme.radiusMd
-                color: isToday ? Theme.accent
-                              : (hovered && modelData.inMonth ? Theme.surfaceHover : "transparent")
-                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+        GridLayout {
+            Layout.fillWidth: true
+            columns: 7
+            rowSpacing: 4
+            columnSpacing: 4
 
-                Text {
-                    anchors.centerIn: parent
-                    text: dayCell.modelData.day
+            Repeater {
+                model: root.dayLabels
+                delegate: Text {
+                    Layout.preferredWidth: 28
+                    horizontalAlignment: Text.AlignHCenter
+                    text: modelData
+                    color: Theme.textDim
                     font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.bold: dayCell.isToday
-                    color: dayCell.isToday ? Theme.accentText
-                                          : (dayCell.modelData.inMonth ? Theme.text : Theme.textDim)
+                    font.pixelSize: Theme.fontSizeLabel - 1
+                    font.letterSpacing: 0.5
+                    font.capitalization: Font.AllUppercase
                 }
+            }
 
-                MouseArea { id: dayArea; anchors.fill: parent; hoverEnabled: true }
+            Repeater {
+                model: root.gridCells
+                delegate: Rectangle {
+                    id: dayCell
+                    required property var modelData
+                    property bool isToday: root.isToday(modelData.day, modelData.inMonth)
+                    property bool hovered: dayArea.containsMouse
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 26
+                    radius: Theme.radiusMd
+                    color: isToday ? Theme.accent
+                                  : (hovered && modelData.inMonth ? Theme.surfaceHover : "transparent")
+                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: dayCell.modelData.day
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.bold: dayCell.isToday
+                        color: dayCell.isToday ? Theme.accentText
+                                              : (dayCell.modelData.inMonth ? Theme.text : Theme.textDim)
+                    }
+
+                    MouseArea { id: dayArea; anchors.fill: parent; hoverEnabled: true }
+                }
             }
         }
     }

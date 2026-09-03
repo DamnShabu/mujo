@@ -7,10 +7,29 @@ import "../theme"
 Item {
     id: root
 
-    property var model: []          // Array of { id, label, icon } or strings
+    property var model: []          // Array of { id, label, icon } or strings.
+    // `id` keeps its JSON type (number ids stay numbers), so a segment bound to
+    // a numeric setting round-trips through the store without becoming a string.
     // Controlled: `current` is an input. See ToggleSwitch for why.
     property var current: ""
     signal selected(var id)
+
+    // Spoken label, filled in by SettingRow from the row title.
+    property string a11yName: ""
+
+    readonly property int currentIndex: {
+        for (var i = 0; i < root.model.length; i++) {
+            var m = root.model[i]
+            if ((typeof m === "object" ? m.id : m) === root.current) return i
+        }
+        return -1
+    }
+    function selectOffset(d) {
+        if (root.model.length === 0) return
+        var i = Math.max(0, Math.min(root.model.length - 1, root.currentIndex + d))
+        var m = root.model[i]
+        root.selected(typeof m === "object" ? m.id : m)
+    }
 
     implicitHeight: 34
     implicitWidth: layoutRow.implicitWidth + 8
@@ -64,7 +83,7 @@ Item {
                     required property var modelData
                     required property int index
 
-                    readonly property string itemId: typeof modelData === "object" ? modelData.id : modelData
+                    readonly property var itemId: typeof modelData === "object" ? modelData.id : modelData
                     readonly property string itemLabel: typeof modelData === "object" ? (modelData.label || modelData.id) : modelData
                     readonly property string itemIcon: typeof modelData === "object" ? (modelData.icon || "") : ""
                     readonly property bool isSelected: root.current === itemId
@@ -113,4 +132,13 @@ Item {
             }
         }
     }
+
+    activeFocusOnTab: true
+    Keys.onLeftPressed: root.selectOffset(-1)
+    Keys.onRightPressed: root.selectOffset(1)
+
+    FocusRing { ringRadius: Theme.radiusMd }
+
+    Accessible.role: Accessible.PageTabList
+    Accessible.name: root.a11yName
 }

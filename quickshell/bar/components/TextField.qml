@@ -10,6 +10,9 @@ Rectangle {
     property alias input: input
     signal accepted()
 
+    // Spoken label, filled in by SettingRow from the row title.
+    property string a11yName: ""
+
     implicitHeight: 34
     implicitWidth: 200
     radius: Theme.radiusSm
@@ -38,5 +41,12 @@ Rectangle {
             color: Theme.textDim
             font: input.font
         }
+
+        // The field already shows focus by turning its border accent, so it
+        // needs no FocusRing — a second ring would double up on the same edge.
+        Accessible.role: Accessible.EditableText
+        Accessible.name: field.a11yName
+        Accessible.description: field.placeholder
+        Accessible.passwordEdit: field.password
     }
 }

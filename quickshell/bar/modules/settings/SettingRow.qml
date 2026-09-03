@@ -28,6 +28,8 @@ MujoSettingRow {
     property string format: ""            // slider bubble suffix, e.g. "px" / "%"
     property string placeholder: ""
     property int controlWidth: 190
+    property bool roundValue: true
+    property string valueText: ""
 
     readonly property var value: SettingsBus.get(row.path, row.def)
     function commit(v) { SettingsBus.set(row.path, v) }
@@ -37,6 +39,7 @@ MujoSettingRow {
     // which the default control slot (a list<Item>) cannot hold anyway.
     ToggleSwitch {
         visible: row.kind === "toggle"
+        a11yName: row.title
         checked: row.value === true
         onToggled: function (c) { row.commit(c) }
     }
@@ -44,15 +47,18 @@ MujoSettingRow {
     Slider {
         visible: row.kind === "slider"
         Layout.preferredWidth: row.controlWidth
+        a11yName: row.title
         from: row.from
         to: row.to
         format: row.format
         value: Number(row.value)
-        onMoved: function (v) { row.commit(Math.round(v)) }
+        valueText: row.valueText !== "" ? row.valueText : (row.roundValue ? (Math.round(value) + row.format) : (Number(value).toFixed(2) + row.format))
+        onMoved: function (v) { row.commit(row.roundValue ? Math.round(v) : Number(v.toFixed(2))) }
     }
 
     MujoSegmented {
         visible: row.kind === "segment"
+        a11yName: row.title
         model: row.options
         current: row.value
         onSelected: function (id) { row.commit(id) }
@@ -62,6 +68,7 @@ MujoSettingRow {
         id: field
         visible: row.kind === "text"
         Layout.preferredWidth: row.controlWidth
+        a11yName: row.title
         placeholder: row.placeholder
         onAccepted: row.commit(text)
         // Follow the store while idle; stop fighting the user mid-edit.

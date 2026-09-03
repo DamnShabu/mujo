@@ -21,6 +21,11 @@ Rectangle {
     default property alias content: innerCol.children
     property alias actions: headerActions.children
 
+    // Cards are the page's section headings; naming the group lets a screen
+    // reader announce which section the focused control belongs to.
+    Accessible.role: Accessible.Grouping
+    Accessible.name: root.title
+
     Layout.fillWidth: true
     implicitHeight: layoutCol.implicitHeight + 28
     radius: Theme.radiusLg

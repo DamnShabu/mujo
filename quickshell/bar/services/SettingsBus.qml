@@ -143,6 +143,22 @@ QtObject {
         "cava.color": "",
         "cava.opacity": 0.85,
         "cava.reflection": true,
+        // Notification centre. Every one of these was live in the UI while
+        // missing from this map, so `mujo settings get notifications.dnd`
+        // returned nothing until the key had been written at least once.
+        "notifications.dnd": false,
+        "notifications.muted": [],
+        "notifications.sound": true,
+        "notifications.soundUrgency": "normal_and_critical",
+        "notifications.corner": "bottom-right",
+        "notifications.toastTimeout": 5,
+        "notifications.maxVisible": 4,
+        "notifications.fullscreenSuppress": false,
+        "notifications.batteryThresholds": [20, 10, 5],
+        // Process sentinel automation, read by SentinelService on every scan.
+        "sentinel.enable": true,
+        "sentinel.autoReapZombies": true,
+        "sentinel.autoKillRunaways": true,
         "idle.enabled": true,
         "idle.rules": [
             { "timeoutSec": 180, "action": "dim", "inhibitWhenAudio": true },
@@ -153,8 +169,18 @@ QtObject {
         "lock.enable": true,
         "launcher.enableDangerousActions": false,
         "apps.favorites": [],
+        "apps.recent": [],
         "apps.groups": [],
         "backup.enabled": false,
+        // Weather. lat/lon null means "auto-geolocate by IP"; get() treats a
+        // stored null as unset and falls back here, so clearing the location
+        // and never having set one behave identically.
+        "weather.name": "",
+        "weather.units": "metric",
+        "weather.style": "detailed",
+        "weather.intervalMin": 30,
+        "weather.lat": null,
+        "weather.lon": null,
         // "agent" routes chat through an installed agent CLI instead of an
         // OpenAI-compatible endpoint; ai.agent picks which one ("" = follow the
         // bar LLM widget's selection in ~/.config/qsshell/llm-default.json),
@@ -162,31 +188,18 @@ QtObject {
         "ai.provider": "ollama",
         "ai.agent": "",
         "ai.agentCommand": "",
+        "ai.model": "",
         "ai.baseUrl": "http://127.0.0.1:11434/v1",
         "ai.maxTokens": 1024,
         "ai.crashAssist": true,
-        "ai.allowShellContext": false,
         "ai.allowCrashData": false,
-        "ai.confirmActions": true,
         "shelf.enabled": true,
         "shelf.edge": "right",
         "shelf.stripLength": 0.4,
         "shelf.restoreOnRestart": true,
-        "clipboard.enabled": true,
-        "clipboard.maxItems": 100,
-        "clipboard.filterSensitive": true,
-        "clipboard.storeImages": true,
-        "privacy.telemetryOptOut": true,
         "privacy.recentFiles": true,
         "privacy.locationAccess": true,
-        "privacy.screencastProtection": true,
         "security.lockOnSuspend": true,
-        "security.lockGraceSec": 0,
-        "security.autoUpdateCheck": true,
-        "security.passwordlessSudo": true,
-        "system.powerProfile": "balanced",
-        "system.soundAlerts": true,
-        "system.autoLogin": false,
         "wallhaven.apiKey": ""
     })
 

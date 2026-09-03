@@ -7,7 +7,7 @@ import "../../components"
 import "../../services"
 
 // Mullvad VPN status + one-tap connect. Same runtime-CLI approach the network
-// settings page uses (NetworkPanel.qml): `mullvad` is a system package, the
+// settings page uses (NetworkGroup.qml): `mullvad` is a system package, the
 // declarative bits stay in the NixOS mullvad module.
 BaseWidget {
     id: root

@@ -135,6 +135,9 @@ QtObject {
     // WP-06: maintain apps.recent[] (most-recent-first, deduped, cap 10) so the
     // launcher grid can surface a recents row.
     function recordRecent(entry) {
+        // The trail already on disk is dropped by the settings toggle itself;
+        // this only stops new entries.
+        if (!SettingsBus.get("privacy.recentFiles", true)) return
         var id = entry && entry.id ? entry.id : (entry ? entry.name : "")
         if (!id) return
         var r = (SettingsBus.get("apps.recent", [])).filter(function (x) { return x !== id })

@@ -19,7 +19,7 @@ ColumnLayout {
     function idleDel(i) { var a = root._idleClone(); a.splice(i, 1); SettingsBus.set("idle.rules", a) }
 
     MujoCard {
-        title: "Idle & power"
+        title: "Idle & Power"
         iconName: "bedtime"
         badgeText: SettingsBus.get("idle.enabled", true) ? "ON" : "OFF"
         badgeColor: SettingsBus.get("idle.enabled", true) ? Theme.success : Theme.textDim
@@ -36,7 +36,7 @@ ColumnLayout {
             def: true
             kind: "toggle"
             iconName: "lock"
-            title: "Lock screen"
+            title: "Lock Screen"
             description: "Off makes every lock trigger no-op"
         }
 
