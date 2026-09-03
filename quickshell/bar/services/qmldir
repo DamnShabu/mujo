@@ -18,3 +18,4 @@ singleton DesktopGrid DesktopGrid.qml
 singleton DesktopFiles DesktopFiles.qml
 singleton SentinelService SentinelService.qml
 singleton SecurityService SecurityService.qml
+singleton VmService VmService.qml

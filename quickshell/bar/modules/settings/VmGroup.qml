@@ -15,20 +15,11 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: 14
 
-    property var vmData: ({ kvm: true, vms: [], totalCount: 0, activeCount: 0, vcpusAllocated: 0 })
-    property var catalog: []
-    property bool runningOp: false
-    property bool failedOp: false
-    property string opTitle: ""
-    property string opStatus: ""
-    property real opProgress: -1
-    property string opSpeed: ""
-    property string opEta: ""
-    property var logLines: []
-    property bool showLogs: false
+    // View state only. Everything that talks to `mujo vm` lives in VmService.
     property string activeTab: "vms" // "vms", "catalog", "custom"
+    property bool showLogs: false
 
-    // Creation modal state
+    // Provisioning form state
     property bool showCreateModal: false
     property var targetPreset: null
     property string createName: ""
@@ -36,7 +27,7 @@ ColumnLayout {
     property int createRamGb: 8
     property int createDiskGb: 40
 
-    // Custom ISO state
+    // Custom ISO form state
     property string customIsoPath: ""
     property string customIsoName: ""
     property int customIsoCores: 8
@@ -44,156 +35,16 @@ ColumnLayout {
     property int customIsoDiskGb: 40
     property string customIsoOs: "linux"
 
-    function refresh() {
-        if (!listProc.running) listProc.running = true
-        if (root.catalog.length === 0 && !catalogProc.running) catalogProc.running = true
-    }
-
     Timer {
         id: pollTimer
         interval: 2000
-        // Panels now stay alive when another category is on screen, so the poll
+        // Pages stay alive when another category is on screen, so the poll
         // follows visibility instead of running for the rest of the session.
+        // This is why VmService does not poll itself.
         running: root.visible
         repeat: true
-        onTriggered: root.refresh()
-    }
-
-    Component.onCompleted: root.refresh()
-
-    Process {
-        id: listProc
-        command: ["mujo", "vm", "list"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    root.vmData = JSON.parse(this.text)
-                } catch (e) {
-                    root.vmData = ({ kvm: true, vms: [], totalCount: 0, activeCount: 0, vcpusAllocated: 0 })
-                }
-            }
-        }
-    }
-
-    Process {
-        id: catalogProc
-        command: ["mujo", "vm", "catalog"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    root.catalog = JSON.parse(this.text)
-                } catch (e) {
-                    root.catalog = []
-                }
-            }
-        }
-    }
-
-    Process {
-        id: actionProc
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: line => root._handleLogLine(line)
-        }
-        stderr: SplitParser {
-            splitMarker: "\n"
-            onRead: line => root._handleLogLine(line)
-        }
-        onExited: function(code) {
-            root.runningOp = false
-            if (code !== 0) {
-                root.failedOp = true
-                root.opStatus = "Operation failed (exit code " + code + ")"
-            } else {
-                root.failedOp = false
-                root.opProgress = 100
-                root.opStatus = "Setup completed successfully"
-            }
-            root.refresh()
-        }
-    }
-
-    function _handleLogLine(raw) {
-        if (!raw || raw.trim() === "") return
-        var line = raw.trim()
-        
-        var logs = root.logLines.slice()
-        if (logs.length > 300) logs.shift()
-        logs.push(line)
-        root.logLines = logs
-
-        if (line.startsWith("{") && line.endsWith("}")) {
-            try {
-                var obj = JSON.parse(line)
-                if (obj.type === "progress") {
-                    if (obj.percent !== undefined) root.opProgress = obj.percent
-                    if (obj.status) root.opStatus = obj.status
-                    if (obj.speed) root.opSpeed = obj.speed
-                    if (obj.eta) root.opEta = obj.eta
-                    return
-                }
-            } catch (e) {}
-        }
-
-        var pctMatch = line.match(/\b([0-9]{1,3}(?:\.[0-9]+)?)\s*%/)
-        if (pctMatch && pctMatch[1]) {
-            var val = parseFloat(pctMatch[1])
-            if (!isNaN(val) && val >= 0 && val <= 100) {
-                root.opProgress = val
-            }
-        }
-
-        var spdMatch = line.match(/([0-9.]+\s*[kMG]B\/s|[0-9.]+\s*[kMG]b\/s)/i)
-        if (spdMatch) root.opSpeed = spdMatch[1]
-
-        var etaMatch = line.match(/(?:ETA|eta|time)\s*([0-9:]+)/i)
-        if (etaMatch) root.opEta = etaMatch[1]
-
-        if (!line.startsWith("{") && line.length > 3 && !line.match(/^[0-9\s%#=-]+$/)) {
-            root.opStatus = line
-        }
-    }
-
-    function cancelOp() {
-        if (actionProc.running) {
-            actionProc.running = false
-            root.runningOp = false
-            root.failedOp = true
-            root.opStatus = "Operation cancelled"
-            _handleLogLine("[!] Process cancelled by user")
-        }
-    }
-
-    function runVmAction(args, titleMsg, statusMsg) {
-        if (actionProc.running) return
-        root.runningOp = true
-        root.failedOp = false
-        root.opProgress = -1
-        root.opSpeed = ""
-        root.opEta = ""
-        root.opTitle = titleMsg || "Virtual Machine Operation"
-        root.opStatus = statusMsg || "Initializing..."
-        root.logLines = []
-        actionProc.command = ["mujo", "vm"].concat(args)
-        actionProc.running = true
-    }
-
-    function startVm(name, openViewer) {
-        runVmAction(["start", name, "--viewer", openViewer ? "true" : "false"], "Starting " + name, "Launching QEMU and connecting SPICE visual server...")
-    }
-
-    function stopVm(name, force) {
-        var args = ["stop", name]
-        if (force) args.push("--force")
-        runVmAction(args, "Stopping " + name, "Sending ACPI shutdown signal...")
-    }
-
-    function displayVm(name) {
-        runVmAction(["display", name], "Connecting Display", "Opening SPICE viewer for " + name + "...")
-    }
-
-    function deleteVm(name) {
-        runVmAction(["delete", name], "Deleting " + name, "Removing VM disk and configuration files...")
+        triggeredOnStart: true
+        onTriggered: VmService.refresh()
     }
 
     function openDeployModal(preset) {
@@ -208,24 +59,15 @@ ColumnLayout {
     function executeDeploy() {
         if (!root.targetPreset) return
         root.showCreateModal = false
-        runVmAction([
-            "create", root.targetPreset.os, root.targetPreset.release,
-            "--name", root.createName,
-            "--cores", String(root.createCores),
-            "--ram", String(root.createRamGb),
-            "--disk", String(root.createDiskGb)
-        ], "Provisioning " + root.createName, "Fetching OS image and preparing VM environment...")
+        VmService.create(root.targetPreset, root.createName,
+                         root.createCores, root.createRamGb, root.createDiskGb)
     }
 
     function executeDeployIso() {
         if (!root.customIsoPath || !root.customIsoName) return
-        runVmAction([
-            "create-iso", root.customIsoName, root.customIsoPath,
-            "--cores", String(root.customIsoCores),
-            "--ram", String(root.customIsoRamGb),
-            "--disk", String(root.customIsoDiskGb),
-            "--os", root.customIsoOs
-        ], "Creating Custom VM: " + root.customIsoName, "Configuring VM from ISO " + root.customIsoName + "...")
+        VmService.createFromIso(root.customIsoName, root.customIsoPath,
+                                root.customIsoCores, root.customIsoRamGb,
+                                root.customIsoDiskGb, root.customIsoOs)
         root.customIsoPath = ""
         root.customIsoName = ""
         root.activeTab = "vms"
@@ -234,8 +76,8 @@ ColumnLayout {
     MujoCard {
         title: "Hypervisor"
         iconName: "memory"
-        badgeText: root.vmData.kvm ? "KVM" : "SOFTWARE"
-        badgeColor: root.vmData.kvm ? Theme.success : Theme.warning
+        badgeText: VmService.inventory.kvm ? "KVM" : "SOFTWARE"
+        badgeColor: VmService.inventory.kvm ? Theme.success : Theme.warning
         collapsible: false
 
         RowLayout {
@@ -263,7 +105,7 @@ ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 2
                         Text {
-                            text: String(root.vmData.activeCount || 0) + " / " + String(root.vmData.totalCount || 0) + " Active VMs"
+                            text: String(VmService.inventory.activeCount || 0) + " / " + String(VmService.inventory.totalCount || 0) + " Active VMs"
                             color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true
                             elide: Text.ElideRight; Layout.fillWidth: true
                         }
@@ -297,12 +139,12 @@ ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 2
                         Text {
-                            text: String(root.vmData.vcpusAllocated || 0) + " vCPUs Allocated"
+                            text: String(VmService.inventory.vcpusAllocated || 0) + " vCPUs Allocated"
                             color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true
                             elide: Text.ElideRight; Layout.fillWidth: true
                         }
                         Text {
-                            text: root.vmData.kvm ? "Host Linux KVM direct virtualization active" : "Software virtualization fallback"
+                            text: VmService.inventory.kvm ? "Host Linux KVM direct virtualization active" : "Software virtualization fallback"
                             color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
                             elide: Text.ElideRight; Layout.fillWidth: true
                         }
@@ -350,13 +192,13 @@ ColumnLayout {
     MujoCard {
         title: "Virtual Machines"
         iconName: "dns"
-        badgeText: String(root.vmData.activeCount || 0) + " / " + String(root.vmData.totalCount || 0) + " ACTIVE"
+        badgeText: String(VmService.inventory.activeCount || 0) + " / " + String(VmService.inventory.totalCount || 0) + " ACTIVE"
         collapsible: false
 
         actions: DialogButton {
             text: "Refresh"
-            enabled: !root.runningOp
-            onClicked: root.refresh()
+            enabled: !VmService.running
+            onClicked: VmService.refresh()
         }
 
         // Card-local mode switch, not navigation: the three views are one
@@ -364,7 +206,7 @@ ColumnLayout {
         MujoSegmented {
             Layout.fillWidth: true
             model: [
-                { id: "vms", label: "Configured (" + (root.vmData.vms ? root.vmData.vms.length : 0) + ")" },
+                { id: "vms", label: "Configured (" + (VmService.inventory.vms ? VmService.inventory.vms.length : 0) + ")" },
                 { id: "catalog", label: "Deploy an OS" },
                 { id: "custom", label: "Custom ISO" }
             ]
@@ -377,9 +219,9 @@ ColumnLayout {
             implicitHeight: opCol.implicitHeight + 24
             radius: Theme.radiusMd
             color: Theme.surface
-            border.color: root.failedOp ? Theme.error : (root.runningOp ? Theme.accent : Theme.border)
-            border.width: root.runningOp || root.failedOp ? 1.5 : 1
-            visible: root.runningOp || root.failedOp || (root.logLines.length > 0 && root.opProgress === 100)
+            border.color: VmService.failed ? Theme.error : (VmService.running ? Theme.accent : Theme.border)
+            border.width: VmService.running || VmService.failed ? 1.5 : 1
+            visible: VmService.running || VmService.failed || (VmService.logLines.length > 0 && VmService.opProgress === 100)
 
             ColumnLayout {
                 id: opCol
@@ -395,17 +237,17 @@ ColumnLayout {
                     // Spinner / Status Icon
                     Rectangle {
                         implicitWidth: 32; implicitHeight: 32; radius: Theme.radiusSm
-                        color: root.failedOp ? Theme.withAlpha(Theme.error, 0.16) : (root.runningOp ? Theme.withAlpha(Theme.accent, 0.16) : Theme.withAlpha(Theme.success, 0.16))
+                        color: VmService.failed ? Theme.withAlpha(Theme.error, 0.16) : (VmService.running ? Theme.withAlpha(Theme.accent, 0.16) : Theme.withAlpha(Theme.success, 0.16))
                         Spinner {
-                            visible: root.runningOp
+                            visible: VmService.running
                             size: 14
                             anchors.centerIn: parent
                         }
                         MaterialIcon {
-                            visible: !root.runningOp
-                            iconName: root.failedOp ? "error" : "check_circle"
+                            visible: !VmService.running
+                            iconName: VmService.failed ? "error" : "check_circle"
                             pixelSize: 16
-                            color: root.failedOp ? Theme.error : Theme.success
+                            color: VmService.failed ? Theme.error : Theme.success
                             anchors.centerIn: parent
                         }
                     }
@@ -418,7 +260,7 @@ ColumnLayout {
                         RowLayout {
                             spacing: 8
                             Text {
-                                text: root.opTitle || "Virtual Machine Operation"
+                                text: VmService.opTitle || "Virtual Machine Operation"
                                 color: Theme.text
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeBody
@@ -426,8 +268,8 @@ ColumnLayout {
                             }
                             // Speed / ETA pill if present
                             Text {
-                                visible: root.opSpeed !== "" || root.opEta !== ""
-                                text: (root.opSpeed ? "• " + root.opSpeed : "") + (root.opEta ? " • ETA: " + root.opEta : "")
+                                visible: VmService.opSpeed !== "" || VmService.opEta !== ""
+                                text: (VmService.opSpeed ? "• " + VmService.opSpeed : "") + (VmService.opEta ? " • ETA: " + VmService.opEta : "")
                                 color: Theme.accent
                                 font.family: Theme.fontMono
                                 font.pixelSize: Theme.fontSizeLabel
@@ -435,8 +277,8 @@ ColumnLayout {
                         }
 
                         Text {
-                            text: root.opStatus
-                            color: root.failedOp ? Theme.error : Theme.textSecondary
+                            text: VmService.opStatus
+                            color: VmService.failed ? Theme.error : Theme.textSecondary
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                             Layout.fillWidth: true
@@ -446,9 +288,9 @@ ColumnLayout {
 
                     // Percentage text
                     Text {
-                        visible: root.opProgress >= 0
-                        text: Math.round(root.opProgress) + "%"
-                        color: root.failedOp ? Theme.error : Theme.accent
+                        visible: VmService.opProgress >= 0
+                        text: Math.round(VmService.opProgress) + "%"
+                        color: VmService.failed ? Theme.error : Theme.accent
                         font.family: Theme.fontMono
                         font.pixelSize: Theme.fontSizeHeading
                         font.bold: true
@@ -462,14 +304,14 @@ ColumnLayout {
 
                     // Cancel / Dismiss button
                     DialogButton {
-                        text: root.runningOp ? "Cancel" : "Dismiss"
-                        danger: root.runningOp
+                        text: VmService.running ? "Cancel" : "Dismiss"
+                        danger: VmService.running
                         onClicked: {
-                            if (root.runningOp) root.cancelOp()
+                            if (VmService.running) VmService.cancel()
                             else {
-                                root.logLines = []
-                                root.opProgress = -1
-                                root.failedOp = false
+                                VmService.logLines = []
+                                VmService.opProgress = -1
+                                VmService.failed = false
                             }
                         }
                     }
@@ -489,27 +331,27 @@ ColumnLayout {
                         anchors.left: parent.left
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        width: root.opProgress >= 0 ? Math.max(6, parent.width * Math.min(1.0, root.opProgress / 100.0)) : 0
+                        width: VmService.opProgress >= 0 ? Math.max(6, parent.width * Math.min(1.0, VmService.opProgress / 100.0)) : 0
                         radius: 3
-                        color: root.failedOp ? Theme.error : (root.opProgress >= 100 ? Theme.success : Theme.accent)
-                        visible: root.opProgress >= 0
+                        color: VmService.failed ? Theme.error : (VmService.opProgress >= 100 ? Theme.success : Theme.accent)
+                        visible: VmService.opProgress >= 0
 
                         Behavior on width {
                             NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Anim.easeStandard }
                         }
                     }
 
-                    // Indeterminate Shimmer (when root.opProgress < 0 && root.runningOp)
+                    // Indeterminate Shimmer (when VmService.opProgress < 0 && VmService.running)
                     Rectangle {
                         id: indeterminateShimmer
-                        visible: root.opProgress < 0 && root.runningOp
+                        visible: VmService.opProgress < 0 && VmService.running
                         width: parent.width * 0.35
                         height: parent.height
                         radius: 3
                         color: Theme.accent
 
                         SequentialAnimation on x {
-                            running: root.opProgress < 0 && root.runningOp
+                            running: VmService.opProgress < 0 && VmService.running
                             loops: Animation.Infinite
                             NumberAnimation { from: -parent.width * 0.35; to: parent.width; duration: 1100; easing.type: Easing.InOutQuad }
                         }
@@ -520,7 +362,7 @@ ColumnLayout {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 140
-                    visible: root.showLogs || root.failedOp
+                    visible: root.showLogs || VmService.failed
                     radius: Theme.radiusSm
                     color: Theme.bg
                     border.color: Theme.border
@@ -530,7 +372,7 @@ ColumnLayout {
                         id: logList
                         anchors.fill: parent
                         anchors.margins: 8
-                        model: root.logLines
+                        model: VmService.logLines
                         boundsBehavior: Flickable.DragAndOvershootBounds
                         onCountChanged: positionViewAtEnd()
                         delegate: Text {
@@ -558,8 +400,8 @@ ColumnLayout {
                 SectionLabel { text: "Active & Configured Virtual Machines"; Layout.fillWidth: true }
                 DialogButton {
                     text: "🔄 Refresh"
-                    enabled: !listProc.running
-                    onClicked: root.refresh()
+                    enabled: !VmService.running
+                    onClicked: VmService.refresh()
                 }
             }
 
@@ -570,7 +412,7 @@ ColumnLayout {
                 radius: Theme.radiusMd
                 color: Theme.surface
                 border.color: Theme.border
-                visible: !root.vmData.vms || root.vmData.vms.length === 0
+                visible: !VmService.inventory.vms || VmService.inventory.vms.length === 0
 
                 ColumnLayout {
                     anchors.centerIn: parent
@@ -590,13 +432,13 @@ ColumnLayout {
 
             // VM Cards Repeater
             Repeater {
-                model: root.vmData.vms || []
+                model: VmService.inventory.vms || []
                 delegate: Rectangle {
                     required property var modelData
                     Layout.fillWidth: true
                     implicitHeight: 88
 
-                    readonly property bool isOpTarget: root.runningOp && root.opTitle.indexOf(modelData.name) !== -1
+                    readonly property bool isOpTarget: VmService.running && VmService.opTitle.indexOf(modelData.name) !== -1
                     readonly property bool isStarting: isOpTarget || (modelData.isSandbox && modelData.status === "running" && !modelData.displayReady)
                     readonly property bool isReady: modelData.status === "running" && (!modelData.isSandbox || modelData.displayReady)
 
@@ -712,12 +554,12 @@ ColumnLayout {
                                     : (modelData.isSandbox ? (isReady ? "🖥️ Observe Workspace" : "▶ Start Sandbox")
                                     : (isReady ? "🖥️ Display" : "▶ Start VM"))
                                 primary: isReady || !isStarting
-                                enabled: !root.runningOp && !isStarting
+                                enabled: !VmService.running && !isStarting
                                 onClicked: {
                                     if (isReady) {
-                                        root.displayVm(modelData.name)
+                                        VmService.display(modelData.name)
                                     } else {
-                                        root.startVm(modelData.name, false)
+                                        VmService.start(modelData.name, false)
                                     }
                                 }
                             }
@@ -725,14 +567,14 @@ ColumnLayout {
                             DialogButton {
                                 visible: modelData.status === "running"
                                 text: "⏹ Stop"
-                                enabled: !root.runningOp
-                                onClicked: root.stopVm(modelData.name, false)
+                                enabled: !VmService.running
+                                onClicked: VmService.stop(modelData.name, false)
                             }
 
                             DialogButton {
                                 text: modelData.isSandbox ? "🔄 Reset" : "🗑️ Delete"
-                                enabled: !root.runningOp
-                                onClicked: root.deleteVm(modelData.name)
+                                enabled: !VmService.running
+                                onClicked: VmService.remove(modelData.name)
                             }
                         }
                     }
@@ -755,7 +597,7 @@ ColumnLayout {
                 columnSpacing: 12
 
                 Repeater {
-                    model: root.catalog
+                    model: VmService.catalog
                     delegate: Rectangle {
                         required property var modelData
                         Layout.fillWidth: true
@@ -784,10 +626,10 @@ ColumnLayout {
                                 DialogButton {
                                     text: modelData.isSandbox ? "Start" : "Deploy"
                                     primary: true
-                                    enabled: !root.runningOp
+                                    enabled: !VmService.running
                                     onClicked: {
                                         if (modelData.isSandbox) {
-                                            root.startVm(modelData.id, false)
+                                            VmService.start(modelData.id, false)
                                         } else {
                                             root.openDeployModal(modelData)
                                         }
@@ -892,7 +734,7 @@ ColumnLayout {
                         DialogButton {
                             text: "Create VM Configuration"
                             primary: true
-                            enabled: root.customIsoPath.length > 0 && root.customIsoName.length > 0 && !root.runningOp
+                            enabled: root.customIsoPath.length > 0 && root.customIsoName.length > 0 && !VmService.running
                             onClicked: root.executeDeployIso()
                         }
                     }
