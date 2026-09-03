@@ -53,6 +53,7 @@ qs -p ./test-security-ui.qml      # SecurityService binding & the trust tab
 qs -p ./test-desktop.qml          # icon placement vs. a widget, against the real ~/Desktop
 qs -p ./test-wallpaper-panel.qml  # Wallpapers page components & TagQuery parsing
 qs -p ./test-scroll.qml           # shared wheel scrolling, and that Flickable's enum still matches
+qs -p ./test-vm-service.qml       # VmService progress parsing and log cap
 qs list --all                     # active instances
 qs kill -i <id>                   # terminate one
 qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle
