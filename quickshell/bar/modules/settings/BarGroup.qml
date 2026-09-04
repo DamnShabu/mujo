@@ -3,29 +3,113 @@ import QtQuick.Layouts
 import "../../theme"
 import "../../components"
 import "../../services"
+import "../bar"
 
-// Top Bar Layout, Geometry, Cluster Modules, and Widget Styles Group.
+// Top Bar Layout, Geometry, 3-Zone Slots Canvas Builder, and Widget Styles Group.
 ColumnLayout {
     id: root
     Layout.fillWidth: true
     spacing: 14
 
     property string selectedBarWidget: "workspaces"
+    property string selectedZone: "left" // "left" | "center" | "right"
 
-    readonly property var barModules: SettingsBus.get("bar.rightModules", ["llm", "network", "bluetooth", "volume", "battery", "notifications", "tray", "session"])
-    readonly property var barAllModules: ["llm", "network", "bluetooth", "volume", "battery", "notifications", "tray", "session"]
+    // ── 3-Zone Slots Models ──
+    readonly property var leftModules: SettingsBus.get("bar.slots.left", ["launcher", "workspaces", "activeWindow"])
+    readonly property var centerModules: SettingsBus.get("bar.slots.center", ["clock", "weather"])
+    readonly property var rightModules: SettingsBus.get("bar.slots.right", ["llm", "network", "bluetooth", "volume", "battery", "notifications", "tray", "session"])
+    readonly property var allActiveModules: [].concat(leftModules, centerModules, rightModules)
 
-    function barSet(a) { SettingsBus.set("bar.rightModules", a) }
-    function barMove(i, d) { var a = barModules.slice(), j = i + d; if (j < 0 || j >= a.length) return; var t = a[i]; a[i] = a[j]; a[j] = t; barSet(a) }
-    function barRemove(i) { var a = barModules.slice(); a.splice(i, 1); barSet(a) }
-    function barAdd(n) { var a = barModules.slice(); if (a.indexOf(n) < 0) { a.push(n); barSet(a) } }
+    function setLeftModules(arr) { SettingsBus.set("bar.slots.left", arr) }
+    function setCenterModules(arr) { SettingsBus.set("bar.slots.center", arr) }
+    function setRightModules(arr) { SettingsBus.set("bar.slots.right", arr) }
+
+    function getZoneModules(zone) {
+        if (zone === "left") return root.leftModules
+        if (zone === "center") return root.centerModules
+        if (zone === "right") return root.rightModules
+        return []
+    }
+
+    function setZoneModules(zone, arr) {
+        if (zone === "left") setLeftModules(arr)
+        else if (zone === "center") setCenterModules(arr)
+        else if (zone === "right") setRightModules(arr)
+    }
+
+    function removeModuleFromZone(zone, idx) {
+        var a = getZoneModules(zone).slice()
+        if (idx >= 0 && idx < a.length) {
+            a.splice(idx, 1)
+            setZoneModules(zone, a)
+        }
+    }
+
+    function addModuleToZone(zone, modId) {
+        var a = getZoneModules(zone).slice()
+        if (modId === "divider" || modId === "spacer" || a.indexOf(modId) < 0) {
+            a.push(modId)
+            setZoneModules(zone, a)
+        }
+    }
+
+    function applyLayoutPreset(presetId) {
+        if (presetId === "default") {
+            setLeftModules(["launcher", "workspaces", "activeWindow"])
+            setCenterModules(["clock", "weather"])
+            setRightModules(["llm", "network", "bluetooth", "volume", "battery", "notifications", "tray", "session"])
+        } else if (presetId === "media") {
+            setLeftModules(["workspaces", "activeWindow"])
+            setCenterModules(["media", "cava", "clock"])
+            setRightModules(["volume", "battery", "network", "session"])
+        } else if (presetId === "dock") {
+            setLeftModules([])
+            setCenterModules(["launcher", "workspaces", "clock", "volume", "battery"])
+            setRightModules([])
+        } else if (presetId === "classic") {
+            setLeftModules(["launcher", "workspaces", "activeWindow"])
+            setCenterModules([])
+            setRightModules(["tray", "network", "bluetooth", "volume", "battery", "clock", "session"])
+        }
+    }
+
+    function getCategoryColor(category) {
+        switch (category) {
+            case "navigation": return Theme.accentDim
+            case "system":     return Theme.surfaceActive
+            case "media":      return Theme.accentDim
+            case "hardware":   return Theme.surfaceHover
+            case "ai":         return Theme.accentDim
+            case "info":       return Theme.surfaceActive
+            case "layout":     return Theme.bg
+            default:           return Theme.surface
+        }
+    }
 
     // ── 1. Top Bar Layout & Geometry Card ─────────────────────────────────────
     MujoCard {
         title: "Desktop Bar Layout & Geometry"
         iconName: "dock_to_bottom"
-        badgeText: SettingsBus.get("bar.position", "top").toUpperCase()
+        badgeText: SettingsBus.get("bar.style", "floating").toUpperCase()
         badgeColor: Theme.accent
+
+        MujoSettingRow {
+            iconName: "style"
+            title: "Bar Style Presentation"
+            description: "Select desktop bar layout mode (Floating, Full-Width, Island, Dock, Compact)."
+
+            MujoSegmented {
+                model: [
+                    { id: "floating", label: "Floating" },
+                    { id: "full",     label: "Full-Width" },
+                    { id: "island",   label: "Island" },
+                    { id: "dock",     label: "Dock" },
+                    { id: "compact",  label: "Compact" }
+                ]
+                current: SettingsBus.get("bar.style", "floating")
+                onSelected: function(id) { SettingsBus.set("bar.style", id) }
+            }
+        }
 
         MujoSettingRow {
             iconName: "vertical_align_top"
@@ -42,6 +126,23 @@ ColumnLayout {
             }
         }
 
+        MujoSettingRow {
+            iconName: "density_medium"
+            title: "Bar Element Density"
+            description: "Spacing and icon padding density across all bar modules."
+
+            MujoSegmented {
+                model: [
+                    { id: "auto",    label: "Auto" },
+                    { id: "normal",  label: "Normal" },
+                    { id: "compact", label: "Compact" },
+                    { id: "dense",   label: "Dense" }
+                ]
+                current: SettingsBus.get("bar.density", "auto")
+                onSelected: function(id) { SettingsBus.set("bar.density", id) }
+            }
+        }
+
         SettingRow {
             path: "bar.height"
             def: 34
@@ -51,7 +152,7 @@ ColumnLayout {
             format: "px"
             iconName: "height"
             title: "Bar Height"
-            description: "Vertical content height of the floating pill clusters."
+            description: "Vertical content height of the bar pill clusters."
         }
 
         SettingRow {
@@ -131,42 +232,256 @@ ColumnLayout {
         }
     }
 
-    // ── 2. Right Cluster Modules & Ordering Card ──────────────────────────────
+    // ── 2. 3-Zone Slot Canvas Builder Card ────────────────────────────────────
     MujoCard {
-        title: "Right Cluster Modules & Order"
+        title: "3-Zone Slot Canvas Builder"
         iconName: "reorder"
-        badgeText: root.barModules.length + " MODULES"
+        badgeText: root.allActiveModules.length + " ACTIVE"
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: 12
 
             Text {
                 Layout.fillWidth: true
-                text: "Drag or reorder modules in the right cluster. Items on top render leftmost in the group."
+                text: "Design your desktop topbar by assigning and ordering modules across Left, Center, and Right zones. Reorder with drag or arrow keys, remove with ✕, or pick from available modules below."
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
+                wrapMode: Text.WordWrap
             }
 
-            MujoReorderList {
-                model: root.barModules
-                onReordered: function(newModel) { root.barSet(newModel) }
-            }
-
-            // Available modules to add
-            Flow {
+            // Quick Layout Presets
+            ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 6
-                visible: root.barModules.length < root.barAllModules.length
 
-                Repeater {
-                    model: root.barAllModules
-                    delegate: DisplayChip {
-                        required property var modelData
-                        visible: root.barModules.indexOf(modelData) < 0
-                        label: "+ " + modelData
-                        onClicked: root.barAdd(modelData)
+                Text {
+                    text: "LAYOUT PRESETS"
+                    color: Theme.textDim
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel
+                    font.bold: true
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    DisplayChip {
+                        label: "Default Mujō"
+                        onClicked: root.applyLayoutPreset("default")
+                    }
+
+                    DisplayChip {
+                        label: "Media Hub"
+                        onClicked: root.applyLayoutPreset("media")
+                    }
+
+                    DisplayChip {
+                        label: "Minimalist Dock"
+                        onClicked: root.applyLayoutPreset("dock")
+                    }
+
+                    DisplayChip {
+                        label: "Classic Desktop"
+                        onClicked: root.applyLayoutPreset("classic")
+                    }
+                }
+            }
+
+            // Zone Switcher Segmented
+            MujoSegmented {
+                Layout.fillWidth: true
+                model: [
+                    { id: "left",   label: "Left Zone (" + root.leftModules.length + ")" },
+                    { id: "center", label: "Center Zone (" + root.centerModules.length + ")" },
+                    { id: "right",  label: "Right Zone (" + root.rightModules.length + ")" }
+                ]
+                current: root.selectedZone
+                onSelected: function(id) { root.selectedZone = id }
+            }
+
+            // Visual Canvas Mini Bar Preview
+            Rectangle {
+                Layout.fillWidth: true
+                height: 48
+                radius: Theme.radiusMd
+                color: Theme.bg
+                border.color: Theme.border
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    spacing: 8
+
+                    // Left Zone Mini Pill
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: Theme.radiusSm
+                        color: root.selectedZone === "left" ? Theme.surfaceActive : Theme.surface
+                        border.color: root.selectedZone === "left" ? Theme.accent : Theme.border
+                        border.width: root.selectedZone === "left" ? 1.5 : 1
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 4
+                            MaterialIcon {
+                                iconName: "align_horizontal_left"
+                                pixelSize: 14
+                                color: root.selectedZone === "left" ? Theme.accent : Theme.textSecondary
+                            }
+                            Text {
+                                text: "Left (" + root.leftModules.length + ")"
+                                color: root.selectedZone === "left" ? Theme.accent : Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: root.selectedZone === "left"
+                            }
+                        }
+
+                        TapHandler { onTapped: root.selectedZone = "left" }
+                    }
+
+                    // Center Zone Mini Pill
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: Theme.radiusSm
+                        color: root.selectedZone === "center" ? Theme.surfaceActive : Theme.surface
+                        border.color: root.selectedZone === "center" ? Theme.accent : Theme.border
+                        border.width: root.selectedZone === "center" ? 1.5 : 1
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 4
+                            MaterialIcon {
+                                iconName: "align_horizontal_center"
+                                pixelSize: 14
+                                color: root.selectedZone === "center" ? Theme.accent : Theme.textSecondary
+                            }
+                            Text {
+                                text: "Center (" + root.centerModules.length + ")"
+                                color: root.selectedZone === "center" ? Theme.accent : Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: root.selectedZone === "center"
+                            }
+                        }
+
+                        TapHandler { onTapped: root.selectedZone = "center" }
+                    }
+
+                    // Right Zone Mini Pill
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: Theme.radiusSm
+                        color: root.selectedZone === "right" ? Theme.surfaceActive : Theme.surface
+                        border.color: root.selectedZone === "right" ? Theme.accent : Theme.border
+                        border.width: root.selectedZone === "right" ? 1.5 : 1
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 4
+                            MaterialIcon {
+                                iconName: "align_horizontal_right"
+                                pixelSize: 14
+                                color: root.selectedZone === "right" ? Theme.accent : Theme.textSecondary
+                            }
+                            Text {
+                                text: "Right (" + root.rightModules.length + ")"
+                                color: root.selectedZone === "right" ? Theme.accent : Theme.textSecondary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.bold: root.selectedZone === "right"
+                            }
+                        }
+
+                        TapHandler { onTapped: root.selectedZone = "right" }
+                    }
+                }
+            }
+
+            // Zone Reorder List
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Text {
+                    text: root.selectedZone === "left" ? "LEFT ZONE MODULES" : root.selectedZone === "center" ? "CENTER ZONE MODULES" : "RIGHT ZONE MODULES"
+                    color: Theme.textDim
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel
+                    font.bold: true
+                }
+
+                // Empty state if no modules in selected zone
+                Rectangle {
+                    visible: root.getZoneModules(root.selectedZone).length === 0
+                    Layout.fillWidth: true
+                    height: 52
+                    radius: Theme.radiusMd
+                    color: Theme.surface
+                    border.color: Theme.border
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: 8
+                        MaterialIcon {
+                            iconName: "info"
+                            pixelSize: 16
+                            color: Theme.textDim
+                        }
+                        Text {
+                            text: "No modules currently assigned to this zone. Add one from the pool below."
+                            color: Theme.textSecondary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                        }
+                    }
+                }
+
+                MujoReorderList {
+                    visible: root.getZoneModules(root.selectedZone).length > 0
+                    model: root.getZoneModules(root.selectedZone)
+                    formatter: function(id) { return BarModuleRegistry.metadata(id).name }
+                    iconResolver: function(id) { return BarModuleRegistry.metadata(id).icon }
+                    badgeResolver: function(id) { return BarModuleRegistry.metadata(id).category.toUpperCase() }
+                    badgeColorResolver: function(id) { return root.getCategoryColor(BarModuleRegistry.metadata(id).category) }
+                    onReordered: function(newModel) { root.setZoneModules(root.selectedZone, newModel) }
+                    onItemRemoved: function(index, item) { root.removeModuleFromZone(root.selectedZone, index) }
+                }
+            }
+
+            // Available Modules Pool to Add
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Text {
+                    text: "+ ADD MODULE TO " + (root.selectedZone === "left" ? "LEFT" : root.selectedZone === "center" ? "CENTER" : "RIGHT") + " ZONE"
+                    color: Theme.textDim
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeLabel
+                    font.bold: true
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Repeater {
+                        model: BarModuleRegistry.allModules
+                        delegate: DisplayChip {
+                            required property var modelData
+                            visible: modelData.id === "divider" || modelData.id === "spacer" || root.allActiveModules.indexOf(modelData.id) < 0
+                            label: "+ " + modelData.name
+                            onClicked: root.addModuleToZone(root.selectedZone, modelData.id)
+                        }
                     }
                 }
             }
@@ -193,16 +508,19 @@ ColumnLayout {
                     spacing: 6
                     Repeater {
                         model: [
-                            { id: "workspaces", label: "Workspaces", icon: "view_carousel" },
-                            { id: "clock", label: "Clock", icon: "schedule" },
-                            { id: "launcher", label: "Launcher", icon: "category" },
+                            { id: "workspaces",   label: "Workspaces",    icon: "view_carousel" },
+                            { id: "clock",        label: "Clock",         icon: "schedule" },
+                            { id: "launcher",     label: "Launcher",      icon: "category" },
                             { id: "activeWindow", label: "Active Window", icon: "tab" },
-                            { id: "volume", label: "Volume", icon: "volume_up" },
-                            { id: "battery", label: "Battery", icon: "battery_full" },
-                            { id: "network", label: "Network", icon: "wifi" },
-                            { id: "notifications", label: "Notifications", icon: "notifications" },
-                            { id: "llm", label: "AI Tokens", icon: "psychology" },
-                            { id: "session", label: "Session", icon: "power_settings_new" }
+                            { id: "media",        label: "Media",         icon: "play_circle" },
+                            { id: "weather",      label: "Weather",       icon: "wb_sunny" },
+                            { id: "volume",       label: "Volume",        icon: "volume_up" },
+                            { id: "battery",      label: "Battery",       icon: "battery_full" },
+                            { id: "network",      label: "Network",       icon: "wifi" },
+                            { id: "bluetooth",    label: "Bluetooth",     icon: "bluetooth" },
+                            { id: "notifications",label: "Notifications", icon: "notifications" },
+                            { id: "llm",          label: "AI Tokens",     icon: "psychology" },
+                            { id: "session",      label: "Session",       icon: "power_settings_new" }
                         ]
                         delegate: DisplayChip {
                             required property var modelData
@@ -227,9 +545,9 @@ ColumnLayout {
                     MujoSegmented {
                         model: [
                             { id: "numbers", label: "1 2 3" },
-                            { id: "dots", label: "Dots (•)" },
-                            { id: "roman", label: "Roman (I II)" },
-                            { id: "kanji", label: "Kanji (一 二)" }
+                            { id: "dots",    label: "Dots (•)" },
+                            { id: "roman",   label: "Roman (I II)" },
+                            { id: "kanji",   label: "Kanji (一 二)" }
                         ]
                         current: SettingsBus.get("bar.workspaces.style", "numbers")
                         onSelected: function(id) { SettingsBus.set("bar.workspaces.style", id) }
@@ -243,9 +561,9 @@ ColumnLayout {
                     MujoSegmented {
                         model: [
                             { id: "morphic", label: "Morphic" },
-                            { id: "pill", label: "Pill" },
-                            { id: "line", label: "Line" },
-                            { id: "glow", label: "Glow" }
+                            { id: "pill",    label: "Pill" },
+                            { id: "line",    label: "Line" },
+                            { id: "glow",    label: "Glow" }
                         ]
                         current: SettingsBus.get("bar.workspaces.gliderStyle", "morphic")
                         onSelected: function(id) { SettingsBus.set("bar.workspaces.gliderStyle", id) }
@@ -310,9 +628,9 @@ ColumnLayout {
                     description: "Date string representation in the pill."
                     MujoSegmented {
                         model: [
-                            { id: "short", label: "Thu, Aug 28" },
+                            { id: "short",  label: "Thu, Aug 28" },
                             { id: "medium", label: "8/28" },
-                            { id: "iso", label: "2026-08-28" }
+                            { id: "iso",    label: "2026-08-28" }
                         ]
                         current: SettingsBus.get("bar.clock.dateFormat", "short")
                         onSelected: function(id) { SettingsBus.set("bar.clock.dateFormat", id) }
@@ -360,9 +678,9 @@ ColumnLayout {
                     MujoSegmented {
                         model: [
                             { id: "search", label: "Search" },
-                            { id: "grid", label: "Grid" },
-                            { id: "nixos", label: "NixOS" },
-                            { id: "mujo", label: "Mujō" }
+                            { id: "grid",   label: "Grid" },
+                            { id: "nixos",  label: "NixOS" },
+                            { id: "mujo",   label: "Mujō" }
                         ]
                         current: SettingsBus.get("bar.launcher.icon", "search")
                         onSelected: function(id) { SettingsBus.set("bar.launcher.icon", id) }
@@ -431,13 +749,66 @@ ColumnLayout {
                     description: "Background surface styling."
                     MujoSegmented {
                         model: [
-                            { id: "pill", label: "Pill" },
+                            { id: "pill",  label: "Pill" },
                             { id: "glass", label: "Glass" },
                             { id: "plain", label: "Plain" }
                         ]
                         current: SettingsBus.get("bar.activeWindow.style", "pill")
                         onSelected: function(id) { SettingsBus.set("bar.activeWindow.style", id) }
                     }
+                }
+            }
+
+            // ── Media Settings ──
+            ColumnLayout {
+                visible: root.selectedBarWidget === "media"
+                Layout.fillWidth: true
+                spacing: 10
+
+                SettingRow {
+                    path: "bar.media.showControls"
+                    def: true
+                    kind: "toggle"
+                    iconName: "play_circle"
+                    title: "Show Playback Controls"
+                    description: "Display play/pause and skip action buttons in the media pill."
+                }
+
+                SettingRow {
+                    path: "bar.media.maxWidth"
+                    def: 180
+                    kind: "slider"
+                    from: 80
+                    to: 350
+                    format: "px"
+                    iconName: "straighten"
+                    title: "Maximum Title Width"
+                    description: "Elide track title and artist name when exceeding this limit."
+                }
+            }
+
+            // ── Weather Settings ──
+            ColumnLayout {
+                visible: root.selectedBarWidget === "weather"
+                Layout.fillWidth: true
+                spacing: 10
+
+                SettingRow {
+                    path: "bar.weather.showIcon"
+                    def: true
+                    kind: "toggle"
+                    iconName: "wb_sunny"
+                    title: "Show Condition Glyph"
+                    description: "Render weather icon next to temperature."
+                }
+
+                SettingRow {
+                    path: "bar.weather.showCity"
+                    def: false
+                    kind: "toggle"
+                    iconName: "location_city"
+                    title: "Show City Name"
+                    description: "Display localized city name inside the weather pill."
                 }
             }
 
@@ -480,10 +851,10 @@ ColumnLayout {
                     description: "When to render the numeric battery charge percentage."
                     MujoSegmented {
                         model: [
-                            { id: "always", label: "Always" },
+                            { id: "always",   label: "Always" },
                             { id: "charging", label: "Charging" },
-                            { id: "low", label: "Low" },
-                            { id: "never", label: "Never" }
+                            { id: "low",      label: "Low" },
+                            { id: "never",    label: "Never" }
                         ]
                         current: SettingsBus.get("bar.battery.showPercent", "charging")
                         onSelected: function(id) { SettingsBus.set("bar.battery.showPercent", id) }
@@ -503,7 +874,7 @@ ColumnLayout {
                 }
             }
 
-            // ── Network & Notifications & LLM & Session ──
+            // ── Network & Bluetooth & Notifications & LLM & Session ──
             ColumnLayout {
                 visible: root.selectedBarWidget === "network"
                 Layout.fillWidth: true
@@ -517,6 +888,21 @@ ColumnLayout {
                     title: "Show Wi-Fi SSID"
                     description: "Render active wireless network name directly in the pill."
                 }
+
+                SettingRow {
+                    path: "bar.bluetooth.showDevice"
+                    def: false
+                    kind: "toggle"
+                    iconName: "bluetooth"
+                    title: "Show Connected Bluetooth Device"
+                    description: "Display primary Bluetooth accessory name in bar."
+                }
+            }
+
+            ColumnLayout {
+                visible: root.selectedBarWidget === "bluetooth"
+                Layout.fillWidth: true
+                spacing: 10
 
                 SettingRow {
                     path: "bar.bluetooth.showDevice"
@@ -569,8 +955,8 @@ ColumnLayout {
                     description: "Visual emblem for power and lock menu."
                     MujoSegmented {
                         model: [
-                            { id: "power", label: "Power" },
-                            { id: "lock", label: "Lock" },
+                            { id: "power",  label: "Power" },
+                            { id: "lock",   label: "Lock" },
                             { id: "avatar", label: "Avatar" }
                         ]
                         current: SettingsBus.get("bar.session.iconStyle", "power")

@@ -56,7 +56,7 @@ var entries = [
     { title: "Desktop Bar Layout & Position", desc: "Attach floating bar to top or bottom edge of screen", cat: "Workspace", key: "workspace", card: "Desktop Bar Layout & Geometry" },
     { title: "Bar Height & Edge Margin", desc: "Vertical pill height, screen border margin, and cluster spacing", cat: "Workspace", key: "workspace", card: "Desktop Bar Layout & Geometry" },
     { title: "Bar Auto-Hide", desc: "Intelligent auto-hide when windows approach the screen edge", cat: "Workspace", key: "workspace", card: "Desktop Bar Layout & Geometry" },
-    { title: "Right Cluster Modules & Order", desc: "Drag, reorder, add, and remove modules in the right cluster", cat: "Workspace", key: "workspace", card: "Right Cluster Modules & Order" },
+    { title: "3-Zone Slot Canvas Builder", desc: "Drag, reorder, add, and remove modules across Left, Center, and Right zones", cat: "Workspace", key: "workspace", card: "3-Zone Slot Canvas Builder" },
     { title: "Workspaces Numeral Style", desc: "Numbers (1 2 3), Dots (•), Roman (I II), or Kanji (一 二)", cat: "Workspace", key: "workspace", card: "Bar Widget Style Customizer" },
     { title: "Workspaces Glider Indicator", desc: "Morphic glider, pill, underline, or outline active workspace indicator", cat: "Workspace", key: "workspace", card: "Bar Widget Style Customizer" },
     { title: "Clock Time Format & Seconds", desc: "24-hour format, live seconds counter, date pattern, monospace font", cat: "Workspace", key: "workspace", card: "Bar Widget Style Customizer" },
