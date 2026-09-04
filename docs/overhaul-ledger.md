@@ -52,9 +52,9 @@ $ bash quickshell/test-screenshot-crop.sh
 ok: crop bounds guard
 
 $ qs -p ./quickshell/bar/shell.qml
-Configuration Loaded — 18 log lines, all environmental (no pipewire iec958
+Configuration Loaded — 16 log lines, all environmental (no pipewire iec958
 parse, a second polkit agent, swayidle absent from this shell's PATH). Zero QML
-errors, identical to the phase-0 capture.
+errors; the phase-0 capture had 18 lines, two of them a TypeError per tray item.
 ```
 
 `bash tests/run-all-tests.sh` probes the **running** system and therefore
