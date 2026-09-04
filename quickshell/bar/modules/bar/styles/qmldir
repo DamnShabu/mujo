@@ -1,0 +1,5 @@
+FloatingStyle FloatingStyle.qml
+FullWidthStyle FullWidthStyle.qml
+IslandStyle IslandStyle.qml
+DockStyle DockStyle.qml
+CompactStyle CompactStyle.qml
