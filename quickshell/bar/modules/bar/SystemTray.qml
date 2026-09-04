@@ -64,7 +64,7 @@ Item {
             delegate: TrayIconDelegate {
                 required property var modelData
                 item: modelData
-                root: root
+                tray: root
                 tip: tip
                 menu: trayMenu
             }
@@ -164,7 +164,7 @@ Item {
                     delegate: TrayIconDelegate {
                         required property var modelData
                         item: modelData
-                        root: root
+                        tray: root
                         tip: tip
                         menu: trayMenu
                         inPopup: true

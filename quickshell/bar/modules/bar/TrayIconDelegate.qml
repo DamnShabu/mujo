@@ -12,7 +12,10 @@ import "../../services"
 Rectangle {
     id: d
     property var item: null
-    property var root: null
+    // Named `tray`, not `root`: as `root` it shadowed the SystemTray id of the
+    // same name inside the delegate binding scope, so `root: root` bound the
+    // property to itself (null) and `root.popupId` threw on every tray item.
+    property var tray: null
     property var tip: null
     property var menu: null
     property bool inPopup: false
@@ -41,7 +44,7 @@ Rectangle {
         smooth: true
         mipmap: true
         fillMode: Image.PreserveAspectFit
-        layer.enabled: d.root && d.root.recolour
+        layer.enabled: d.tray && d.tray.recolour
         layer.effect: MultiEffect { colorization: 1.0; colorizationColor: Theme.text }
     }
 
