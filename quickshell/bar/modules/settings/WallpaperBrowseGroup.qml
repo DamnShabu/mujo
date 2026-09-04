@@ -15,7 +15,7 @@ import "../../services"
 Item {
     id: root
 
-    // "library" | "wallhaven" | "wallpaperengine", owned by WallpapersPage.
+    // "library" | "wallhaven" | "wallpaperengine", owned by AppearancePage.
     required property string tab
     required property var localList
     required property string currentImage
