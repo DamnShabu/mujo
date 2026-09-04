@@ -7,9 +7,7 @@ import "./modules/settings"
 import "./modules/settings/SearchIndex.js" as SearchIndex
 
 // mujō (無常) — Desktop Settings.
-// 7-Category Information Architecture: System, Appearance, Workspace, Wallpapers,
-// Intelligence, Hardware, Security.
-// Every category is a consolidated SettingsPage composed of reusable MujoCards.
+// 5-Category Information Architecture: System, Appearance, Workspace, Hardware, Security & AI.
 ShellRoot {
     FloatingWindow {
         id: win
@@ -29,57 +27,43 @@ ShellRoot {
         Component { id: systemComp;       SystemPage {} }
         Component { id: appearanceComp;   AppearancePage {} }
         Component { id: workspaceComp;    WorkspacePage {} }
-        Component { id: wallpapersComp;   WallpapersPage {} }
-        Component { id: intelligenceComp; IntelligencePage {} }
         Component { id: hardwareComp;     HardwarePage {} }
         Component { id: securityComp;     SecurityPage {} }
 
         SettingsLayout {
             anchors.fill: parent
 
-            // ── 7-Category Unified Information Architecture ───────────────────
+            // ── 5-Category Unified Information Architecture ───────────────────
             categories: [
                 {
                     key: "system", label: "System", icon: "tune", brand: "system",
-                    subtitle: "Host, rebuild, health, preferences & apps",
+                    subtitle: "Host, rebuilds, health sentinel, storage cleaner, preferences & apps",
                     page: systemComp, badge: 4,
-                    keys: ["system", "overview", "health", "general", "applications", "host", "rebuild", "gc", "sentinel"]
+                    keys: ["system", "overview", "health", "general", "applications", "host", "rebuild", "gc", "sentinel", "preferences", "apps"]
                 },
                 {
                     key: "appearance", label: "Appearance", icon: "palette", brand: "appearance",
-                    subtitle: "Theme presets, accent colors & motion",
-                    page: appearanceComp, badge: 2,
-                    keys: ["appearance", "theme", "colors", "accent", "transparency", "motion", "animations"]
+                    subtitle: "Theme presets, accent colors, wallpaper catalog, live engines & motion dynamics",
+                    page: appearanceComp, badge: 4,
+                    keys: ["appearance", "theme", "colors", "accent", "transparency", "motion", "animations", "wallpapers", "wallpaper", "wallhaven", "wallpaperengine", "effects", "parallax"]
                 },
                 {
                     key: "workspace", label: "Workspace", icon: "dock_to_bottom", brand: "desktop",
-                    subtitle: "Bar layout, dynamic island, widgets & shelf",
+                    subtitle: "Desktop bar layout, dynamic island notch, overlay widgets & staging shelf",
                     page: workspaceComp, badge: 4,
                     keys: ["workspace", "bar", "island", "widgets", "desktop", "shelf"]
                 },
                 {
-                    key: "wallpapers", label: "Wallpapers", icon: "wallpaper", brand: "wallpaper",
-                    subtitle: "Local catalog, Wallhaven & Wallpaper Engine",
-                    page: wallpapersComp, badge: 1,
-                    keys: ["wallpapers", "wallpaper", "wallhaven", "wallpaperengine", "effects", "parallax"]
-                },
-                {
-                    key: "intelligence", label: "Intelligence", icon: "psychology", brand: "ai",
-                    subtitle: "Coding agents, alerts, VPN & weather",
-                    page: intelligenceComp, badge: 4,
-                    keys: ["intelligence", "ai", "notifications", "weather", "network", "vpn", "mullvad", "dnd"]
-                },
-                {
                     key: "hardware", label: "Hardware", icon: "monitor", brand: "display",
-                    subtitle: "Displays, input, power, shortcuts & VMs",
+                    subtitle: "Displays, input devices, keyboard shortcuts, network VPN, power & virtual machines",
                     page: hardwareComp, badge: 5,
-                    keys: ["hardware", "display", "displays", "devices", "input", "keyboard", "mouse", "touchpad", "shortcuts", "vm", "machines", "idle", "power", "screen"]
+                    keys: ["hardware", "display", "displays", "devices", "input", "keyboard", "mouse", "touchpad", "shortcuts", "vm", "machines", "idle", "power", "screen", "network", "vpn", "mullvad", "weather"]
                 },
                 {
-                    key: "security", label: "Security", icon: "shield", brand: "security",
-                    subtitle: "Verified boot, LUKS2 vault, trust, persistence & privacy",
+                    key: "security", label: "Security & AI", icon: "shield", brand: "security",
+                    subtitle: "Verified boot, AI assistants, progressive trust sandbox, credentials, privacy & alerts",
                     page: securityComp, badge: 5,
-                    keys: ["security", "vault", "keyring", "trust", "persistence", "privacy", "tpm", "boot"]
+                    keys: ["security", "vault", "keyring", "trust", "persistence", "privacy", "tpm", "boot", "ai", "intelligence", "notifications", "dnd", "credentials", "integrity"]
                 }
             ]
 

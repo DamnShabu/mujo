@@ -2,115 +2,14 @@ pragma Singleton
 import QtQuick
 import Quickshell
 
-// Standard-action icons, resolved from the desktop's own icon theme.
+// Freedesktop system icon resolution for application entries and file MIME types.
 //
-// The shell names its icons after Material Symbols. This maps those names onto
-// the freedesktop names the installed theme actually ships (Colloid, set in
-// nixos/desktop/gtk.nix, with Adwaita behind it) so that every standard control
-// — close, refresh, copy, lock, search — draws the icon the user's GTK apps
-// draw. A name with no honest freedesktop equivalent is simply absent here:
-// MaterialIcon keeps its glyph for those, which is why a missing entry is much
-// better than an approximate one.
-//
-// Only *symbolic* variants are mapped. They are monochrome line art meant to be
-// recoloured by the caller, which is what lets a 16px bar icon inherit the theme
-// foreground; the full-colour variants of the same names turn to mud that small.
-// File-type icons are the opposite case — full colour is the desktop convention
-// there — so `fileIcon` deliberately skips the symbolic set.
+// Standard UI controls use Material Symbols directly via MaterialIcon.qml.
+// This singleton resolves full-colour freedesktop icon theme assets for:
+// 1. Application launcher / window icons (appIcon, iconSource)
+// 2. Desktop file MIME types (fileIcon, fileTypes)
 QtObject {
     id: root
-
-    // ─── Standard UI actions ──────────────────────────────────────────────────
-    readonly property var actions: ({
-        "accessibility": "preferences-desktop-accessibility",
-        "accessibility_new": "preferences-desktop-accessibility",
-        "account_circle": "avatar-default",
-        "add": "list-add",
-        "add_circle": "list-add",
-        "add_circle_outline": "list-add",
-        "apps": "view-app-grid",
-        "arrow_back": "go-previous",
-        "arrow_upward": "go-up",
-        "calculate": "accessories-calculator",
-        "category": "applications-other",
-        "check": "object-select",
-        "check_circle": "emblem-ok",
-        "close": "window-close",
-        "cloud_off": "network-offline",
-        "content_copy": "edit-copy",
-        "content_paste": "edit-paste",
-        "delete": "user-trash",
-        "delete_outline": "user-trash",
-        "delete_sweep": "user-trash-full",
-        "dns": "network-server",
-        "do_not_disturb_on": "notifications-disabled",
-        "download": "browser-download",
-        "drag_indicator": "list-drag-handle",
-        "draw": "document-edit",
-        "drive_file_move": "edit-move",
-        "edit": "document-edit",
-        "equalizer": "multimedia-equalizer",
-        "error": "dialog-error",
-        "error_outline": "dialog-error",
-        "event_upcoming": "appointment-soon",
-        "extension": "application-x-addon",
-        "file_download": "document-save",
-        "flip": "object-flip-horizontal",
-        "folder_open": "folder-open",
-        "format_list_numbered": "format-justify-fill",
-        "grid_view": "view-grid",
-        "history": "document-open-recent",
-        "hourglass_top": "process-working",
-        "image": "image-x-generic",
-        "inbox": "mail-inbox",
-        "info": "dialog-information",
-        "inventory_2": "package-x-generic",
-        "key": "dialog-password",
-        "key_vertical": "dialog-password",
-        "keyboard_arrow_down": "pan-down",
-        "keyboard_arrow_up": "pan-up",
-        "location_on": "mark-location",
-        "lock": "changes-prevent",
-        "lock_clock": "system-lock-screen",
-        "lock_open": "changes-allow",
-        "minimize": "window-minimize",
-        "monitor": "video-display",
-        "monitoring": "utilities-system-monitor",
-        "more_horiz": "view-more",
-        "mouse": "input-mouse",
-        "music_note": "audio-x-generic",
-        "notifications_paused": "notifications-disabled",
-        "open_in_new": "window-new",
-        "palette": "applications-graphics",
-        "password": "dialog-password",
-        "power_settings_new": "system-shutdown",
-        "progress_activity": "process-working",
-        "refresh": "view-refresh",
-        "restart_alt": "system-reboot",
-        "schedule": "alarm",
-        "search": "system-search",
-        "security": "security-high",
-        "settings_suggest": "preferences-system",
-        "shield": "security-high",
-        "skip_next": "media-skip-forward",
-        "skip_previous": "media-skip-backward",
-        "speaker": "audio-speakers",
-        "star": "starred",
-        "terminal": "utilities-terminal",
-        "timer": "alarm",
-        "translate": "accessories-dictionary",
-        "tune": "preferences-other",
-        "vertical_align_top": "go-top",
-        "view_carousel": "view-continuous",
-        "view_day": "view-list",
-        "visibility_off": "view-conceal",
-        "volume_up": "audio-volume-high",
-        "wallpaper": "preferences-desktop-wallpaper",
-        "warning": "dialog-warning",
-        "web_asset": "web-browser",
-        "widgets": "applications-utilities",
-        "wifi": "network-wireless-signal-excellent"
-    })
 
     // ─── File types ───────────────────────────────────────────────────────────
     // Keyed by extension because ~/Desktop entries are overwhelmingly
@@ -148,12 +47,6 @@ QtObject {
         for (var i = 0; i < names.length; i++)
             if (Quickshell.hasThemeIcon(names[i])) return Quickshell.iconPath(names[i])
         return ""
-    }
-
-    // Themed symbolic icon for a Material Symbol name, or "".
-    function path(icon) {
-        var fd = root.actions[icon]
-        return fd === undefined ? "" : root.first([fd + "-symbolic"])
     }
 
     // An icon name, absolute path or URI as an Image source. Bare names go

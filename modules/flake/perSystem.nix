@@ -35,6 +35,7 @@
       packages.antigravity-ide = unstable.antigravity-ide;
       packages.claude-code = unstable.claude-code;
       packages.herdr = inputs.herdr.packages.${system}.default;
+      packages.helium = inputs.helium.packages.${system}.default;
       packages.cutefetch = pkgs.stdenv.mkDerivation {
         name = "cutefetch";
         src = ../../tools/cutefetch/cutefetch;

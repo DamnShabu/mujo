@@ -3,12 +3,11 @@ import QtQuick.Layouts
 import "../../theme"
 import "../../components"
 
-// Level-2 host: one sidebar category = one hero + a scrolling column of
-// MujoCards. Every consolidated page uses this instead of hand-rolling its own
-// Flickable/margins/hero, which is what left the twenty panels drifting apart.
+// Level-2 host: one sidebar category = a scrolling column of MujoCards.
+// Every consolidated page uses this instead of hand-rolling its own
+// Flickable/margins, which is what left the twenty panels drifting apart.
 //
 //   SettingsPage {
-//       brand: "appearance"; title: "Appearance"; subtitle: "Theme, motion, bar"
 //       MujoCard { title: "Theme"; SettingRow { path: "theme.preset"; … } }
 //       MujoCard { title: "Bar";   SettingRow { path: "bar.height";  … } }
 //   }
@@ -43,8 +42,7 @@ Item {
     }
 
     // MujoCard is the only thing here carrying both `title` and `collapsible`,
-    // which keeps MujoHero and MujoSettingRow (both of which have a `title`)
-    // from matching.
+    // which keeps MujoSettingRow (which also has a `title`) from matching.
     function _findCard(node, cardTitle) {
         var kids = node.children
         for (var i = 0; i < kids.length; i++) {
@@ -75,16 +73,6 @@ Item {
             y: 24
             width: flick.width - 48
             spacing: 14
-
-            MujoHero {
-                Layout.fillWidth: true
-                visible: page.title !== ""
-                brand: page.brand
-                title: page.title
-                subtitle: page.subtitle
-                badgeText: page.badgeText
-                isNixos: page.isNixos
-            }
         }
     }
 }

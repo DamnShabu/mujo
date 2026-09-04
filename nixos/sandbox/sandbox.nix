@@ -60,7 +60,7 @@
           "-vga none"
           "-device virtio-gpu-gl-pci,xres=1280,yres=800,blob=true,hostmem=1G,max_hostmem=2G"
           "-display egl-headless"
-          "-spice port=5920,disable-ticketing=on"
+          "-spice port=5920,disable-ticketing=on,image-compression=off,seamless-migration=on,streaming-video=filter,max-refresh-rate=165"
         ];
       };
       sharedDirectories.nixconf = {
@@ -238,6 +238,23 @@
     system.stateVersion = "25.11";
   };
 
+  # Host integration: ensures mujo-sandbox is built and updated on host rebuilds
+  # and available in systemPackages.
+  flake.nixosModules.app-sandbox = {
+    pkgs,
+    lib,
+    config,
+    ...
+  }: {
+    options.apps.sandbox.enable = lib.mkEnableOption "Mujo graphical sandbox VM test driver" // {default = true;};
+
+    config = lib.mkIf config.apps.sandbox.enable {
+      environment.systemPackages = [
+        self.packages.${pkgs.stdenv.hostPlatform.system}.sandbox
+      ];
+    };
+  };
+
   perSystem = {pkgs, ...}: let
     sandbox = pkgs.testers.runNixOSTest {
       name = "mujo-sandbox";
@@ -248,11 +265,22 @@
       nodes.machine = self.nixosModules.sandbox;
       testScript = builtins.readFile ./mcp.py;
     };
+    mujoSandbox = pkgs.symlinkJoin {
+      name = "mujo-sandbox";
+      paths = [
+        sandbox.driver
+        (pkgs.writeShellScriptBin "mujo-sandbox" ''
+          exec "${sandbox.driver}/bin/nixos-test-driver" "$@"
+        '')
+      ];
+      meta.description = "Disposable VM + MCP server for testing desktop UI";
+    };
   in {
-    packages.sandbox = sandbox.driver;
+    packages.sandbox = mujoSandbox;
+    packages.sandbox-driver = sandbox.driver;
     apps.sandbox = {
       type = "app";
-      program = "${sandbox.driver}/bin/nixos-test-driver";
+      program = "${mujoSandbox}/bin/mujo-sandbox";
       meta.description = "Disposable VM + MCP server for testing desktop UI";
     };
   };

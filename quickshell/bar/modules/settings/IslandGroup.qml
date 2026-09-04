@@ -44,52 +44,10 @@ ColumnLayout {
 
         SectionLabel { text: "Module Hierarchy (Top to Bottom)" }
 
-        Repeater {
+        MujoReorderList {
             model: root.modules
-            delegate: Rectangle {
-                required property int index
-                required property var modelData
-                Layout.fillWidth: true
-                radius: Theme.radiusMd
-                color: Theme.bg
-                border.color: Theme.border
-                implicitHeight: 40
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 8
-                    spacing: 8
-
-                    MaterialIcon { iconName: "drag_indicator"; pixelSize: 16; color: Theme.textDim }
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: modelData
-                        color: Theme.text
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fontSizeSmall
-                        font.bold: true
-                    }
-
-                    IconButton {
-                        iconName: "arrow_upward"
-                        enabled: index > 0
-                        onClicked: root.move(index, -1)
-                    }
-
-                    IconButton {
-                        iconName: "arrow_downward"
-                        enabled: index < root.modules.length - 1
-                        onClicked: root.move(index, 1)
-                    }
-
-                    IconButton {
-                        iconName: "close"
-                        onClicked: root.removeAt(index)
-                    }
-                }
-            }
+            itemHeight: 40
+            onReordered: function(newModel) { root.setModules(newModel) }
         }
 
         // Available modules to add

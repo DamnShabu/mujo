@@ -7,7 +7,7 @@ import "../../theme"
 import "../../components"
 import "../../services"
 
-// The settings shell: fixed 260px sidebar (brand, omni-search, seven categories
+// The settings shell: fixed 260px sidebar (brand, omni-search, five categories
 // with a sliding glider and count badges) + a fluid content pane that crossfades
 // between category pages without reloading them.
 //
@@ -18,7 +18,7 @@ import "../../services"
 //   { key, label, icon, brand, subtitle, badge, page: Component, keys: [...] }
 //
 // `keys` are the routing aliases the category answers to, so every panel key
-// that existed before the seven-category consolidation still resolves through
+// that existed before the five-category consolidation still resolves through
 // route() — `mujo settings wallpaper`, `mujo settings dnd`, and the omni-search
 // all enter here.
 Item {
@@ -46,13 +46,21 @@ Item {
     // Accepts a category key or any key a page claims via `keys: [...]` — so
     // `mujo settings wallpaper`, `mujo settings dnd` and the omni-search all
     // keep working through one entry point. `card` is optional and names a
-    // MujoCard title on the destination page.
+    // MujoCard title on the destination page. If `card` is not given and `key`
+    // is an alias (not the primary category key), `pendingCard` is set to `key`
+    // so `currentPage.revealCard` can route into that sub-tab.
     function route(key, card) {
         if (!key) return
         for (var i = 0; i < categories.length; i++) {
             var c = categories[i]
             if (c.key === key || (c.keys && c.keys.indexOf(key) >= 0)) {
-                layout.pendingCard = card || ""
+                if (card) {
+                    layout.pendingCard = card
+                } else if (key !== c.key) {
+                    layout.pendingCard = key
+                } else {
+                    layout.pendingCard = ""
+                }
                 current = c.key
                 clearSearch()
                 Qt.callLater(layout.flushPendingCard)
@@ -63,9 +71,8 @@ Item {
 
     // Set by the current category host so route() can reach the live page.
     // Deliberately `var`, not `Item`: revealCard is duck-typed across
-    // SettingsPage (six categories) and WallpapersPage (which cannot be one,
-    // because its grids need the full viewport). They share no base type that
-    // could declare the function, so the call is guarded rather than typed.
+    // all category pages. They share no base type that could declare the
+    // function, so the call is guarded rather than typed.
     property var currentPage: null
     function flushPendingCard() {
         if (layout.pendingCard === "" || !layout.currentPage) return
@@ -92,7 +99,7 @@ Item {
         Qt.callLater(function () { searchField.forceActiveFocus() })
     }
 
-    // Sidebar arrow-key navigation. Clamped rather than wrapping: at seven
+    // Sidebar arrow-key navigation. Clamped rather than wrapping: at five
     // entries a wrap reads as a jump, not as continuing in the same direction.
     function step(d) {
         if (categories.length === 0) return
@@ -177,43 +184,64 @@ Item {
                 spacing: 12
 
                 // Brand header
-                RowLayout {
+                ColumnLayout {
+                    visible: !layout.compact
                     Layout.fillWidth: true
-                    Layout.topMargin: 2
-                    spacing: 10
+                    Layout.topMargin: 4
+                    Layout.bottomMargin: 2
+                    Layout.leftMargin: 2
+                    spacing: 3
 
-                    BrandIcon { brand: "mujo"; size: 28; Layout.alignment: Qt.AlignVCenter }
-
-                    Text {
-                        visible: !layout.compact
-                        text: "Settings"
-                        color: Theme.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeTitle + 3
-                        font.bold: true
-                        Layout.alignment: Qt.AlignVCenter
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    Rectangle {
-                        visible: !layout.compact
-                        implicitWidth: mujoBadge.implicitWidth + 8
-                        implicitHeight: 18
-                        radius: Theme.radiusSm
-                        color: Theme.accentDim
-                        border.color: Theme.withAlpha(Theme.accent, 0.35)
-                        Layout.alignment: Qt.AlignVCenter
-
+                    RowLayout {
+                        spacing: 8
                         Text {
-                            id: mujoBadge
-                            anchors.centerIn: parent
-                            text: "mujō"
-                            color: Theme.accent
-                            font.family: Theme.fontMono
-                            font.pixelSize: Theme.fontSizeLabel
+                            text: "Settings"
+                            color: Theme.text
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeHeading
                             font.bold: true
                         }
+
+                        Rectangle {
+                            implicitWidth: mujoBadge.implicitWidth + 8
+                            implicitHeight: 16
+                            radius: 4
+                            color: Theme.withAlpha(Theme.accent, 0.12)
+                            border.color: Theme.withAlpha(Theme.accent, 0.28)
+                            border.width: 1
+
+                            Text {
+                                id: mujoBadge
+                                anchors.centerIn: parent
+                                text: "mujō"
+                                color: Theme.accent
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeLabel - 1
+                                font.bold: true
+                                font.letterSpacing: 0.5
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: "Desktop Configuration"
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                    }
+                }
+
+                // Compact header icon
+                Item {
+                    visible: layout.compact
+                    Layout.fillWidth: true
+                    implicitHeight: 32
+
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        iconName: "tune"
+                        pixelSize: 20
+                        color: Theme.accent
                     }
                 }
 

@@ -21,9 +21,9 @@ The mujō desktop for Niri/Wayland: floating grouped top bar, overlay launcher, 
 
 ## ICONS
 
-- **Standard actions use the system icon theme.** `components/MaterialIcon.qml` looks the Material Symbol name up in `theme/Icons.qml`, draws the theme's `*-symbolic` icon recoloured to `color` when there is one, and falls back to the Material Symbols glyph when there is not. Call sites keep passing Material Symbol names; add a mapping in `Icons.qml` rather than at the call site, and leave a name unmapped if no freedesktop icon honestly matches it.
+- **Standard actions use Material Symbols.** `components/MaterialIcon.qml` renders Material Symbols directly (`Material Symbols Rounded`), ensuring consistent, scalable vector glyphs across all controls, bars, menus, and settings.
 - **File-type icons are full colour** (`Icons.fileIcon`), the desktop convention, keyed by extension.
-- The theme comes from `QS_ICON_THEME`, set session-wide in `nixos/desktop/gtk.nix` and again in the `qs-bar` service. Without it Qt resolves nothing and every icon silently falls back to a glyph — `qs -p ./test-icons.qml` is the check.
+- Application launcher and window icons resolve via `Icons.appIcon` / `Icons.iconSource` against the desktop icon theme.
 
 ## DIRECTORIES
 
@@ -54,6 +54,7 @@ qs -p ./test-desktop.qml          # icon placement vs. a widget, against the rea
 qs -p ./test-wallpaper-panel.qml  # Wallpapers page components & TagQuery parsing
 qs -p ./test-scroll.qml           # shared wheel scrolling, and that Flickable's enum still matches
 qs -p ./test-vm-service.qml       # VmService progress parsing and log cap
+qs -p ./test-reorder-list.qml     # MujoReorderList drag, drop, and button reordering
 qs list --all                     # active instances
 qs kill -i <id>                   # terminate one
 qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle
@@ -88,7 +89,7 @@ verdict and then hangs forever.
 `settings.qml` is only a frame: the window, the seven sidebar categories, and the omni-search index — all data. The machinery lives in `modules/settings/`:
 
 - **`SettingsLayout.qml`** — 260px sidebar (brand, `/` omni-search, categories with a sliding glider and count badges) and the content pane. Owns routing: `SettingsBus.onNavigate` and `~/.config/qsshell/settings-target` (what `mujo settings <key>` writes) both go through `route()`, which resolves a category key or any key a category claims in `keys: [...]`.
-- **`SettingsPage.qml`** — one category page: hero plus a scrolling column of `MujoCard`s. **Navigation stops here.** Level 1 is the sidebar category, level 2 is a card. No sub-pages, no modal overlays — an "open X" affordance becomes an inline card (`visible:` on the card), the way VM provisioning did.
+- **`SettingsPage.qml`** — one category page: a scrolling column of `MujoCard`s. **Navigation stops here.** Level 1 is the sidebar category, level 2 is a card. No sub-pages, no modal overlays — an "open X" affordance becomes an inline card (`visible:` on the card), the way VM provisioning did.
 - **`SettingRow.qml`** — one store-backed setting: `path` + `kind` (`toggle` | `slider` | `segment` | `text`). Anything with a bespoke control uses `MujoSettingRow` directly and fills its default control slot.
 - **`<Domain>Group.qml`** — the cards of one domain: a plain `ColumnLayout`, no scroll and no hero of its own, dropped into a page.
 - **`SearchIndex.js`** — the omni-search rows, in their own `.pragma library` so `test-settings-ui.qml` asserts against the data the app ships. Every `card:` value must match a `MujoCard` title on the destination page verbatim; the test checks that.

@@ -54,7 +54,7 @@ in a row. Full list in `quickshell/bar/AGENTS.md` → RUNNING:
 
 ```bash
 cd quickshell/bar
-for t in icons grid notifications shelf settings-ui security-ui desktop wallpaper-panel scroll vm-service; do
+for t in icons grid notifications shelf settings-ui security-ui desktop wallpaper-panel scroll vm-service reorder-list; do
   qs -p "./test-$t.qml"
 done
 ```

@@ -13,7 +13,6 @@ SysBar SysBar.qml
 TextField TextField.qml
 Tooltip Tooltip.qml
 MujoCard MujoCard.qml
-MujoHero MujoHero.qml
 MujoSettingRow MujoSettingRow.qml
 MujoSegmented MujoSegmented.qml
 MujoLivingCanvas MujoLivingCanvas.qml
@@ -27,3 +26,4 @@ BaseWidget BaseWidget.qml
 DesktopIcon DesktopIcon.qml
 MujoFlickable MujoFlickable.qml
 MujoGridView MujoGridView.qml
+MujoReorderList MujoReorderList.qml

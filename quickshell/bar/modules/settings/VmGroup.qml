@@ -73,6 +73,28 @@ ColumnLayout {
         root.activeTab = "vms"
     }
 
+    function osIconName(category, icon) {
+        var key = (icon || "").toLowerCase()
+        if (key === "nixos" || category === "NixOS") return "ac_unit"
+        if (key === "windows" || category === "Windows") return "window"
+        if (key === "macos" || category === "Apple") return "desktop_mac"
+        if (key === "freebsd" || category === "BSD") return "whatshot"
+        if (Brand.has(key) && Brand.get(key).mat) return Brand.get(key).mat
+        if (key === "ubuntu") return "group_work"
+        if (key === "fedora") return "policy"
+        if (key === "arch") return "change_history"
+        if (key === "debian") return "rotate_right"
+        if (key === "alpine") return "landscape"
+        return "terminal"
+    }
+
+    function osIconColor(category, icon) {
+        var key = (icon || "").toLowerCase()
+        if (key === "nixos" || category === "NixOS") return Brand.get("nixos").color
+        if (Brand.has(key)) return Brand.get(key).color
+        return Theme.accent
+    }
+
     MujoCard {
         title: "Hypervisor"
         iconName: "memory"
@@ -96,7 +118,7 @@ ColumnLayout {
                     Rectangle {
                         implicitWidth: 38; implicitHeight: 38; radius: Theme.radiusSm
                         color: Theme.withAlpha(Theme.accent, 0.14)
-                        BrandIcon { brand: "vm"; size: 20; anchors.centerIn: parent }
+                        MaterialIcon { iconName: "dns"; pixelSize: 20; color: Theme.accent; anchors.centerIn: parent }
                     }
                     // fillWidth + elide: the cards are equal width, so the
                     // longest subtitle used to push its text into the card
@@ -130,7 +152,7 @@ ColumnLayout {
                     Rectangle {
                         implicitWidth: 38; implicitHeight: 38; radius: Theme.radiusSm
                         color: Theme.withAlpha(Theme.success, 0.14)
-                        Text { text: "⚡"; font.pixelSize: 18; anchors.centerIn: parent }
+                        MaterialIcon { iconName: "bolt"; pixelSize: 20; color: Theme.success; anchors.centerIn: parent }
                     }
                     // fillWidth + elide: the cards are equal width, so the
                     // longest subtitle used to push its text into the card
@@ -164,7 +186,7 @@ ColumnLayout {
                     Rectangle {
                         implicitWidth: 38; implicitHeight: 38; radius: Theme.radiusSm
                         color: Theme.withAlpha(Theme.accent, 0.14)
-                        Text { text: "🖥️"; font.pixelSize: 18; anchors.centerIn: parent }
+                        MaterialIcon { iconName: "desktop_windows"; pixelSize: 20; color: Theme.accent; anchors.centerIn: parent }
                     }
                     // fillWidth + elide: the cards are equal width, so the
                     // longest subtitle used to push its text into the card
@@ -197,6 +219,7 @@ ColumnLayout {
 
         actions: DialogButton {
             text: "Refresh"
+            iconName: "refresh"
             enabled: !VmService.running
             onClicked: VmService.refresh()
         }
@@ -399,7 +422,8 @@ ColumnLayout {
                 Layout.fillWidth: true
                 SectionLabel { text: "Active & Configured Virtual Machines"; Layout.fillWidth: true }
                 DialogButton {
-                    text: "🔄 Refresh"
+                    text: "Refresh"
+                    iconName: "refresh"
                     enabled: !VmService.running
                     onClicked: VmService.refresh()
                 }
@@ -424,6 +448,7 @@ ColumnLayout {
                     }
                     DialogButton {
                         text: "Deploy Windows, Ubuntu, or Fedora"
+                        iconName: "add"
                         Layout.alignment: Qt.AlignHCenter
                         onClicked: root.activeTab = "catalog"
                     }
@@ -459,13 +484,17 @@ ColumnLayout {
                             implicitWidth: 46; implicitHeight: 46; radius: Theme.radiusSm
                             color: isReady ? Theme.withAlpha(Theme.success, 0.2)
                                  : isStarting ? Theme.withAlpha(Theme.warning, 0.2)
-                                 : Theme.withAlpha(Theme.accent, 0.12)
-                            Text {
-                                text: modelData.category === "Windows" ? "🪟"
-                                    : modelData.category === "Apple" ? "🍎"
-                                    : modelData.category === "NixOS" ? "❄️"
-                                    : (modelData.icon === "ubuntu" ? "🟠" : modelData.icon === "fedora" ? "🔵" : modelData.icon === "arch" ? "🏹" : "🐧")
-                                font.pixelSize: 22
+                                 : Theme.withAlpha(root.osIconColor(modelData.category, modelData.icon), 0.15)
+                            border.color: isReady ? Theme.success
+                                        : isStarting ? Theme.warning
+                                        : Theme.withAlpha(root.osIconColor(modelData.category, modelData.icon), 0.3)
+                            border.width: 1
+                            MaterialIcon {
+                                iconName: root.osIconName(modelData.category, modelData.icon)
+                                pixelSize: 24
+                                color: isReady ? Theme.success
+                                     : isStarting ? Theme.warning
+                                     : root.osIconColor(modelData.category, modelData.icon)
                                 anchors.centerIn: parent
                             }
                         }
@@ -518,7 +547,7 @@ ColumnLayout {
                             RowLayout {
                                 spacing: 12
                                 Text {
-                                    text: isStarting ? "⏳ Booting guest OS and starting Wayland display server..."
+                                    text: isStarting ? "Booting guest OS and starting Wayland display server..."
                                         : modelData.isSandbox ? "Cores: 8 vCPUs · RAM: 4G · Disk: Ephemeral tmpfs (9p live mount)"
                                         : "Cores: " + modelData.cores + " vCPUs · RAM: " + modelData.ram + " · Disk: " + modelData.diskSize
                                     color: isStarting ? Theme.warning : Theme.textSecondary
@@ -550,9 +579,11 @@ ColumnLayout {
 
                             // Action Buttons
                             DialogButton {
-                                text: isStarting ? "⏳ Initializing..."
-                                    : (modelData.isSandbox ? (isReady ? "🖥️ Observe Workspace" : "▶ Start Sandbox")
-                                    : (isReady ? "🖥️ Display" : "▶ Start VM"))
+                                text: isStarting ? "Initializing..."
+                                    : (modelData.isSandbox ? (isReady ? "Observe Workspace" : "Start Sandbox")
+                                    : (isReady ? "Display" : "Start VM"))
+                                iconName: isStarting ? "hourglass_top"
+                                        : (isReady ? "desktop_windows" : "play_arrow")
                                 primary: isReady || !isStarting
                                 enabled: !VmService.running && !isStarting
                                 onClicked: {
@@ -566,13 +597,15 @@ ColumnLayout {
 
                             DialogButton {
                                 visible: modelData.status === "running"
-                                text: "⏹ Stop"
+                                text: "Stop"
+                                iconName: "stop"
                                 enabled: !VmService.running
                                 onClicked: VmService.stop(modelData.name, false)
                             }
 
                             DialogButton {
-                                text: modelData.isSandbox ? "🔄 Reset" : "🗑️ Delete"
+                                text: modelData.isSandbox ? "Reset" : "Delete"
+                                iconName: modelData.isSandbox ? "restart_alt" : "delete"
                                 enabled: !VmService.running
                                 onClicked: VmService.remove(modelData.name)
                             }
@@ -611,12 +644,17 @@ ColumnLayout {
 
                             RowLayout {
                                 Layout.fillWidth: true; spacing: 10
-                                Text {
-                                    text: modelData.category === "Windows" ? "🪟"
-                                        : modelData.category === "Apple" ? "🍎"
-                                        : modelData.category === "NixOS" ? "❄️"
-                                        : (modelData.icon === "ubuntu" ? "🟠" : modelData.icon === "fedora" ? "🔵" : modelData.icon === "arch" ? "🏹" : "🐧")
-                                    font.pixelSize: 20
+                                Rectangle {
+                                    implicitWidth: 32; implicitHeight: 32; radius: Theme.radiusSm
+                                    color: Theme.withAlpha(root.osIconColor(modelData.category, modelData.icon), 0.15)
+                                    border.color: Theme.withAlpha(root.osIconColor(modelData.category, modelData.icon), 0.3)
+                                    border.width: 1
+                                    MaterialIcon {
+                                        iconName: root.osIconName(modelData.category, modelData.icon)
+                                        pixelSize: 18
+                                        color: root.osIconColor(modelData.category, modelData.icon)
+                                        anchors.centerIn: parent
+                                    }
                                 }
                                 Text {
                                     text: modelData.name
@@ -625,6 +663,7 @@ ColumnLayout {
                                 }
                                 DialogButton {
                                     text: modelData.isSandbox ? "Start" : "Deploy"
+                                    iconName: modelData.isSandbox ? "play_arrow" : "add"
                                     primary: true
                                     enabled: !VmService.running
                                     onClicked: {
