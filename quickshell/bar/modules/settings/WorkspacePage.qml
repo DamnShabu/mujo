@@ -17,6 +17,7 @@ Item {
 
     readonly property var cardTabMap: ({
         "Desktop Bar Layout & Geometry": "bar",
+        "3-Zone Slot Canvas Builder": "bar",
         "Right Cluster Modules & Order": "bar",
         "Bar Widget Style Customizer": "bar",
         "Dynamic Island Notch": "island",
