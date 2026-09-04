@@ -64,30 +64,39 @@ Numbers below are from an i9-14900K and were stable across repeated runs.
 
 | Boundary | Workload | Measured | Budget | Verdict |
 |---|---|---|---|---|
-| Native sandbox | 10×128MiB SHA-256 | +4% to +7% | <5% | **straddles — see below** |
-| Native sandbox | process launch | +20ms (min), +65ms (avg) | <250ms | **meets** |
+| Native sandbox | 10×128MiB SHA-256 | −2% to +3% | <5% | **meets** |
+| Native sandbox | process launch | +18ms (min), +48ms (avg) | <250ms | **meets** |
 | Quarantine VM | 10×128MiB SHA-256 | −4% to −5% | <15% | **meets** |
-| Quarantine VM | warm launch | ~100ms | <3s | **meets** |
+| Quarantine VM | warm launch | 126–241ms | <3s | **meets** |
 
 `bwrap` itself is free: the same hash loop under a bare
 `bwrap --ro-bind / / --dev /dev --proc /proc --unshare-all --share-net`
-runs at 659–673ms against 671ms native, i.e. inside the noise. Everything the
-native-sandbox row measures is `mujo-sandbox-run`'s own setup, and because the
-sandboxed side is one process launch plus ten hash passes, that setup lands
-inside the ratio the row reports.
+runs at 659–673ms against 671ms native, i.e. inside the noise. That is now what
+the row reports, because the row no longer carries a launch inside it.
 
-Most of it was the wait for the filtered D-Bus proxy, which polled for its
-socket in 10ms `sleep`s: 56–63ms minimum per launch. `xdg-dbus-proxy --fd`
-writes a readiness byte in ~3ms instead, which took the minimum launch to
-20–25ms and the CPU-workload ratio from a consistent 7–12% to 4–7%.
+**Decision taken.** The row used to read +4% to +7% against a 5% budget, and the
+earlier text here left the fix to the maintainer: raise the budget, raise the
+pass count, or subtract the launch. The last two are the honest ones and the
+suite does both.
 
-**Open decision.** 4–7% straddles the 5% budget, and repeated best-of-7 runs on
-this machine vary by about ±3% — the budget now sits at the measurement's own
-noise floor. Three ways out, none taken here: raise the budget with a stated
-reason, raise the pass count so launch cost genuinely amortises out (the row's
-original intent, and what its comment claims it already does), or subtract the
-separately-measured launch cost from the sandboxed time. All three change what
-the check asserts, so the choice is the maintainer's, not a cleanup.
+Subtracting is what mattered. The sandboxed side is one process launch plus ten
+hash passes, so `mujo-sandbox-run`'s setup — ~50ms after the `xdg-dbus-proxy
+--fd` handshake replaced a 56–63ms sleep-poll — was sitting inside a ~660ms
+measurement and reporting 7% of throughput overhead that was not throughput.
+Every ratio in the table is now taken between two launch-corrected numbers: each
+side's own `best_of` floor for spawning `true` is subtracted before the
+comparison, so launch cost appears once, on its own row, where it is budgeted as
+a fixed cost rather than a rate.
+
+Raising the pass count fixed the second half. At best-of-3 the corrected ratio
+still swung −6% to +5% run to run — wider than the 5% budget it is checked
+against, so the check was reporting coin flips. best-of-5 takes it to −2% to
++3% across repeated runs, for about 2.6s more per suite run.
+
+This is the same trap as §"Two methodology traps" below, caught a third time. A
+fixed cost inside a ratio always masquerades as a rate, and passes alone only
+shrink it — the launch cost that broke this row had grown from 11ms to ~50ms
+while the comment above it still claimed ten passes were enough.
 
 The quarantine guest runs sustained CPU work at parity with the host, which is
 what §2.1 predicts: KVM executes guest instructions directly, and `sha_ni` plus
@@ -95,12 +104,18 @@ the full CPU model pass through to the guest.
 
 ### The real cost is per-launch, not per-cycle
 
-The number that actually matters for quarantine is the **~100ms warm launch**,
-and it is a fixed cost rather than a percentage. It is invisible for an
-application the user keeps open, and dominant for anything short-lived: a
-command taking 50ms natively takes ~150ms in the domain. Phase 37's pre-warmed
-pools would address it; a single shared domain already avoids the multi-second
-cold boot.
+The number that actually matters for quarantine is the **warm launch**, and it
+is a fixed cost rather than a percentage. It is invisible for an application the
+user keeps open, and dominant for anything short-lived. It grew from ~100ms to
+126–241ms when every payload moved onto a private guest session bus: the launch
+now starts `dbus-run-session` and waits for `mujo-tray-relay` to own the tray
+and notification names — about 85ms of rendezvous — before the payload's first
+instruction. That wait is deliberate. Without it an application that looks for a
+tray during those 85ms finds none and never looks again, and the reason the
+payload is on a private bus at all is that the bridged host bus grants no name
+ownership, which killed every GTK application outright (`docs/application-trust.md`
+§6). Phase 37's pre-warmed pools would address the launch cost; a single shared
+domain already avoids the multi-second cold boot.
 
 ### Graphics, which the table above does not cover
 

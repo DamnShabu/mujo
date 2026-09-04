@@ -203,7 +203,6 @@
 
         if [ "$is_flatpak" -eq 1 ] || [ -d "/var/lib/flatpak/app/$app_id" ]; then
           # Flatpak app: dedicated persistent storage directly in /home/quarantine/.var/app
-          is_flatpak=1
           mkdir -p "/home/quarantine/.var/app/$app_id" 2>/dev/null || true
           chmod 700 "/home/quarantine/.var/app/$app_id" 2>/dev/null || true
           export HOME="/home/quarantine"
@@ -220,12 +219,13 @@
         # and the watcher share one bus, because the watcher calls back into the
         # application to read its icon, title and menu. A per-interface bridge
         # -- which is what notifications used to have -- can forward a one-way
-        # Notify but has no way to answer those calls.
+        # Notify but has no way to answer those calls. The relay below is what
+        # joins those two buses; this socket is its only route out.
         #
-        # ponytail: the guest's own xdg-desktop-portal is unreachable from this
-        # bus, and the host's is deliberately not in the filter (it would hand
-        # out host file dialogs), so file choosers fall back to the toolkit's
-        # own. Add a portal only if something actually needs it.
+        # The host's portal is deliberately absent from the filter -- it would
+        # hand out host file dialogs. The guest's own is D-Bus-activatable on
+        # the private bus the payload runs on, so a file chooser there opens
+        # against the guest's filesystem, which is the whole point.
         # Per launch: XDG_RUNTIME_DIR is shared by every mujo-agent@ instance,
         # so a fixed name would have the second launch unlink the first's socket.
         bus="$XDG_RUNTIME_DIR/host-bus-$$"
@@ -250,8 +250,23 @@
         # mujo-agent@ unit, and systemd tears the whole cgroup down -- socat and
         # the relay included -- when it exits.
 
-        # A Flatpak cannot use that bus directly. Two reasons, either one fatal:
+        # Every payload gets a private guest session bus, and mujo-tray-relay
+        # carries the two things that have to leave the domain to the host bus:
+        # the StatusNotifierItem, and notifications. Handing the payload the
+        # bridged host bus directly instead fails, once for every application
+        # and twice more for Flatpaks:
         #
+        #   * The host proxy grants no name ownership at all (it granted
+        #     `--own=org.kde.*` and nothing else when this broke), and
+        #     xdg-dbus-proxy answers a RequestName outside its policy with a
+        #     faked org.freedesktop.DBus.Error.ServiceUnknown. Every
+        #     GApplication -- so every GTK application -- must own its app id to
+        #     register, so nautilus printed "Failed to register: ...
+        #     ServiceUnknown" and exited before drawing a window. Widening
+        #     `--own` is not the fix: a name the guest owns on the *host* bus is
+        #     a name host applications get routed to, and a quarantined process
+        #     holding org.freedesktop.FileManager1 would field every "open
+        #     containing folder" on the machine.
         #   * `flatpak run` interposes its own xdg-dbus-proxy, and two of those
         #     in a row do not compose. flatpak-proxy reserves the top 65536
         #     serials for messages it originates, and the bridge's proxy on the
@@ -264,21 +279,30 @@
         #     thing this domain exists to prevent. Without it every renderer
         #     exits immediately and the window stays blank.
         #
-        # So a Flatpak gets a private guest bus, and mujo-tray-relay carries the
-        # two things that have to leave the domain across to the host bus: the
-        # StatusNotifierItem, and notifications. Without it, closing Vesktop or
-        # Steam "to tray" simply lost the window -- the application went on
-        # running against a tray that existed only inside the VM.
-        if [ "$is_flatpak" -eq 1 ]; then
-          export MUJO_HOST_BUS="unix:path=$bus"
-          ${lib.optionalString caps.notifications "export MUJO_RELAY_NOTIFICATIONS=1"}
-          # shellcheck disable=SC2016 # $1 is the inner shell's, not this one's
-          exec dbus-run-session -- /bin/sh -c \
-            '${trayRelay}/bin/mujo-tray-relay & exec /bin/sh -c "$1"' sh "$1"
-        fi
-
-        export DBUS_SESSION_BUS_ADDRESS="unix:path=$bus"
-        exec /bin/sh -c "$1"
+        # Without the relay, closing Vesktop or Steam "to tray" simply lost the
+        # window -- the application went on running against a tray that existed
+        # only inside the VM.
+        #
+        # The payload waits for the relay rather than racing it. Nothing owns
+        # the watcher or the notification name until the relay's start() returns
+        # -- about 100ms -- and an application that looks for a tray inside that
+        # window finds none and never looks again. The relay writes one byte to
+        # fd 3 when its names are held; the read is bounded so a relay that dies
+        # delays the launch instead of hanging it. Same shape as the
+        # xdg-dbus-proxy `--fd` handshake in nixos/apps/native-sandbox.nix.
+        export MUJO_HOST_BUS="unix:path=$bus"
+        ${lib.optionalString caps.notifications "export MUJO_RELAY_NOTIFICATIONS=1"}
+        ready="$XDG_RUNTIME_DIR/relay-ready-$$"
+        rm -f "$ready"
+        mkfifo "$ready"
+        # shellcheck disable=SC2016 # $1 and $2 are the inner shell's, not this one's
+        exec dbus-run-session -- /bin/sh -c '
+          exec 9<>"$2"
+          MUJO_RELAY_READY_FD=3 ${trayRelay}/bin/mujo-tray-relay 3>&9 &
+          IFS= read -r -n1 -t 10 -u 9 _ || true
+          rm -f "$2"
+          exec /bin/sh -c "$1"
+        ' sh "$1" "$ready"
       '';
     };
 
@@ -749,9 +773,15 @@
       # StatusNotifierItem is a two-way protocol -- the watcher calls back into
       # the application for its icon, title and menu -- which is why the tray
       # needs a bus and not the one-way vsock bridge notifications used to have.
-      # `--own=org.kde.*` is what covers the item name, because it is
-      # org.kde.StatusNotifierItem-<pid>-<n>, with a dash the proxy's `name.*`
-      # wildcard does not match.
+      #
+      # There is deliberately no `--own` rule: nothing in the domain may hold a
+      # well-known name on the host bus. The only client of this proxy is
+      # mujo-tray-relay, which registers each item under its host connection's
+      # *unique* name, so ownership buys the guest nothing and would let it
+      # squat host names instead. `--own=org.kde.*` used to be here because the
+      # payload had this bus as its session bus and Qt derives its item name
+      # from getpid(); the payload now runs on a private guest bus and never
+      # touches this one.
       systemd.user.services.mujo-quarantine-dbus-bridge = {
         description = "Host end of the Mujo quarantine D-Bus bridge (notifications, system tray)";
         serviceConfig = {
@@ -767,7 +797,6 @@
                 ''--call='org.freedesktop.Notifications=org.freedesktop.Notifications.*@/org/freedesktop/Notifications' ''
                 ++ [
                   "--talk=org.kde.StatusNotifierWatcher"
-                  "'--own=org.kde.*'"
                   "--talk=org.freedesktop.DBus"
                 ]
               )} &

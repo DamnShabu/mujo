@@ -98,7 +98,7 @@
     # machine this config is applied to. Walk docs/application-trust.md §8
     # (graduate the applications you use daily, confirm `mujo trust list`)
     # before setting this to true.
-    apps.trust.launcherIntegration = false;
+    apps.trust.launcherIntegration = lib.mkDefault false;
 
     secrets.vaultwarden.enable = true;
     # Wired but inert until secrets are declared. Usage shape:

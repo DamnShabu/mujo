@@ -14,6 +14,9 @@
     # broker could never resolve a secret.
     userGroup = config.users.users.${user}.group;
 
+    # Unprivileged "does a vault exist" beacon. See write_marker below.
+    markerFile = "/run/mujo/vault-present";
+
     # Vault management CLI utility
     mujoVaultCli = pkgs.writeShellApplication {
       name = "mujo-vault";
@@ -24,18 +27,64 @@
         VAULT_CONTAINER="/persist/secure/mujo-vault.luks"
         MAPPER_NAME="mujo_vault"
         MOUNT_POINT="/run/mujo/vault"
+        MARKER="${markerFile}"
         USER_NAME="${user}"
         USER_GROUP="${userGroup}"
 
         usage() {
-          echo "Usage: mujo-vault {init|open|close|status}"
+          echo "Usage: mujo-vault {init|open|close|status [--json]}"
           echo ""
           echo "Commands:"
           echo "  init    - Create and format the LUKS2 vault container file"
           echo "  open    - Unlock and mount the vault at $MOUNT_POINT"
           echo "  close   - Unmount and lock the vault"
-          echo "  status  - Show current vault lock/mount status"
+          echo "  status  - Show current vault lock/mount status (--json for machine output)"
+          echo ""
+          echo "init and open read the passphrase from stdin when stdin is not a"
+          echo "terminal, so a GUI (the greeter) can drive them without a tty:"
+          echo "  printf %s \"\$PASS\" | mujo-vault open"
           exit 1
+        }
+
+        # The passphrase, when one arrived on stdin. init needs it twice
+        # (luksFormat, then open for mkfs) and stdin can only be drained once, so
+        # it is buffered here rather than piped straight through. It stays in a
+        # shell variable and reaches cryptsetup over a pipe from the `printf`
+        # builtin -- never as an argument, which would publish it in
+        # /proc/<pid>/cmdline (docs/threat-model.md).
+        PASSPHRASE=""
+        HAVE_PASSPHRASE=0
+        read_passphrase() {
+          [ -t 0 ] && return 0
+          IFS= read -r PASSPHRASE || true
+          HAVE_PASSPHRASE=1
+        }
+
+        # cryptsetup, fed the buffered passphrase when we have one and left to
+        # prompt on the terminal when we do not.
+        cs() {
+          if [ "$HAVE_PASSPHRASE" -eq 1 ]; then
+            printf '%s' "$PASSPHRASE" | cryptsetup "$@" --key-file -
+          else
+            cryptsetup "$@"
+          fi
+        }
+
+        # Presence beacon for unprivileged readers. /persist/secure is 0700 root
+        # (SEC-004), so `test -f "$VAULT_CONTAINER"` as the user fails on the
+        # directory traversal, not on the file -- which is why the Security panel
+        # reported "not configured" next to a real 10G vault. /run/mujo is 0755,
+        # so a 0444 marker there answers "is there a vault" without widening the
+        # container's own permissions. It carries the size so `mujo security
+        # summary` need not stat the container either.
+        write_marker() {
+          if [ -f "$VAULT_CONTAINER" ]; then
+            mkdir -p "$(dirname "$MARKER")"
+            du -h "$VAULT_CONTAINER" 2>/dev/null | cut -f1 > "$MARKER" || echo "" > "$MARKER"
+            chmod 444 "$MARKER"
+          else
+            rm -f "$MARKER"
+          fi
         }
 
         cmd_init() {
@@ -44,19 +93,29 @@
             echo "Error: Vault container already exists at $VAULT_CONTAINER" >&2
             exit 1
           fi
+          read_passphrase
           mkdir -p /persist/secure
           chmod 700 /persist/secure
           echo "Allocating $size container at $VAULT_CONTAINER..."
           fallocate -l "$size" "$VAULT_CONTAINER"
           chmod 600 "$VAULT_CONTAINER"
 
+          # A failed format leaves a half-written container behind that `init`
+          # then refuses to touch and `open` cannot unlock -- an unrecoverable
+          # state for a GUI with no shell. Clear it on any failure from here on.
+          trap 'rm -f "$VAULT_CONTAINER"' ERR
+
           echo "Formatting LUKS2 container (Argon2id KDF)..."
-          cryptsetup luksFormat --type luks2 --pbkdf argon2id "$VAULT_CONTAINER"
+          # --batch-mode: without a tty there is nobody to type the "YES"
+          # confirmation, and it also drops the passphrase-twice prompt.
+          cs luksFormat --type luks2 --pbkdf argon2id --batch-mode "$VAULT_CONTAINER"
 
           echo "Opening container for filesystem creation..."
-          cryptsetup open "$VAULT_CONTAINER" "$MAPPER_NAME"
-          mkfs.ext4 -L mujo_vault "/dev/mapper/$MAPPER_NAME"
+          cs open "$VAULT_CONTAINER" "$MAPPER_NAME"
+          mkfs.ext4 -q -L mujo_vault "/dev/mapper/$MAPPER_NAME"
           cryptsetup close "$MAPPER_NAME"
+          trap - ERR
+          write_marker
           echo "Vault container initialized successfully."
         }
 
@@ -69,8 +128,9 @@
           if [ -e "/dev/mapper/$MAPPER_NAME" ]; then
             echo "Vault mapper /dev/mapper/$MAPPER_NAME already open."
           else
+            read_passphrase
             echo "Unlocking $VAULT_CONTAINER..."
-            cryptsetup open "$VAULT_CONTAINER" "$MAPPER_NAME"
+            cs open "$VAULT_CONTAINER" "$MAPPER_NAME"
           fi
 
           mkdir -p "$MOUNT_POINT"
@@ -91,6 +151,7 @@
             done
             echo "Vault opened and mounted at $MOUNT_POINT with strict permissions."
           fi
+          write_marker
         }
 
         cmd_close() {
@@ -104,6 +165,18 @@
             cryptsetup close "$MAPPER_NAME"
           fi
           echo "Vault closed successfully."
+        }
+
+        cmd_status_json() {
+          local present="false" size="" mounted="false" mapper="false"
+          if [ -f "$VAULT_CONTAINER" ]; then
+            present="true"
+            size="$(du -h "$VAULT_CONTAINER" 2>/dev/null | cut -f1 || echo "")"
+          fi
+          [ -e "/dev/mapper/$MAPPER_NAME" ] && mapper="true"
+          mountpoint -q "$MOUNT_POINT" && mounted="true"
+          printf '{"containerPresent":%s,"containerSize":"%s","mapperOpen":%s,"mounted":%s,"mountPoint":"%s"}\n' \
+            "$present" "$size" "$mapper" "$mounted" "$MOUNT_POINT"
         }
 
         cmd_status() {
@@ -133,7 +206,8 @@
           init)   cmd_init "''${2:-10G}" ;;
           open)   cmd_open ;;
           close)  cmd_close ;;
-          status) cmd_status ;;
+          status) if [ "''${2:-}" = "--json" ]; then cmd_status_json; else cmd_status; fi ;;
+          marker) write_marker ;;
           *)      usage ;;
         esac
       '';
@@ -253,6 +327,21 @@
       systemd.tmpfiles.rules = [
         "d /persist/secure 0700 root root -"
       ];
+
+      # /run is a tmpfs, so the marker has to be re-stamped every boot. This is
+      # what tells the greeter, before it draws a single frame, whether it is an
+      # unlock screen or a first-run setup -- so it runs early and the shell can
+      # read the answer synchronously instead of shelling out to pkexec.
+      systemd.services.mujo-vault-marker = {
+        description = "Publish whether the mujō vault container exists";
+        wantedBy = ["multi-user.target"];
+        before = ["display-manager.service"];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          ExecStart = "${lib.getExe mujoVaultCli} marker";
+        };
+      };
     };
   };
 }

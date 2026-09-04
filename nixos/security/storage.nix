@@ -128,6 +128,16 @@
           retain plaintext across a power cycle.
         '';
       };
+      coredumpDisabled = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Disable persistent core dump storage to prevent plaintext RAM leakage.
+          When true, systemd-coredump stores no process memory images on disk
+          (Storage = "none") and hard limits core dumps to 0. When false, core
+          dumps are saved for crash diagnosis and debugging.
+        '';
+      };
     };
 
     config = lib.mkIf (cfg.enable && cfg.storage.enable) {
@@ -150,19 +160,19 @@
       # builds; lower boot.tmp.tmpfsSize if a build ever needs the headroom back.
       boot.tmp.useTmpfs = lib.mkDefault true;
 
-      # Invariant: no plaintext RAM image ever reaches disk. Storage = "none"
-      # keeps systemd-coredump's backtrace handling (so crashes are still
+      # Invariant: no plaintext RAM image ever reaches disk when coredumpDisabled is true.
+      # Storage = "none" keeps systemd-coredump's backtrace handling (so crashes are still
       # diagnosable from the journal) while writing nothing to /var/lib.
       systemd.coredump = {
         enable = true;
         settings.Coredump = {
-          Storage = "none";
-          ProcessSizeMax = 0;
+          Storage = if cfg.storage.coredumpDisabled then "none" else "external";
+          ProcessSizeMax = if cfg.storage.coredumpDisabled then 0 else 2147483648;
         };
       };
 
       # Belt and braces for processes that bypass systemd-coredump.
-      security.pam.loginLimits = [
+      security.pam.loginLimits = lib.optionals cfg.storage.coredumpDisabled [
         {
           domain = "*";
           type = "hard";

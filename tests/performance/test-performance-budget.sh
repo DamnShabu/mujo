@@ -72,26 +72,44 @@ if ! HASH_DIR=$(readlink -f "$(dirname "$(type -P sha256sum)")" 2>/dev/null); th
 fi
 HASH="$HASH_DIR/sha256sum"
 
-# Ten passes per measurement so a fixed launch cost (11ms native sandbox, ~100ms
-# quarantine VM) amortises out of the ratio, which is then about throughput.
-# Launch cost has its own budget line below; counting it twice would conflate a
-# one-time cost with a per-workload one.
+# Ten passes per measurement, and every ratio below is taken between two
+# launch-corrected numbers. Launch cost has its own budget line; leaving it
+# inside a throughput ratio counts it twice and turns a one-time cost into a
+# per-workload one. Passes alone were not enough: the native sandbox's launch
+# grew from the 11ms this comment used to assume to ~50ms, which is 7% of a
+# ~660ms workload, and the CPU-workload line started failing on a boundary that
+# had not moved. Subtracting each side's own measured floor removes it exactly.
 hash_loop() { echo "for i in 1 2 3 4 5 6 7 8 9 10; do $HASH $1 >/dev/null; done"; }
+
+# net <total> <launch floor> — the work, without the launch that carried it.
+# Floored at 1ms so budget() still sees a positive baseline.
+net() {
+  local v=$(($1 - $2))
+  [ "$v" -ge 1 ] || v=1
+  echo "$v"
+}
 
 dd if=/dev/urandom of="$WORK/payload" bs=1M count=128 status=none
 
 echo "  (measuring, this takes about a minute)"
 
-native_cpu=$(best_of 3 sh -c "$(hash_loop "$WORK/payload")")
+# Five passes, not three, on every workload measurement below. best_of takes a
+# minimum, so more samples means a tighter floor: at three the ratio swung about
+# +/-6% run to run, which is wider than the 5% budget it is checked against, and
+# a check whose noise exceeds its threshold reports coin flips. Each extra pass
+# costs ~650ms.
+native_cpu=$(best_of 5 sh -c "$(hash_loop "$WORK/payload")")
 native_spawn=$(best_of 5 true)
 echo "  native: ${native_cpu}ms for 10x128MiB, ${native_spawn}ms spawn"
 
 # ── graduated native sandbox ─────────────────────────────────────────────
 if command -v mujo-sandbox-run >/dev/null 2>&1; then
-  sb_cpu=$(best_of 3 mujo-sandbox-run --ro-dir "$WORK" sh -c "$(hash_loop "$WORK/payload")")
-  budget "native sandbox, CPU workload" "$native_cpu" "$sb_cpu" 5
-
+  # Launch first: the workload ratio subtracts it, so it has to be known.
   sb_spawn=$(best_of 5 mujo-sandbox-run true)
+  sb_cpu=$(best_of 5 mujo-sandbox-run --ro-dir "$WORK" sh -c "$(hash_loop "$WORK/payload")")
+  budget "native sandbox, CPU workload" \
+    "$(net "$native_cpu" "$native_spawn")" "$(net "$sb_cpu" "$sb_spawn")" 5
+
   added=$((sb_spawn - native_spawn))
   # A fixed per-launch cost, not a percentage of anything. 250ms is the point
   # where a launch stops feeling instant.
@@ -111,11 +129,13 @@ if command -v mujo-quarantine-run >/dev/null 2>&1 &&
   # lets host and guest hash the same bytes with the same binary. The guest's
   # side of it is virtiofs, so its first pass includes that read; the remaining
   # four come from the guest's page cache.
+  vm_spawn=$(best_of 3 mujo-quarantine-run true)
+
   EXCHANGE="$HOME/Quarantine"
   if [ -d "$EXCHANGE" ]; then
     cp "$WORK/payload" "$EXCHANGE/perf-payload"
-    host_ref=$(best_of 3 sh -c "$(hash_loop "$EXCHANGE/perf-payload")")
-    vm_cpu=$(best_of 3 mujo-quarantine-run sh -c \
+    host_ref=$(best_of 5 sh -c "$(hash_loop "$EXCHANGE/perf-payload")")
+    vm_cpu=$(best_of 5 mujo-quarantine-run sh -c \
       "$(hash_loop /home/quarantine/Downloads/perf-payload)")
     rm -f "$EXCHANGE/perf-payload"
     # Sustained CPU work in the guest runs at parity with the host: measured
@@ -123,14 +143,17 @@ if command -v mujo-quarantine-run >/dev/null 2>&1 &&
     #
     # An earlier version of this check reported +59% and was simply wrong. It
     # ran five passes, so the domain's ~100ms launch cost was a third of a
-    # ~330ms measurement. Ten passes put the launch where it belongs: on its own
-    # budget line below, rather than multiplied into a throughput ratio.
-    budget "quarantine VM, CPU workload" "$host_ref" "$vm_cpu" 15
+    # ~330ms measurement. Ten passes shrank it and subtracting each side's own
+    # launch floor removes it, which matters here more than anywhere: the
+    # domain's warm launch is ~240ms against a ~660ms workload, so an
+    # uncorrected ratio would report a third of the boundary's cost as
+    # throughput it does not spend.
+    budget "quarantine VM, CPU workload" \
+      "$(net "$host_ref" "$native_spawn")" "$(net "$vm_cpu" "$vm_spawn")" 15
   else
     skip "the Downloads exchange is absent — cannot hash identical bytes on both sides"
   fi
 
-  vm_spawn=$(best_of 3 mujo-quarantine-run true)
   # Warm domain only. The cold start is a VM boot, and Phase 37's pre-warmed
   # pool is not built.
   if [ "$vm_spawn" -le 3000 ]; then

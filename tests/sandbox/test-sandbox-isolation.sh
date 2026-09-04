@@ -40,6 +40,37 @@ else
   else
     fail "Sandbox sees $visible host processes — PID namespace is not unshared"
   fi
+
+  # 5. The D-Bus policy, both halves. A GApplication must own its own app id
+  #    before g_application_register() succeeds, and xdg-dbus-proxy answers a
+  #    RequestName its policy does not cover with a faked ServiceUnknown — so
+  #    without the grant every GTK application exits with "Failed to register"
+  #    before it draws a window. The grant has to stay narrow: the id comes from
+  #    the desktop entry the package ships beside the binary, and nothing else
+  #    on the host bus may be claimed.
+  #
+  #    --gapplication-service registers on the bus and returns no window, so
+  #    this asks the real question without putting a file manager on screen.
+  if command -v nautilus >/dev/null 2>&1; then
+    rc=0
+    timeout 6 mujo-sandbox-run nautilus --gapplication-service >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -eq 124 ]; then
+      pass "Sandboxed GTK application owns its app id and stays up"
+    else
+      fail "Sandboxed GTK application exited with $rc instead of running — it could not own its app id"
+    fi
+  else
+    skip "nautilus is not installed — cannot check the GApplication name grant"
+  fi
+
+  if mujo-sandbox-run dbus-send --session --print-reply \
+       --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+       org.freedesktop.DBus.RequestName string:org.freedesktop.secrets uint32:0 \
+       2>/dev/null | grep -q 'uint32 1'; then
+    fail "Sandbox can own org.freedesktop.secrets on the host bus — the name grant is too wide"
+  else
+    pass "Sandbox cannot own an unrelated host bus name"
+  fi
 fi
 
 # 5. Disposable-guest boot parameters must never reach the *host* kernel.

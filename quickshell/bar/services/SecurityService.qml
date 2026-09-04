@@ -149,7 +149,48 @@ QtObject {
         _runAction(["mujo", "trust", "revoke", appName])
     }
 
-    // ââ Background Processes ââââââââââââââââââââââââââââââââââââââââââââââââââ
+    function setCoredump(disabled) {
+        security.coredumpDisabled = disabled
+        Quickshell.execDetached(["mujo", "system-pref", "set", "security.coredumpDisabled", String(disabled)])
+        security.statusUpdated()
+    }
+
+    function setFirewall(enable) {
+        security.firewallActive = enable
+        Quickshell.execDetached(["mujo", "system-pref", "set", "firewall.enable", String(enable)])
+        security.statusUpdated()
+    }
+
+    function setTmpfsTmp(enable) {
+        security.tmpfsTmpActive = enable
+        Quickshell.execDetached(["mujo", "system-pref", "set", "storage.tmpfsTmp", String(enable)])
+        security.statusUpdated()
+    }
+
+    function setEncryptedSwap(enable) {
+        security.encryptedSwapActive = enable
+        Quickshell.execDetached(["mujo", "system-pref", "set", "storage.encryptedSwap", String(enable)])
+        security.statusUpdated()
+    }
+
+    function setSecureBoot(enable) {
+        security.secureBootActive = enable
+        Quickshell.execDetached(["mujo", "system-pref", "set", "security.secureBoot", String(enable)])
+        security.statusUpdated()
+    }
+
+    function setLauncherIntegration(enable) {
+        security.launcherIntegrationActive = enable
+        Quickshell.execDetached(["mujo", "system-pref", "set", "trust.launcherIntegration", String(enable)])
+        security.statusUpdated()
+    }
+
+    function setSystemPref(path, val) {
+        Quickshell.execDetached(["mujo", "system-pref", "set", path, String(val)])
+        security.statusUpdated()
+    }
+
+    // ── Background Processes ──────────────────────────────────────────────────────────
     property Process statusProc: Process {
         command: ["mujo", "security", "summary"]
         stdout: StdioCollector {

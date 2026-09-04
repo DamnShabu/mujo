@@ -114,7 +114,10 @@ Item {
                     id: colIntegrity
                     width: parent.width
                     spacing: 14
-                    SecurityGroup { Layout.fillWidth: true }
+                    SecurityGroup {
+                        Layout.fillWidth: true
+                        onOpenTrustRequested: root.tab = "trust"
+                    }
                 }
             }
 

@@ -35,11 +35,13 @@
           --ro-dir <path>  Bind one host directory read-only
           --camera         Allow /dev/video* (denied by default)
           --no-net         Remove network access
+          --own <name>     Also let the application own this D-Bus name
         USAGE
           exit 64
         }
 
         binds=()
+        own=()
         app=""
         share_net=--share-net
         camera=0
@@ -49,6 +51,7 @@
             --app)    [ "$#" -ge 2 ] || usage; app="$2"; shift 2 ;;
             --dir)    [ "$#" -ge 2 ] || usage; binds+=(--bind "$(realpath "$2")" "$(realpath "$2")"); shift 2 ;;
             --ro-dir) [ "$#" -ge 2 ] || usage; binds+=(--ro-bind "$(realpath "$2")" "$(realpath "$2")"); shift 2 ;;
+            --own)    [ "$#" -ge 2 ] || usage; own+=(--own="$2" --own="$2.*"); shift 2 ;;
             --camera) camera=1; shift ;;
             --no-net) share_net=--unshare-net; shift ;;
             --)       shift; break ;;
@@ -103,6 +106,42 @@
           done
         fi
 
+        # A GApplication -- so every GTK application -- must own its own app id
+        # before g_application_register() succeeds, and xdg-dbus-proxy answers a
+        # RequestName its policy does not cover with a faked
+        # org.freedesktop.DBus.Error.ServiceUnknown. Without this the
+        # application printed "Failed to register" and exited before drawing a
+        # window; nautilus was the report, but it was every GTK application.
+        #
+        # The id is not in argv and cannot be spelled from the binary name, but
+        # it is next to the binary: the package installs
+        # <prefix>/share/applications/<app-id>.desktop in the same output. Grant
+        # that name and its children -- the same grant `flatpak run` gives a
+        # Flatpak -- and nothing more. A blanket --own would instead let a
+        # sandboxed application squat any host service name that merely has not
+        # been activated yet, which is wider than the hole being closed. An
+        # unusual layout derives nothing and --own is then the way out.
+        sandbox_target=$(command -v "$1" 2>/dev/null || true)
+        if [ -n "$sandbox_target" ]; then
+          # Resolve the binary itself, not its directory: on PATH it is a
+          # symlink out of the system-path profile, whose share/applications
+          # holds every desktop entry on the machine -- deriving from there
+          # would grant --own for every application installed. Following the
+          # symlink lands in the one package that ships the binary. Safe to do
+          # here because nothing execs this path; the argv[0] dispatch a
+          # multicall binary does is not in play.
+          sandbox_prefix=$(dirname "$(dirname "$(readlink -f "$sandbox_target")")")
+          for desktop in "$sandbox_prefix"/share/applications/*.desktop; do
+            [ -e "$desktop" ] || continue
+            desktop_id=$(basename "$desktop" .desktop)
+            # A well-known name needs at least one dot. kitty.desktop and
+            # nautilus-autorun-software.desktop are launcher entries, not ids.
+            case "$desktop_id" in
+              *.*) own+=(--own="$desktop_id" --own="$desktop_id.*") ;;
+            esac
+          done
+        fi
+
         # Filtered D-Bus proxy: grants one-way notification sending and StatusNotifierItem tray support
         # while denying eavesdropping, signal listening, and access to host private services.
         dbus_proxy_dir=""
@@ -125,9 +164,9 @@
             --call="org.freedesktop.Notifications=org.freedesktop.Notifications.GetCapabilities@/org/freedesktop/Notifications" \
             --call="org.freedesktop.Notifications=org.freedesktop.Notifications.GetServerInformation@/org/freedesktop/Notifications" \
             --talk="org.kde.StatusNotifierWatcher" \
-            --own="org.kde.StatusNotifierItem.*" \
             --own="org.freedesktop.StatusNotifierItem.*" \
             --own="org.kde.*" \
+            "''${own[@]}" \
             --talk="org.freedesktop.DBus" \
             --talk="org.freedesktop.portal.Desktop" \
             --talk="org.freedesktop.portal.Documents" \
@@ -167,6 +206,18 @@
         # performance. A sandbox should present the system's environment, not
         # the launcher's.
         #
+        # GSETTINGS_BACKEND is the one environment entry here that is a policy
+        # decision rather than plumbing. dconf writes through
+        # ca.desrl.dconf.Writer on the session bus, which this proxy does not
+        # carry and must not: that name is how an application rewrites the
+        # *host's* GNOME settings. With it denied and no fallback, every write
+        # failed with ServiceUnknown and the application's settings were simply
+        # lost between launches. The keyfile backend -- what `flatpak run` gives
+        # an application without dconf access -- puts them in the sandbox's own
+        # home instead, so they persist per application and touch nothing
+        # outside it. Appearance still comes from the host: GTK reads dark mode
+        # and accent from org.freedesktop.portal.Settings, which is allowed.
+        #
         # /dev/snd is not bound: audio goes through the PipeWire socket below,
         # which the compositor session already mediates. Binding the raw device
         # would hand over every capture stream on the machine.
@@ -198,6 +249,7 @@
           --setenv WAYLAND_DISPLAY "''${WAYLAND_DISPLAY:-wayland-0}" \
           --setenv DBUS_SESSION_BUS_ADDRESS "unix:path=$RUNTIME_DIR/bus" \
           --setenv MUJO_SECRET_SOCKET /run/mujo/secret.sock \
+          --setenv GSETTINGS_BACKEND keyfile \
           --setenv PATH /run/wrappers/bin:/run/current-system/sw/bin:/usr/bin:/bin \
           --chdir "$USER_HOME" \
           --unshare-all \
