@@ -42,21 +42,34 @@ else
   fi
 fi
 
-# 5. The disposable test VM's insecure boot parameters must never reach production.
-sandbox_nix="$REPO_ROOT/nixos/sandbox/sandbox.nix"
-if [ -f "$sandbox_nix" ]; then
-  mapfile -t bleed < <(
-    grep -rl 'mitigations=off\|audit=0\|nowatchdog' "$REPO_ROOT/nixos" 2>/dev/null |
-      grep -v '^'"$REPO_ROOT"'/nixos/sandbox/'
-  )
-  if [ "${#bleed[@]}" -eq 0 ]; then
-    pass "Insecure test parameters stay confined to nixos/sandbox/"
-  else
-    fail "Insecure test parameters leaked outside nixos/sandbox/"
-    list_findings "${bleed[@]}"
-  fi
+# 5. Disposable-guest boot parameters must never reach the *host* kernel.
+#
+# The previous form of this check grepped for the parameters outside
+# nixos/sandbox/ and failed the moment the quarantine MicroVM grew the same
+# ones. That was a proxy for the invariant, not the invariant: what matters is
+# the host command line, and a guest module setting `boot.kernelParams` inside
+# `microvm.vms.<name>.config` never touches it. The check now reads the running
+# kernel, which no file layout can fool.
+host_cmdline=$(tr ' ' '\n' < /proc/cmdline)
+mapfile -t leaked < <(printf '%s\n' "$host_cmdline" | grep -E '^(mitigations=off|audit=0|nowatchdog)$' || true)
+if [ "${#leaked[@]}" -eq 0 ]; then
+  pass "Host kernel booted without any disposable-guest parameter"
 else
-  skip "nixos/sandbox/sandbox.nix not found"
+  fail "Host kernel booted with a disposable-guest parameter"
+  list_findings "${leaked[@]}"
+fi
+
+# 5b. Source guard: only the two disposable-guest trees may name them, so a
+# third copy landing in a host module is caught before it is ever booted.
+mapfile -t bleed < <(
+  grep -rl 'mitigations=off\|audit=0\|nowatchdog' "$REPO_ROOT/nixos" 2>/dev/null |
+    grep -vE '^'"$REPO_ROOT"'/nixos/(sandbox/|apps/microvm\.nix$)'
+)
+if [ "${#bleed[@]}" -eq 0 ]; then
+  pass "Only nixos/sandbox/ and the quarantine guest name those parameters"
+else
+  fail "A host module names a disposable-guest parameter"
+  list_findings "${bleed[@]}"
 fi
 
 report

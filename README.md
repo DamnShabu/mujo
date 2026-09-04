@@ -1,6 +1,6 @@
 # mujō
 
-Personal NixOS flake and Quickshell desktop for a single host, `main`: AMD CPU + AMD GPU, dual monitor, Niri on Wayland, btrfs with impermanence.
+Personal NixOS flake and Quickshell desktop for a single host, `main`: Intel CPU + AMD GPU, dual monitor, Niri on Wayland, btrfs with impermanence.
 
 ## Apply
 

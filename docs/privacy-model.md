@@ -72,6 +72,16 @@ much of it, and nothing beyond it:
 
 ### Not implemented
 
+- **Telemetry blocking (§1, §2.1).** Nothing in this repo sets an analytics
+  opt-out, and there is no package-manager analytics to opt out of — Nix does
+  not report usage. The claim is not merely unimplemented, it points the wrong
+  way: the five agent CLIs this configuration installs (`nixos/apps/claude-code.nix`,
+  `opencode.nix`, `antigravity-cli.nix`, `antigravity-ide.nix`, and whatever
+  `ai.agentCommand` names) each report usage to their own vendor, and the repo
+  does not suppress it. `quickshell/bar/llm-usage.sh` reads the local state
+  those tools keep; it does not stop them talking. Treat agent use as
+  attributable.
+
 - **Browser privacy tiers (§2.2).** Zen ships as a Flatpak here, so its profile
   is not declaratively managed; what *is* enforced is the Flatpak filesystem
   override in `nixos/apps/zen.nix`, which is the control that matters more. The
