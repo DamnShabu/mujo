@@ -3,10 +3,12 @@ singleton PopupCoordinator PopupCoordinator.qml
 singleton Launch Launch.qml
 singleton Notifications Notifications.qml
 singleton Weather Weather.qml
+singleton WeatherService Weather.qml
 singleton AI AI.qml
 singleton Session Session.qml
 singleton Lock Lock.qml
 singleton Cava Cava.qml
+singleton CavaService Cava.qml
 singleton Shelf Shelf.qml
 singleton Wallhaven Wallhaven.qml
 singleton WallpaperEngine WallpaperEngine.qml

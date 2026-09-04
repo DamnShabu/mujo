@@ -18,6 +18,10 @@ QtObject {
     property bool loading: false
     property string error: ""
 
+    readonly property bool hasData: weather.data !== null
+    readonly property string tempFormatted: weather.data !== null ? (Math.round(weather.data.temp) + weather.unitSymbol()) : "--°C"
+    readonly property string iconName: weather.data !== null ? weather.iconFor(weather.data.code) : "wb_cloudy"
+
     readonly property int intervalMin: Math.max(15, Math.min(120, SettingsBus.get("weather.intervalMin", 30)))
     readonly property int intervalMs: intervalMin * 60000
     readonly property string style: SettingsBus.get("weather.style", "detailed")
