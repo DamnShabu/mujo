@@ -98,6 +98,7 @@ Usage: mujo security <command> [args...]
 
 Commands:
   summary                   Unified security architecture status (JSON)
+  coredump [enable|disable|toggle|status]  Configure persistent core dump protection
   inventory                 Run sensitive data inventory audit (JSON)
 EOF
   exit 1

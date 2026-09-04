@@ -148,7 +148,12 @@ visible rather than assumed.
             │                                            │
       Niri compositor                              the application
             │                                            │
-   xdg-dbus-proxy ◀───── vsock 2:6001 ─────────── socat → $DBUS_SESSION_BUS_ADDRESS
+            │                                  private guest session bus
+            │                                  (dbus-run-session)
+            │                                            │
+            │                                    mujo-tray-relay
+            │                                            │
+   xdg-dbus-proxy ◀───── vsock 2:6001 ─────────── socat → $MUJO_HOST_BUS
    (user service)
             │
    host session bus
@@ -158,22 +163,41 @@ Three vsock ports cross the boundary and nothing else. There is no tap device,
 no shared home, no `/persist`, and no vault path — not because they are
 filtered, but because they are never handed to the guest.
 
-The session bus is the exception, and it is filtered rather than absent. The
-guest has no private bus of its own: its `DBUS_SESSION_BUS_ADDRESS` is a socat
-listener forwarding to an `xdg-dbus-proxy` on the host, which denies everything
-that is not named in its policy. What is named:
+The session bus is the exception, and it is filtered rather than absent. Every
+payload runs on a private guest bus started by `dbus-run-session`, on which
+`mujo-tray-relay` owns `org.kde.StatusNotifierWatcher` and
+`org.freedesktop.Notifications` and carries those two across. The relay's route
+out is `$MUJO_HOST_BUS`: a socat listener forwarding to an `xdg-dbus-proxy` on
+the host, which denies everything that is not named in its policy. What is
+named:
 
 | Allowed | Why |
 |---|---|
 | `--call` on `org.freedesktop.Notifications` | Notifications, when `capabilities.notifications` is on. Replaces the one-way JSON bridge this used to have, so a quarantined application's notifications now carry its own name, icon and actions. |
-| `--talk=org.kde.StatusNotifierWatcher`, `--own=org.kde.*` | System tray. `StatusNotifierItem` is two-way — the watcher calls back into the application for its icon, title and menu — so a per-interface bridge cannot carry it; the item and the watcher have to share one bus. The item name is `org.kde.StatusNotifierItem-<pid>-<n>`, which the proxy's `name.*` wildcard does not match because of the dash, hence the broader `org.kde.*`. |
+| `--talk=org.kde.StatusNotifierWatcher` | System tray. `StatusNotifierItem` is two-way — the watcher calls back into the application for its icon, title and menu — so a per-interface bridge cannot carry it; the item and the watcher have to share one bus. The relay is what puts them on one bus, by opening a separate host connection per item and registering it under that connection's *unique* name — which is why there is no `--own` rule here at all. Nothing in the domain can hold a well-known name on the host bus. |
 | `--talk=org.freedesktop.DBus` | Name registration and ownership signals. |
 
 Everything else — the portals, the secret service, the compositor's own
-interfaces, and every other name on the host bus — is denied. One consequence
-worth naming: the guest's own `xdg-desktop-portal` is no longer reachable
-either, and the host's is deliberately not in the policy, so file choosers in
-quarantined applications fall back to the toolkit's built-in dialog.
+interfaces, and every other name on the host bus — is denied. The payload
+inherits `$MUJO_HOST_BUS` and could open that proxy itself; the policy above,
+not the indirection, is what contains it.
+
+Handing the payload that bridged bus *as its session bus* is what the private
+guest bus replaced. `--own=org.kde.*` is the whole of the ownership policy, and
+xdg-dbus-proxy answers a `RequestName` outside its policy with a faked
+`org.freedesktop.DBus.Error.ServiceUnknown` — so every GApplication, which must
+own its app id to register, exited with `Failed to register` before drawing a
+window. Widening `--own` would have been the wrong repair: a name the guest owns
+on the *host* bus is a name host applications get routed to, and a quarantined
+process holding `org.freedesktop.FileManager1` would field every "open
+containing folder" on the machine.
+
+The host's `xdg-desktop-portal` is one of the names that is denied, and it stays
+denied: a quarantined application must never be handed a host file dialog. The
+guest's own portal is a different thing and it does run — D-Bus activation works
+on the private guest bus, so a file chooser opens against the guest's
+filesystem. Before the private bus there was no activatable portal at all and
+choosers fell back to the toolkit's built-in dialog.
 
 ### Verified properties
 
@@ -207,11 +231,13 @@ quarantine had quietly degraded to a namespace again.
   serves every quarantined launch, so two quarantined applications can see each
   other. Per-application domains and the pre-warmed pool of Phase 37 are not
   built.
-- **`--own=org.kde.*` is broader than the tray needs.** A quarantined
-  application can own any name under `org.kde.`, not only its own
-  `StatusNotifierItem-<pid>-<n>`. It can therefore squat a KDE service name a
-  host application expects. Narrowing this needs a proxy that understands the
-  dash-separated form, which `xdg-dbus-proxy` does not.
+- **`--own=org.kde.*` is broader than the tray needs — in the GRADUATED tier.**
+  The quarantine domain no longer carries the rule at all: its payload runs on a
+  private guest bus and the relay registers items by unique name. A natively
+  sandboxed application still owns its `StatusNotifierItem-<pid>-<n>` on the
+  host bus directly, so it can squat any other name under `org.kde.` too.
+  Narrowing this needs a proxy that understands the dash-separated form, which
+  `xdg-dbus-proxy` does not.
 - **The GPU is shared, not passed through — and `apps.microvm.gpu = "native"`
   is the widest hole in this domain.** VFIO passthrough is not available on this
   machine at all: there is one GPU (`1002:7590` at `0000:03:00.0`) and it drives
@@ -227,9 +253,9 @@ quarantine had quietly degraded to a namespace again.
   llvmpipe. Either way no host device node is bound into the guest — the guest
   sees a virtio device — but this is a long way from §6's original "no device
   passthrough at all".
-- **A Flatpak's tray and notifications are relayed, not native.** Flatpak
-  applications run on a private guest bus (see the shape above for why), so
-  `mujo-tray-relay` re-exports their `StatusNotifierItem` onto the host bus over
+- **Tray and notifications are relayed, not native.** Every quarantined
+  application runs on a private guest bus (see the shape above for why), so
+  `mujo-tray-relay` re-exports its `StatusNotifierItem` onto the host bus over
   a second connection and forwards `Notify` calls the same way. What does *not*
   cross is the return path for notification actions: the host proxy's policy is
   `--call`, not `--broadcast`, so clicking a notification button does nothing.
@@ -310,6 +336,44 @@ over it:
 | Microphone | only if `capabilities.audio` (see §6) | via the session's PipeWire socket |
 | Network | qemu user-mode NAT | on, unless `--no-net` |
 | Host process table | separate kernel | separate PID namespace |
+| Host bus names it may own | none — its names live on a private guest bus | its own app id, read from the desktop entry the package ships beside the binary, plus anything named with `--own` |
+| GSettings / dconf | the guest's own dconf, inside the domain | a `keyfile` store in the sandbox's home; the host's dconf writer is denied, so host settings cannot be rewritten |
+
+#### Flatpaks are the third case
+
+A Flatpak brings its own Bubblewrap sandbox and cannot be nested inside
+another, so `mujo-sandbox-run` steps aside and the engine calls `flatpak run`.
+For a long time that meant it called it with *exactly* what the application's
+manifest asked for, which made the table above advice rather than enforcement
+for every Flatpak on the system. Zen and Vesktop declare `devices=all`, and on
+this machine that is the whole host `/dev` — 194 entries, including
+`/dev/input/event*` at mode 0666 (a working keylogger, no privilege required),
+`/dev/nvme0n1`, `/dev/mem`, `/dev/tpm0`, `/dev/kvm` and `/dev/uinput`.
+
+`flatpak run` takes subtractive overrides, and subtractive is the whole point:
+they can only remove what the manifest granted, so they cannot widen anything
+by mistake. `apps.trust.flatpakNarrowing` maps a risk tier to that list:
+
+| Tier | Applied | Why |
+|---|---|---|
+| `low` | *(nothing)* | Steam is the low-tier Flatpak here and genuinely needs `devices=all` for controllers, `multiarch` for 32-bit titles and `devel`. Narrowing the tier classified as least risky in order to protect against it is backwards. |
+| `medium`, `high`, `critical` | `--nodevice=all --device=dri --disallow=devel --nosocket=pcsc` | Devices down to 18 entries with the GPU and audio kept; Flatpak's own seccomp blocking of `ptrace` and `perf_event_open` switched back on; smartcard access dropped, since `pcscd` does not run here. |
+
+Verified on every graduated Flatpak on this machine: Zen, Obsidian and
+GameMaker all launch unchanged under the medium profile, and Steam keeps its
+device set. For Obsidian and GameMaker the device rule is a no-op — they
+already declare only `dri`.
+
+`ssh-auth` is deliberately **not** in the list. Obsidian declares it, the
+gnome-keyring agent is live, and a git-backed vault signs with it; taking it
+away tier-wide would break a real workflow to close a hole that only some
+applications have. `apps.trust.flatpakNarrowingOverrides` replaces the tier
+profile for one application id, which is where that decision belongs — an
+empty list there is a genuine opt-out rather than a fall-through.
+
+What this does **not** do: it cannot add isolation the Flatpak sandbox does not
+already provide, and it does not touch the QUARANTINE path, where the VM is the
+boundary and the guest's `/dev` is the guest's.
 
 ### Credential broker (`nixos/security/broker.nix`)
 

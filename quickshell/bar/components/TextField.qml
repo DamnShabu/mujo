@@ -8,6 +8,9 @@ Rectangle {
     property string placeholder: ""
     property bool password: false
     property alias input: input
+    // Rejected input (wrong passphrase, mismatched confirmation). Outranks
+    // focus on the border, so a field you are still typing in stays red.
+    property bool invalid: false
     signal accepted()
 
     // Spoken label, filled in by SettingRow from the row title.
@@ -17,7 +20,7 @@ Rectangle {
     implicitWidth: 200
     radius: Theme.radiusSm
     color: Theme.surface
-    border.color: input.activeFocus ? Theme.accent : Theme.border
+    border.color: field.invalid ? Theme.error : (input.activeFocus ? Theme.accent : Theme.border)
     Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
     TextInput {

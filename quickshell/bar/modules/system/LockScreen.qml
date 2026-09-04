@@ -17,7 +17,12 @@ import "../../services"
 // re-reading wallpaper.json + blurring here; not worth it. Add if the look bites.
 WlSessionLock {
     id: sessionLock
-    locked: Lock.locked
+    // The compositor allows exactly one session lock at a time, so this yields
+    // to the boot greeter (GreeterScreen) while that is up — an idle timeout
+    // firing during vault unlock would otherwise be a protocol error, not a
+    // second surface. The greeter is dismissible, so the lock gets its turn the
+    // moment the user is through it.
+    locked: Lock.locked && !Greeter.active
 
     WlSessionLockSurface {
         id: surface

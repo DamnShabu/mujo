@@ -12,6 +12,57 @@
     dbFile = "${dbDir}/registry.json";
     sockPath = "/run/mujo/trust.sock";
 
+    # Subtractive `flatpak run` overrides for a GRADUATED Flatpak. §7 of
+    # docs/application-trust.md calls capability profiles "enforced, not
+    # advisory"; bwrap enforces them for a native application, but a Flatpak
+    # brings its own sandbox and the engine used to launch it with exactly what
+    # its manifest asked for -- so for Flatpaks the profile was advice. These
+    # flags can only *remove* what the manifest granted, which is the missing
+    # enforcement and nothing more.
+    #
+    # Each was measured against this machine's graduated Flatpaks before being
+    # picked, not chosen from the manual:
+    #
+    #   * `devices=all` -- declared by Zen and Vesktop -- hands the application
+    #     the host's entire /dev: /dev/input/event* (mode 0666 here, so a
+    #     working keylogger with no privilege at all), /dev/nvme0n1, /dev/mem,
+    #     /dev/tpm0, /dev/kvm, /dev/uinput. `--nodevice=all --device=dri` takes
+    #     that from ~190 entries to 18 and keeps the GPU. GameMaker and Obsidian
+    #     already declare only `dri`, so for them it changes nothing.
+    #   * `features=devel` -- Zen and Steam -- switches off Flatpak's own
+    #     seccomp blocking of ptrace and perf_event_open.
+    #   * `sockets=pcsc` is smartcard access. pcscd is not running on this
+    #     machine, so nothing can want it.
+    #
+    # `ssh-auth` is deliberately absent. Obsidian declares it, the gnome-keyring
+    # agent is live at $SSH_AUTH_SOCK, and a git-backed vault genuinely signs
+    # with it. Remove it per application through flatpakNarrowingOverrides,
+    # where the person removing it knows whether that workflow exists.
+    narrowedFlatpak = [
+      "--nodevice=all"
+      "--device=dri"
+      "--disallow=devel"
+      "--nosocket=pcsc"
+    ];
+
+    # One `case` arm per key. An empty list yields `narrow=()`, which is how an
+    # override opts an application out of narrowing entirely -- hence the
+    # separate `matched` flag rather than testing whether the array is empty.
+    #
+    # Every arm carries its own leading newline and indent, and the call site
+    # interpolates it at the end of the `case ... in` line rather than on a line
+    # of its own. An interpolation that opens a line at column zero drags the
+    # enclosing indented string's common indent to zero, so Nix strips nothing,
+    # and the `USAGE` heredoc terminator further up ends up indented and never
+    # matches -- the script is then truncated at that heredoc, with the error
+    # reported nowhere near the change that caused it.
+    narrowCases = attrs:
+      lib.concatMapStrings
+      (arm: "\n            ${arm}")
+      (lib.mapAttrsToList
+        (k: flags: "${lib.escapeShellArg k}) narrow=(${lib.escapeShellArgs flags}); matched=1 ;;")
+        attrs);
+
     # The shared jq library lives in /etc, not in the state directory: that
     # directory is an impermanence bind mount, and a tmpfiles symlink placed
     # there was created underneath the mount and then covered by it, so every
@@ -387,6 +438,24 @@
           return 1
         }
 
+        # Capability narrowing for a GRADUATED Flatpak, assigned into the
+        # caller's `narrow` array. A per-application override wins outright, so
+        # an empty override list is a real opt-out and not a fall-through to the
+        # tier profile.
+        narrow_flatpak() {
+          local matched=0 tier
+          narrow=()
+          case "$1" in${narrowCases cfg.flatpakNarrowingOverrides}
+            *) ;;
+          esac
+          [ "$matched" -eq 0 ] || return 0
+
+          tier=$(jq -r --arg a "$1" '.applications[$a].tier // "medium"' ${dbFile} 2>/dev/null) || tier=medium
+          case "$tier" in${narrowCases cfg.flatpakNarrowing}
+            *) narrow=(${lib.escapeShellArgs narrowedFlatpak}) ;;
+          esac
+        }
+
         # Resolve the launched name to its identity (Nix store path or Flatpak commit).
         identity_of() {
           local app="$1"
@@ -489,12 +558,28 @@
               ;;
             native)
               if [ "$is_flatpak" -eq 1 ]; then
+                local -a narrow=()
+                narrow_flatpak "$app_name"
                 case "$app" in
                   *flatpak)
-                    "$@" || true
+                    # The caller spelled the launcher out: `mujo-trust run
+                    # flatpak run <app>`. flatpak reads its own options only
+                    # before the application id, so the narrowing is spliced in
+                    # after `run`. Appending it would pass the flags to the
+                    # application and leave this path an unnarrowed way in.
+                    local -a cmd=()
+                    local spliced=0 arg
+                    for arg in "$@"; do
+                      cmd+=("$arg")
+                      if [ "$spliced" -eq 0 ] && [ "$arg" = "run" ]; then
+                        cmd+=("''${narrow[@]}")
+                        spliced=1
+                      fi
+                    done
+                    "''${cmd[@]}" || true
                     ;;
                   *)
-                    flatpak run "$@" || true
+                    flatpak run "''${narrow[@]}" "$@" || true
                     ;;
                 esac
               else
@@ -657,6 +742,53 @@
         description = ''
           Further clean runtime required in OBSERVING before a low- or
           medium-tier application graduates to the native sandbox.
+        '';
+      };
+
+      flatpakNarrowing = lib.mkOption {
+        type = lib.types.attrsOf (lib.types.listOf lib.types.str);
+        default = {
+          low = [];
+          medium = narrowedFlatpak;
+          high = narrowedFlatpak;
+          critical = narrowedFlatpak;
+        };
+        description = ''
+          Subtractive `flatpak run` overrides applied to a GRADUATED Flatpak,
+          keyed by the risk tier its registry record carries. A Flatpak cannot
+          be nested inside the native sandbox, so these flags are the only way
+          the trust engine can enforce a capability profile on one rather than
+          take the manifest's word for it.
+
+          `low` is empty on purpose. Steam is the low-tier Flatpak here and it
+          genuinely needs `devices=all` for controllers, `multiarch` for 32-bit
+          titles and `devel`; narrowing it would break the application to
+          protect against the tier that was classified as least risky.
+
+          `high` and `critical` get the same list as `medium` rather than a
+          stricter one. Neither tier reaches GRADUATED without someone running
+          `mujo-trust graduate` by hand, and shipping an untested stricter
+          profile for a path nothing takes today would be guesswork.
+        '';
+      };
+
+      flatpakNarrowingOverrides = lib.mkOption {
+        type = lib.types.attrsOf (lib.types.listOf lib.types.str);
+        default = {};
+        example = lib.literalExpression ''
+          {
+            # A vault synced over git needs the agent this would otherwise keep.
+            "md.obsidian.Obsidian" = ["--nodevice=all" "--device=dri" "--nosocket=ssh-auth"];
+            # Opt out entirely: an empty list is a real opt-out, not a
+            # fall-through to the tier profile.
+            "io.yoyogames.GameMakerBeta" = [];
+          }
+        '';
+        description = ''
+          Per-application replacement for the tier profile above, keyed by
+          Flatpak application id. The tier says how much the application is
+          trusted; this says what it actually needs, which is the wrong thing to
+          express by moving an application between tiers.
         '';
       };
 

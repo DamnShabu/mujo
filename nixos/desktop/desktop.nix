@@ -33,6 +33,12 @@
       thyx.enable = true;
     };
 
+    services.displayManager.autoLogin = {
+      enable = true;
+      user = config.preferences.user.name;
+    };
+    services.displayManager.defaultSession = "niri";
+
     systemd.services.display-manager.environment.QML_IMPORT_PATH = "${pkgs.qt6.qt5compat}/lib/qt-6/qml";
 
     services.displayManager.enable = true;

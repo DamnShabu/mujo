@@ -307,7 +307,27 @@ async def main():
     guest = await MessageBus().connect()
     relay = Relay(guest, host_addr, os.environ.get("MUJO_RELAY_NOTIFICATIONS") == "1")
     await relay.start()
-    await guest.wait_for_disconnect()
+    ready_fd = os.environ.get("MUJO_RELAY_READY_FD")
+    if ready_fd:
+        # The launcher holds the payload until this byte lands. Until start()
+        # returns nobody owns org.kde.StatusNotifierWatcher or
+        # org.freedesktop.Notifications on this bus, and an application that
+        # looks for a tray in that window finds none and never looks again.
+        try:
+            fd = int(ready_fd)
+            os.write(fd, b"1")
+            os.close(fd)
+        except (OSError, ValueError):
+            pass
+    try:
+        await guest.wait_for_disconnect()
+    except (EOFError, OSError):
+        # dbus-run-session tears the guest bus down as soon as the payload
+        # exits, and dbus_next surfaces that ordinary shutdown as an EOFError
+        # out of the unmarshaller. Every launch ends this way, and this
+        # process's stderr is the caller's terminal, so letting it propagate
+        # printed a traceback after every quarantined application.
+        pass
     return 0
 
 

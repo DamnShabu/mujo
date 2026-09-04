@@ -32,5 +32,19 @@ in {
       enable = lib.mkDefault (prefs.zramSwap.enable or true);
       memoryPercent = lib.mkDefault (prefs.zramSwap.memoryPercent or 50);
     };
+
+    security.mujo = {
+      boot.secureBoot = lib.mkDefault (prefs.security.secureBoot or false);
+      storage = {
+        encryptedSwap = lib.mkDefault (prefs.storage.encryptedSwap or true);
+        coredumpDisabled = lib.mkDefault (prefs.security.coredumpDisabled or true);
+      };
+    };
+
+    apps.trust = {
+      launcherIntegration = lib.mkDefault (prefs.trust.launcherIntegration or false);
+    };
   };
 }
+
+

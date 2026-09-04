@@ -87,26 +87,34 @@ else
   fail "quarantine can write to the host's /nix/store"
 fi
 
-# 9. The filtered session bus. It is the one host service the guest is handed,
-#    so both halves have to hold: notifications and the tray need it to work,
-#    and the keyring must stay out of reach behind the xdg-dbus-proxy policy.
-verdict=$(probe 'dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.GetId >/dev/null 2>&1 && echo REACHABLE || echo UNREACHABLE' | tr -d '\r' | tail -1)
-if [ "$verdict" = "REACHABLE" ]; then
-  pass "quarantine reaches the host session bus through the proxy"
+# 9. The session bus. Every payload gets a private one inside the guest, with
+#    mujo-tray-relay standing in for the host's watcher and notification
+#    service; the bridged host bus reaches no further than the relay, behind
+#    $MUJO_HOST_BUS and the xdg-dbus-proxy policy on the far side. All three
+#    halves have to hold: an application must be able to own its own name (a
+#    GApplication that cannot exits before it draws a window), the tray must
+#    answer, and the keyring must stay out of reach.
+verdict=$(probe 'dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.RequestName string:org.gnome.Nautilus uint32:0 2>/dev/null | grep -q "uint32 1" && echo OWNED || echo DENIED' | tr -d '\r' | tail -1)
+if [ "$verdict" = "OWNED" ]; then
+  pass "quarantined application can own its own bus name (GTK applications start)"
 else
-  fail "quarantine has no session bus — tray icons and notifications are dead"
+  fail "quarantined application cannot own its bus name — every GApplication will exit with 'Failed to register'"
 fi
 
-verdict=$(probe 'dbus-send --session --print-reply --dest=org.kde.StatusNotifierWatcher /StatusNotifierWatcher org.freedesktop.DBus.Properties.Get string:org.kde.StatusNotifierWatcher string:IsStatusNotifierHostRegistered >/dev/null 2>&1 && echo REACHABLE || echo UNREACHABLE' | tr -d '\r' | tail -1)
+# The relay reaches the bus about 100ms after the payload does, so a probe that
+# asks at t=0 loses a race no application runs: a tray item is registered
+# seconds into a launch, and anything already looking gets the relay's
+# StatusNotifierHostRegistered signal. Wait the way an application waits.
+verdict=$(probe 'ok=; for _ in $(seq 60); do dbus-send --session --print-reply --dest=org.kde.StatusNotifierWatcher /StatusNotifierWatcher org.freedesktop.DBus.Properties.Get string:org.kde.StatusNotifierWatcher string:IsStatusNotifierHostRegistered >/dev/null 2>&1 && { ok=1; break; }; sleep 0.05; done; [ -n "$ok" ] && echo REACHABLE || echo UNREACHABLE' | tr -d '\r' | tail -1)
 if [ "$verdict" = "REACHABLE" ]; then
-  pass "quarantine reaches the host's StatusNotifierWatcher (tray works)"
+  pass "quarantine reaches a StatusNotifierWatcher (tray works)"
 else
   fail "quarantine cannot reach org.kde.StatusNotifierWatcher — tray icons will not appear"
 fi
 
-verdict=$(probe 'dbus-send --session --print-reply --dest=org.freedesktop.secrets /org/freedesktop/secrets org.freedesktop.DBus.Properties.Get string:org.freedesktop.Secret.Service string:Collections >/dev/null 2>&1 && echo LEAK || echo CONTAINED' | tr -d '\r' | tail -1)
+verdict=$(probe 'DBUS_SESSION_BUS_ADDRESS="$MUJO_HOST_BUS" dbus-send --session --print-reply --dest=org.freedesktop.secrets /org/freedesktop/secrets org.freedesktop.DBus.Properties.Get string:org.freedesktop.Secret.Service string:Collections >/dev/null 2>&1 && echo LEAK || echo CONTAINED' | tr -d '\r' | tail -1)
 if [ "$verdict" = "CONTAINED" ]; then
-  pass "quarantine cannot reach org.freedesktop.secrets on the host bus"
+  pass "quarantine cannot reach org.freedesktop.secrets on the bridged host bus"
 else
   fail "quarantine can talk to the host keyring — the D-Bus filter is not holding"
 fi

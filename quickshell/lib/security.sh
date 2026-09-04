@@ -31,12 +31,22 @@ mujo_security() {
           lockdown_mode="$(grep -o '\[[a-z]*\]' /sys/kernel/security/lockdown 2>/dev/null | tr -d '[]' || echo "none")"
         fi
 
+        # /persist/secure is 0700 root (SEC-004), so the -f test below fails for
+        # the user on the *directory*, not the file, and the Security panel
+        # reported "not configured" beside a real 10G vault. mujo-vault stamps a
+        # 0444 marker under /run/mujo (0755) at boot and after init/open;
+        # consulting it first is what makes this correct unprivileged, and the
+        # direct stat still answers when this runs as root.
         vault_container="/persist/secure/mujo-vault.luks"
+        vault_marker="/run/mujo/vault-present"
         vault_present="false"
         vault_size=""
         if [[ -f "${vault_container}" ]]; then
           vault_present="true"
           vault_size="$(du -h "${vault_container}" 2>/dev/null | cut -f1 || echo "")"
+        elif [[ -f "${vault_marker}" ]]; then
+          vault_present="true"
+          vault_size="$(tr -d '[:space:]' < "${vault_marker}" 2>/dev/null || echo "")"
         fi
 
         vault_mounted="false"
@@ -62,19 +72,46 @@ mujo_security() {
           swap_enc="true"
         fi
 
+        if [[ -f "${PREFS_JSON:-}" ]]; then
+          prefs_swap="$(jq -r '.storage.encryptedSwap // empty' "${PREFS_JSON}" 2>/dev/null || true)"
+          if [[ "${prefs_swap}" == "false" ]]; then
+            swap_enc="false"
+          fi
+        fi
+
         coredump_none="false"
         if grep -qs 'Storage=none' /etc/systemd/coredump.conf 2>/dev/null || (systemd-analyze cat-config systemd/coredump.conf 2>/dev/null | grep -qs 'Storage=none'); then
           coredump_none="true"
+        fi
+        if [[ -f "${PREFS_JSON:-}" ]]; then
+          prefs_coredump="$(jq -r '.security.coredumpDisabled // empty' "${PREFS_JSON}" 2>/dev/null || true)"
+          if [[ "${prefs_coredump}" == "true" ]]; then
+            coredump_none="true"
+          elif [[ "${prefs_coredump}" == "false" ]]; then
+            coredump_none="false"
+          fi
         fi
 
         tmpfs_tmp="false"
         if mountpoint -q /tmp && (findmnt -n -o FSTYPE /tmp 2>/dev/null | grep -qs 'tmpfs'); then
           tmpfs_tmp="true"
         fi
+        if [[ -f "${PREFS_JSON:-}" ]]; then
+          prefs_tmpfs="$(jq -r '.storage.tmpfsTmp // empty' "${PREFS_JSON}" 2>/dev/null || true)"
+          if [[ "${prefs_tmpfs}" == "false" ]]; then
+            tmpfs_tmp="false"
+          fi
+        fi
 
         fw_active="true"
         if command -v iptables >/dev/null 2>&1 && ! iptables -S 2>/dev/null | grep -qs '^-P INPUT DROP'; then
           if ! systemctl is-active --quiet nftables 2>/dev/null && ! systemctl is-active --quiet firewall 2>/dev/null; then
+            fw_active="false"
+          fi
+        fi
+        if [[ -f "${PREFS_JSON:-}" ]]; then
+          prefs_fw="$(jq -r '.firewall.enable // empty' "${PREFS_JSON}" 2>/dev/null || true)"
+          if [[ "${prefs_fw}" == "false" ]]; then
             fw_active="false"
           fi
         fi
@@ -144,6 +181,33 @@ mujo_security() {
             overallStatus: $overall,
             timestamp: (now * 1000 | round)
           }'
+        ;;
+
+      coredump)
+        ACTION="${2:-status}"
+        case "${ACTION}" in
+          enable)
+            prefs_write 'setpath(["security","coredumpDisabled"]; true)'
+            echo "Zero core dumps on disk: enabled"
+            ;;
+          disable)
+            prefs_write 'setpath(["security","coredumpDisabled"]; false)'
+            echo "Zero core dumps on disk: disabled"
+            ;;
+          toggle)
+            curr="$(jq -r '.security.coredumpDisabled // true' "${PREFS_JSON}" 2>/dev/null || echo "true")"
+            if [[ "${curr}" == "true" ]]; then
+              prefs_write 'setpath(["security","coredumpDisabled"]; false)'
+              echo "Zero core dumps on disk: disabled"
+            else
+              prefs_write 'setpath(["security","coredumpDisabled"]; true)'
+              echo "Zero core dumps on disk: enabled"
+            fi
+            ;;
+          status|*)
+            jq -r '.security.coredumpDisabled // true' "${PREFS_JSON}" 2>/dev/null || echo "true"
+            ;;
+        esac
         ;;
 
       inventory|audit)

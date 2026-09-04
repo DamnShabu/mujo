@@ -1,33 +1,178 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
 import "../../theme"
 import "../../components"
 import "../../services"
 
-// Mujo 2.0 Security Architecture Center:
-// Visualizes Verified Boot, LUKS2 Storage Vault, Memory & Host Hardening, and Progressive Trust.
+// Mujo 2.0 Security Architecture & System Integrity Settings Center:
+// Provides interactive management for Host Hardening, Core Dumps, Firewall,
+// Memory Isolation, Verified Boot (Lanzaboote), LUKS2 Storage Vault, and Progressive Trust.
 ColumnLayout {
     id: root
     Layout.fillWidth: true
     spacing: 14
 
-    // ── 1. Verified Boot & Kernel Integrity ──────────────────────────────────
+    signal openTrustRequested()
+
+    property var nixosPrefs: ({
+        security: { coredumpDisabled: true, secureBoot: false, unprivilegedBpfDisabled: true },
+        storage: { encryptedSwap: true, tmpfsTmp: true },
+        firewall: { enable: true },
+        trust: { launcherIntegration: false, flatpakNarrowing: true },
+        vault: { autoLock: "30m" }
+    })
+    property bool nixosDirty: false
+
+    function setNixosPref(path, val) {
+        var p = JSON.parse(JSON.stringify(root.nixosPrefs))
+        var parts = path.split(".")
+        var o = p
+        for (var i = 0; i < parts.length - 1; i++) {
+            if (!o[parts[i]]) o[parts[i]] = {}
+            o = o[parts[i]]
+        }
+        o[parts[parts.length - 1]] = val
+        root.nixosPrefs = p
+        root.nixosDirty = true
+        Quickshell.execDetached(["mujo", "system-pref", "set", path, String(val)])
+        SecurityService.refresh()
+    }
+
+    Process {
+        id: loadPrefsProc
+        command: ["mujo", "system-pref", "get"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var parsed = JSON.parse(this.text)
+                    if (parsed && typeof parsed === "object") root.nixosPrefs = parsed
+                } catch (e) {}
+            }
+        }
+    }
+
+    Component.onCompleted: {
+        loadPrefsProc.running = true
+        SecurityService.refresh()
+    }
+
+    // ── 1. Host Hardening & Memory Isolation ──────────────────────────────────
+    MujoCard {
+        title: "Host Hardening & Memory Isolation"
+        iconName: "memory"
+        isNixos: true
+        badgeText: (SecurityService.coredumpDisabled && SecurityService.firewallActive && SecurityService.encryptedSwapActive) ? "HARDENED" : "CUSTOM"
+        badgeColor: (SecurityService.coredumpDisabled && SecurityService.firewallActive && SecurityService.encryptedSwapActive) ? Theme.success : Theme.warning
+
+        MujoSettingRow {
+            iconName: "hide_source"
+            title: "Zero Core Dumps on Persistent Disk"
+            description: (root.nixosPrefs.security ? root.nixosPrefs.security.coredumpDisabled !== false : SecurityService.coredumpDisabled)
+                ? "RAM images never persist to disk; crashes stay bounded in journald"
+                : "Core dumps enabled on disk (/var/lib/systemd/coredump) for crash analysis and debugging"
+
+            ToggleSwitch {
+                a11yName: "Zero Core Dumps on Persistent Disk"
+                checked: root.nixosPrefs.security ? (root.nixosPrefs.security.coredumpDisabled !== false) : SecurityService.coredumpDisabled
+                onToggled: function(c) {
+                    root.setNixosPref("security.coredumpDisabled", c)
+                    SecurityService.setCoredump(c)
+                }
+            }
+        }
+
+        MujoSettingRow {
+            iconName: "local_fire_department"
+            title: "NFTables Host Firewall"
+            description: (root.nixosPrefs.firewall ? root.nixosPrefs.firewall.enable !== false : SecurityService.firewallActive)
+                ? "Default DROP for all inbound traffic; strictly managed interfaces"
+                : "Firewall disabled; inbound traffic accepted without filtering"
+
+            ToggleSwitch {
+                a11yName: "NFTables Host Firewall"
+                checked: root.nixosPrefs.firewall ? (root.nixosPrefs.firewall.enable !== false) : SecurityService.firewallActive
+                onToggled: function(c) {
+                    root.setNixosPref("firewall.enable", c)
+                    SecurityService.setFirewall(c)
+                }
+            }
+        }
+
+        MujoSettingRow {
+            iconName: "delete_sweep"
+            title: "Ephemeral Scratch Directory (/tmp in RAM)"
+            description: (root.nixosPrefs.storage ? root.nixosPrefs.storage.tmpfsTmp !== false : SecurityService.tmpfsTmpActive)
+                ? "All scratch files reside in tmpfs (RAM) and are discarded on reboot"
+                : "Scratch files written to disk (/tmp persisted across reboots)"
+
+            ToggleSwitch {
+                a11yName: "Ephemeral Scratch Directory (/tmp in RAM)"
+                checked: root.nixosPrefs.storage ? (root.nixosPrefs.storage.tmpfsTmp !== false) : SecurityService.tmpfsTmpActive
+                onToggled: function(c) {
+                    root.setNixosPref("storage.tmpfsTmp", c)
+                    SecurityService.setTmpfsTmp(c)
+                }
+            }
+        }
+
+        MujoSettingRow {
+            iconName: SecurityService.encryptedSwapActive ? "key" : "key_off"
+            title: "Per-Boot Encrypted Swap"
+            description: (root.nixosPrefs.storage ? root.nixosPrefs.storage.encryptedSwap !== false : SecurityService.encryptedSwapActive)
+                ? "Re-keyed on every boot with a random key; persistent hibernation disabled"
+                : "Static swap key; allows hibernation but swap contents persist across boots"
+
+            ToggleSwitch {
+                a11yName: "Per-Boot Encrypted Swap"
+                checked: root.nixosPrefs.storage ? (root.nixosPrefs.storage.encryptedSwap !== false) : SecurityService.encryptedSwapActive
+                onToggled: function(c) {
+                    root.setNixosPref("storage.encryptedSwap", c)
+                    SecurityService.setEncryptedSwap(c)
+                }
+            }
+        }
+    }
+
+    // ── 2. Verified Boot & Kernel Integrity ──────────────────────────────────
     MujoCard {
         title: "Verified Boot & System Integrity"
         iconName: "verified_user"
+        isNixos: true
         badgeText: SecurityService.secureBootActive ? "SECURE" : "SETUP MODE"
         badgeColor: SecurityService.secureBootActive ? Theme.success : Theme.warning
 
         MujoSettingRow {
             iconName: SecurityService.secureBootActive ? "verified" : "gpp_maybe"
-            title: "UEFI Secure Boot"
+            title: "UEFI Secure Boot (Lanzaboote)"
             description: SecurityService.secureBootActive
-                ? "Lanzaboote custom signing keys active and enforcing"
-                : "Firmware setup mode (lanzaboote ready for enrollment)"
+                ? "Lanzaboote custom signing keys active and enforcing in UEFI firmware"
+                : "Firmware setup mode or inactive (boots via GRUB); enable declarative Secure Boot and enroll keys"
 
-            DisplayChip {
-                label: SecurityService.secureBootActive ? "ENFORCED" : "SETUP MODE"
-                selected: SecurityService.secureBootActive
+            RowLayout {
+                spacing: 8
+
+                DialogButton {
+                    visible: !SecurityService.secureBootActive
+                    text: "Setup Keys"
+                    onClicked: Quickshell.execDetached(["kitty", "--title", "mujō — setup secureboot keys", "-e", "pkexec", "mujo-secureboot", "setup-keys"])
+                }
+
+                DialogButton {
+                    visible: !SecurityService.secureBootActive
+                    text: "Enroll"
+                    onClicked: Quickshell.execDetached(["kitty", "--title", "mujō — enroll secureboot keys", "-e", "pkexec", "mujo-secureboot", "enroll"])
+                }
+
+                ToggleSwitch {
+                    a11yName: "UEFI Secure Boot"
+                    checked: root.nixosPrefs.security ? (root.nixosPrefs.security.secureBoot === true) : SecurityService.secureBootActive
+                    onToggled: function(c) {
+                        root.setNixosPref("security.secureBoot", c)
+                        SecurityService.setSecureBoot(c)
+                    }
+                }
             }
         }
 
@@ -35,28 +180,38 @@ ColumnLayout {
             iconName: "memory"
             title: "TPM 2.0 Cryptographic Processor"
             description: SecurityService.tpmActive
-                ? "Hardware TPM device (/dev/tpmrm0) active for boot measurements"
+                ? "Hardware TPM device (/dev/tpmrm0) active for boot measurements & secrets"
                 : "TPM module not detected or unmeasured"
 
-            DisplayChip {
-                label: SecurityService.tpmActive ? "ACTIVE" : "ABSENT"
-                selected: SecurityService.tpmActive
+            RowLayout {
+                spacing: 8
+
+                DisplayChip {
+                    label: SecurityService.tpmActive ? "ACTIVE" : "ABSENT"
+                    selected: SecurityService.tpmActive
+                }
+
+                DialogButton {
+                    text: "Verify PCRs"
+                    onClicked: Quickshell.execDetached(["kitty", "--title", "mujō — TPM PCR measurements", "-e", "mujo-secureboot", "verify-tpm"])
+                }
             }
         }
 
         MujoSettingRow {
             iconName: "shield"
-            title: "Kernel Lockdown & BPF Security"
-            description: "Restricts raw I/O, unsigned module loading, and unprivileged BPF access"
+            title: "Unprivileged eBPF Restriction"
+            description: "Disables unprivileged eBPF to prevent speculative execution and kernel memory inspection"
 
-            DisplayChip {
-                label: SecurityService.lockdownMode.toUpperCase()
-                selected: SecurityService.lockdownMode !== "none"
+            ToggleSwitch {
+                a11yName: "Unprivileged eBPF Restriction"
+                checked: root.nixosPrefs.security ? (root.nixosPrefs.security.unprivilegedBpfDisabled !== false) : true
+                onToggled: function(c) { root.setNixosPref("security.unprivilegedBpfDisabled", c) }
             }
         }
     }
 
-    // ── 2. LUKS2 Encrypted Storage Vault ─────────────────────────────────────
+    // ── 3. LUKS2 Encrypted Storage Vault ─────────────────────────────────────
     MujoCard {
         title: "LUKS2 Encrypted Storage Vault"
         iconName: "lock"
@@ -125,6 +280,23 @@ ColumnLayout {
         }
 
         MujoSettingRow {
+            iconName: "timer"
+            title: "Vault Auto-Lock Timeout"
+            description: "Automatically unmount and lock the encrypted container after inactivity."
+
+            MujoSegmented {
+                model: [
+                    { id: "15m",   label: "15 min" },
+                    { id: "30m",   label: "30 min" },
+                    { id: "1h",    label: "1 hour" },
+                    { id: "never", label: "Manual" }
+                ]
+                current: (root.nixosPrefs.vault && root.nixosPrefs.vault.autoLock) ? root.nixosPrefs.vault.autoLock : "30m"
+                onSelected: function(id) { root.setNixosPref("vault.autoLock", id) }
+            }
+        }
+
+        MujoSettingRow {
             iconName: SecurityService.inventoryFailed ? "help" : "find_in_page"
             title: "Sensitive Plaintext Storage Audit"
             description: !SecurityService.inventoryAudited
@@ -142,69 +314,9 @@ ColumnLayout {
         }
     }
 
-    // ── 3. Host Hardening & Memory Isolation ───────────────────────────
+    // ── 4. Progressive Trust & Application Sandboxing ────────────────────────
     MujoCard {
-        title: "Host Hardening & Memory Isolation"
-        iconName: "memory"
-        badgeText: "ACTIVE"
-        badgeColor: Theme.success
-
-        MujoSettingRow {
-            iconName: SecurityService.encryptedSwapActive ? "key" : "key_off"
-            title: "Per-Boot Encrypted Swap"
-            description: SecurityService.encryptedSwapActive
-                ? "Re-keyed on every boot with a random key; persistent hibernation disabled"
-                : "Swap is not reporting as encrypted — pages may reach the disk in the clear"
-
-            DisplayChip {
-                label: SecurityService.encryptedSwapActive ? "ENCRYPTED" : "UNVERIFIED"
-                selected: SecurityService.encryptedSwapActive
-            }
-        }
-
-        MujoSettingRow {
-            iconName: "hide_source"
-            title: "Zero Core Dumps on Persistent Disk"
-            description: SecurityService.coredumpDisabled
-                ? "RAM images never persist to disk; crashes stay bounded in journald"
-                : "Core dumps are not reporting as disabled — process memory can reach the disk"
-
-            DisplayChip {
-                label: SecurityService.coredumpDisabled ? "DISABLED" : "UNVERIFIED"
-                selected: SecurityService.coredumpDisabled
-            }
-        }
-
-        MujoSettingRow {
-            iconName: "delete_sweep"
-            title: "Ephemeral Scratch Directory (/tmp in RAM)"
-            description: SecurityService.tmpfsTmpActive
-                ? "All scratch files reside in tmpfs and are discarded on reboot"
-                : "/tmp is not reporting as tmpfs — scratch files may survive a reboot on disk"
-
-            DisplayChip {
-                label: SecurityService.tmpfsTmpActive ? "TMPFS" : "UNVERIFIED"
-                selected: SecurityService.tmpfsTmpActive
-            }
-        }
-
-        MujoSettingRow {
-            iconName: "local_fire_department"
-            title: "NFTables Host Firewall"
-            description: SecurityService.firewallActive
-                ? "Default DROP for all inbound traffic; strictly managed interfaces"
-                : "Firewall is not reporting as active — inbound traffic may not be dropped"
-
-            DisplayChip {
-                label: SecurityService.firewallActive ? "ENFORCING" : "UNVERIFIED"
-                selected: SecurityService.firewallActive
-            }
-        }
-    }
-
-    // ── 4. Application Progressive Trust Overview ────────────────────────────
-    MujoCard {
-        title: "Progressive Trust & Sandboxing Overview"
+        title: "Progressive Trust & Sandboxing"
         iconName: "shield"
         badgeText: (SecurityService.totalAppsCount) + " APPS TRACKED"
         badgeColor: Theme.accent
@@ -215,71 +327,147 @@ ColumnLayout {
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 44
+                implicitHeight: 48
                 radius: Theme.radiusSm
-                color: Theme.bg
-                border.color: Theme.border
+                color: qHh.hovered ? Theme.surfaceHover : Theme.bg
+                border.color: qHh.hovered ? Theme.warning : Theme.border
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+                HoverHandler { id: qHh; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: root.openTrustRequested() }
+
                 RowLayout {
                     anchors.centerIn: parent
-                    spacing: 6
+                    spacing: 8
                     Text { text: SecurityService.quarantinedAppsCount.toString(); color: Theme.warning; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
-                    Text { text: "Quarantine"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall }
+                    ColumnLayout {
+                        spacing: 0
+                        Text { text: "Quarantine"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                        Text { text: "MicroVM Domain"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
+                    }
                 }
             }
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 44
+                implicitHeight: 48
                 radius: Theme.radiusSm
-                color: Theme.bg
-                border.color: Theme.border
+                color: oHh.hovered ? Theme.surfaceHover : Theme.bg
+                border.color: oHh.hovered ? Theme.accent : Theme.border
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+                HoverHandler { id: oHh; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: root.openTrustRequested() }
+
                 RowLayout {
                     anchors.centerIn: parent
-                    spacing: 6
+                    spacing: 8
                     Text { text: SecurityService.observingAppsCount.toString(); color: Theme.accent; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
-                    Text { text: "Observing"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall }
+                    ColumnLayout {
+                        spacing: 0
+                        Text { text: "Observing"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                        Text { text: "Pre-Graduation"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
+                    }
                 }
             }
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 44
+                implicitHeight: 48
                 radius: Theme.radiusSm
-                color: Theme.bg
-                border.color: Theme.border
+                color: gHh.hovered ? Theme.surfaceHover : Theme.bg
+                border.color: gHh.hovered ? Theme.success : Theme.border
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+                HoverHandler { id: gHh; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: root.openTrustRequested() }
+
                 RowLayout {
                     anchors.centerIn: parent
-                    spacing: 6
+                    spacing: 8
                     Text { text: SecurityService.graduatedAppsCount.toString(); color: Theme.success; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
-                    Text { text: "Graduated"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall }
+                    ColumnLayout {
+                        spacing: 0
+                        Text { text: "Graduated"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                        Text { text: "Native Sandbox"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
+                    }
                 }
             }
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 44
+                implicitHeight: 48
                 radius: Theme.radiusSm
-                color: Theme.bg
-                border.color: Theme.border
+                color: rHh.hovered ? Theme.surfaceHover : Theme.bg
+                border.color: rHh.hovered ? Theme.error : Theme.border
+                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+
+                HoverHandler { id: rHh; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: root.openTrustRequested() }
+
                 RowLayout {
                     anchors.centerIn: parent
-                    spacing: 6
+                    spacing: 8
                     Text { text: SecurityService.revokedAppsCount.toString(); color: Theme.error; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
-                    Text { text: "Revoked"; color: Theme.textSecondary; font.pixelSize: Theme.fontSizeSmall }
+                    ColumnLayout {
+                        spacing: 0
+                        Text { text: "Revoked"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
+                        Text { text: "Blocked"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
+                    }
                 }
             }
         }
 
         MujoSettingRow {
-            iconName: "policy"
-            title: "Application Security Policy"
-            description: "Manage individual application tiers and quarantine states under System → Applications."
+            iconName: "rocket_launch"
+            title: "Launcher Isolation Integration"
+            description: (root.nixosPrefs.trust ? root.nixosPrefs.trust.launcherIntegration === true : SecurityService.launcherIntegrationActive)
+                ? "Launcher automatically runs untrusted applications inside isolated quarantine domains"
+                : "Launcher starts applications directly on host (bypasses automatic quarantine on first click)"
 
-            DialogButton {
-                text: "Evaluate Policy"
-                onClicked: SecurityService.evaluateTrust()
+            ToggleSwitch {
+                a11yName: "Launcher Isolation Integration"
+                checked: root.nixosPrefs.trust ? (root.nixosPrefs.trust.launcherIntegration === true) : SecurityService.launcherIntegrationActive
+                onToggled: function(c) {
+                    root.setNixosPref("trust.launcherIntegration", c)
+                    SecurityService.setLauncherIntegration(c)
+                }
+            }
+        }
+
+        MujoSettingRow {
+            iconName: "security"
+            title: "Strict Flatpak Permission Narrowing"
+            description: "Subtractive overrides: strip raw /dev, ptrace, and smartcard access from graduated Flatpaks"
+
+            ToggleSwitch {
+                a11yName: "Strict Flatpak Permission Narrowing"
+                checked: root.nixosPrefs.trust ? (root.nixosPrefs.trust.flatpakNarrowing !== false) : true
+                onToggled: function(c) { root.setNixosPref("trust.flatpakNarrowing", c) }
+            }
+        }
+
+        MujoSettingRow {
+            iconName: "policy"
+            title: "Application Trust & Policy Engine"
+            description: "Configure individual application risk tiers, quarantine overrides, and graduation logs."
+
+            RowLayout {
+                spacing: 8
+
+                DialogButton {
+                    text: "Evaluate Policy"
+                    onClicked: SecurityService.evaluateTrust()
+                }
+
+                DialogButton {
+                    text: "Manage Apps →"
+                    primary: true
+                    onClicked: root.openTrustRequested()
+                }
             }
         }
     }
 }
+
 

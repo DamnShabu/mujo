@@ -15,5 +15,22 @@
   "zramSwap": {
     "enable": true,
     "memoryPercent": 50
+  },
+  "security": {
+    "coredumpDisabled": true,
+    "secureBoot": false,
+    "unprivilegedBpfDisabled": true
+  },
+  "storage": {
+    "encryptedSwap": true,
+    "tmpfsTmp": true
+  },
+  "trust": {
+    "launcherIntegration": false,
+    "flatpakNarrowing": true
+  },
+  "vault": {
+    "autoLock": "30m"
   }
 }
+

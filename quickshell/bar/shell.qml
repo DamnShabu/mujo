@@ -117,6 +117,11 @@ ShellRoot {
     // Lock screen (WP-14) — native session-lock surfaces bound to Lock.locked.
     LockScreen {}
 
+    // Boot greeter — vault unlock, or first-run vault setup. Shares the
+    // session-lock protocol with LockScreen, which is why only one of the two
+    // may hold the lock at a time (see LockScreen.locked).
+    GreeterScreen {}
+
     IpcHandler {
         target: "lock"
         function lock(): void { Lock.lock() }
