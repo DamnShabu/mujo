@@ -3,8 +3,7 @@ import QtQuick.Layouts
 import "../../theme"
 import "../../components"
 import "../../services"
-import "../notifications"
-import "../launcher"
+import "./styles"
 
 Item {
     id: root
@@ -14,9 +13,6 @@ Item {
     property var panelWindow
     property bool launcherOpen: false
 
-    // Transparent panel — the bar reads as detached floating groups over the
-    // wallpaper, not an edge-to-edge slab. Each cluster is its own BarCluster.
-
     // Catch clicks on empty / transparent space of the bar to dismiss open GUIs.
     MouseArea {
         anchors.fill: parent
@@ -24,93 +20,36 @@ Item {
         onClicked: PopupCoordinator.closeAll()
     }
 
-    // Gap between pills inside a cluster (`bar.spacing`). The right cluster runs
-    // two px tighter because it holds bare icons, not pills.
-    readonly property int clusterGap: SettingsBus.get("bar.spacing", 6)
+    readonly property string barStyle: SettingsBus.get("bar.style", "floating")
 
-    // Left cluster: launcher trigger + workspaces + active window nexus
-    BarCluster {
-        id: leftGroup
-        anchors {
-            verticalCenter: parent.verticalCenter
-            left: parent.left
-            leftMargin: Theme.barMargin
-        }
-        spacing: root.clusterGap
-        contentAlign: Qt.AlignLeft        // pinned left, so a leaving pill never shifts the launcher
-        auraColor: Theme.accent
-
-        LauncherPill {
-            Layout.alignment: Qt.AlignVCenter
-            panelWindow: root.panelWindow
-            screenName: root.screenName
-            launcherOpen: root.launcherOpen
-        }
-
-        Workspaces {
-            id: wsModule
-            Layout.alignment: Qt.AlignVCenter
-            niri: root.niri
-            screenName: root.screenName
-        }
-
-        ActiveWindowPill {
-            id: activeWinPill
-            Layout.alignment: Qt.AlignVCenter
-            niri: root.niri
-            screenName: root.screenName
-            focusedOutput: root.focusedOutput
-        }
-    }
-
-    // Center cluster: island (WP-16) when enabled, else the bare clock pill.
-    // Both open the calendar; the island bundles clock + media + weather + cava.
-    // Only one is built — they used to both exist with one hidden, which left
-    // the unused one's clock ticking once a second for the life of the session.
     Loader {
-        anchors.centerIn: parent
-        sourceComponent: SettingsBus.get("island.enabled", true) ? islandC : clockPillC
-    }
-    Component { id: clockPillC; ClockPill { panelWindow: root.panelWindow; screenName: root.screenName } }
-    Component { id: islandC;    Island    { panelWindow: root.panelWindow; screenName: root.screenName } }
-
-    // Right cluster: data-driven (WP-17). `bar.rightModules` sets both order and
-    // visibility — drop a name to hide it, reorder to rearrange.
-    BarCluster {
-        id: rightGroup
-        anchors {
-            verticalCenter: parent.verticalCenter
-            right: parent.right
-            rightMargin: Theme.barMargin
+        id: styleLoader
+        anchors.fill: parent
+        sourceComponent: {
+            switch (root.barStyle) {
+                case "full":    return fullStyleC
+                case "island":  return islandStyleC
+                case "dock":    return dockStyleC
+                case "compact": return compactStyleC
+                case "floating":
+                default:        return floatingStyleC
+            }
         }
-        spacing: Math.max(0, root.clusterGap - 2)
-        contentAlign: Qt.AlignRight
-        auraColor: Theme.accent
 
-        Repeater {
-            model: SettingsBus.get("bar.rightModules", ["llm", "network", "bluetooth", "volume", "battery", "notifications", "tray", "session"])
-            delegate: Loader {
-                required property var modelData
-                Layout.alignment: Qt.AlignVCenter
-                sourceComponent: modelData === "llm" ? llmC
-                               : modelData === "network" ? netC
-                               : modelData === "bluetooth" ? btC
-                               : modelData === "volume" ? volC
-                               : modelData === "battery" ? batC
-                               : modelData === "notifications" ? notifC
-                               : modelData === "tray" ? trayC
-                               : modelData === "session" ? sessC
-                               : null
+        onLoaded: {
+            if (item) {
+                item.niri = Qt.binding(function() { return root.niri })
+                item.screenName = Qt.binding(function() { return root.screenName })
+                item.focusedOutput = Qt.binding(function() { return root.focusedOutput })
+                item.panelWindow = Qt.binding(function() { return root.panelWindow })
+                item.launcherOpen = Qt.binding(function() { return root.launcherOpen })
             }
         }
     }
 
-    Component { id: llmC;   LlmTrackerMenu  { panelWindow: root.panelWindow; screenName: root.screenName } }
-    Component { id: netC;   NetworkMenu     { panelWindow: root.panelWindow; screenName: root.screenName } }
-    Component { id: btC;    BluetoothMenu   { panelWindow: root.panelWindow; screenName: root.screenName } }
-    Component { id: volC;   VolumeMenu      { panelWindow: root.panelWindow; screenName: root.screenName } }
-    Component { id: batC;   BatteryMenu     { panelWindow: root.panelWindow; screenName: root.screenName } }
-    Component { id: notifC; NotificationMenu{ panelWindow: root.panelWindow; screenName: root.screenName } }
-    Component { id: trayC;  SystemTray      { panelWindow: root.panelWindow; screenName: root.screenName } }
-    Component { id: sessC;  SessionMenu     { panelWindow: root.panelWindow; screenName: root.screenName } }
+    Component { id: floatingStyleC; FloatingStyle {} }
+    Component { id: fullStyleC;     FullWidthStyle {} }
+    Component { id: islandStyleC;   IslandStyle {} }
+    Component { id: dockStyleC;     DockStyle {} }
+    Component { id: compactStyleC;  CompactStyle {} }
 }
