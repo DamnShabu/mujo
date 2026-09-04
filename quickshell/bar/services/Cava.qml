@@ -33,7 +33,13 @@ QtObject {
     property Connections _nodesConn: Connections { target: Pipewire.nodes; function onValuesChanged() { cava._recount() } }
 
     readonly property bool active: (widgetWants > 0 || islandWants) && !Lock.locked && !sinkMuted && streamCount > 0
+    readonly property bool running: active
     property var levels: []
+    readonly property var values: {
+        var res = []
+        for (var i = 0; i < cava.levels.length; i++) res.push(cava.levels[i] / 100)
+        return res
+    }
     onActiveChanged: if (!active) levels = []
 
     property Process _proc: Process {

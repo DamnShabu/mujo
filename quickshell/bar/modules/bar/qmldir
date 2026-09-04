@@ -13,3 +13,8 @@ TrayIconDelegate TrayIconDelegate.qml
 TrayMenu TrayMenu.qml
 LlmTrackerMenu LlmTrackerMenu.qml
 Island Island.qml
+MediaPill MediaPill.qml
+WeatherPill WeatherPill.qml
+CavaPill CavaPill.qml
+DividerPill DividerPill.qml
+SpacerPill SpacerPill.qml
