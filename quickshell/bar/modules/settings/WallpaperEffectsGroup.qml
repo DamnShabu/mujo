@@ -16,7 +16,7 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: 14
 
-    // Owned by WallpapersPage, which watches wallpaper.json for both of us.
+    // Owned by AppearancePage, which watches wallpaper.json for both of us.
     required property bool motionOn
     required property string letterbox
 

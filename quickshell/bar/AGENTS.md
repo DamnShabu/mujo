@@ -24,6 +24,7 @@ The mujō desktop for Niri/Wayland: floating grouped top bar, overlay launcher, 
 - **Standard actions use Material Symbols.** `components/MaterialIcon.qml` renders Material Symbols directly (`Material Symbols Rounded`), ensuring consistent, scalable vector glyphs across all controls, bars, menus, and settings.
 - **File-type icons are full colour** (`Icons.fileIcon`), the desktop convention, keyed by extension.
 - Application launcher and window icons resolve via `Icons.appIcon` / `Icons.iconSource` against the desktop icon theme.
+- That theme comes from `QS_ICON_THEME`, set session-wide in `nixos/desktop/gtk.nix` and again in the `qs-bar` service. Without it Qt resolves nothing on those three functions and every file and application icon falls back to the generic executable icon. `qs -p ./test-icons.qml` is the check; since `Icons.actions` was removed it covers the 48 file types, and nothing now guards a Material Symbol name that no glyph covers.
 
 ## DIRECTORIES
 
@@ -86,14 +87,15 @@ verdict and then hangs forever.
 
 ## SETTINGS APP
 
-`settings.qml` is only a frame: the window, the seven sidebar categories, and the omni-search index — all data. The machinery lives in `modules/settings/`:
+`settings.qml` is only a frame: the window, the five sidebar categories, and the omni-search index — all data. The machinery lives in `modules/settings/`:
 
 - **`SettingsLayout.qml`** — 260px sidebar (brand, `/` omni-search, categories with a sliding glider and count badges) and the content pane. Owns routing: `SettingsBus.onNavigate` and `~/.config/qsshell/settings-target` (what `mujo settings <key>` writes) both go through `route()`, which resolves a category key or any key a category claims in `keys: [...]`.
-- **`SettingsPage.qml`** — one category page: a scrolling column of `MujoCard`s. **Navigation stops here.** Level 1 is the sidebar category, level 2 is a card. No sub-pages, no modal overlays — an "open X" affordance becomes an inline card (`visible:` on the card), the way VM provisioning did.
+- **`SettingsPage.qml`** — the page frame: a scrolling column of `MujoCard`s. **Navigation stops at a card.** Level 1 is the sidebar category, level 2 is a sub-category tab on the page, level 3 is a card. No sub-pages and no modal overlays — an "open X" affordance becomes an inline card (`visible:` on the card), the way VM provisioning did.
+- **`<Category>Page.qml`** — the five category pages. Each owns a `tab`, a `cardTabMap` from card title to sub-tab, and a `revealCard(name)` that omni-search calls so a hit selects the right tab before scrolling. A card added to a page needs a `cardTabMap` entry, or search reaches the page but not the card.
 - **`SettingRow.qml`** — one store-backed setting: `path` + `kind` (`toggle` | `slider` | `segment` | `text`). Anything with a bespoke control uses `MujoSettingRow` directly and fills its default control slot.
 - **`<Domain>Group.qml`** — the cards of one domain: a plain `ColumnLayout`, no scroll and no hero of its own, dropped into a page.
 - **`SearchIndex.js`** — the omni-search rows, in their own `.pragma library` so `test-settings-ui.qml` asserts against the data the app ships. Every `card:` value must match a `MujoCard` title on the destination page verbatim; the test checks that.
 
-The `<Domain>Panel.qml` shape is gone — every category is a `<Category>Page.qml` composed of `*Group.qml` files. A new domain adds a group and lists it on a page; it never adds a panel or an in-page chip rail.
+The `<Domain>Panel.qml` shape is gone — every category is a `<Category>Page.qml` composed of `*Group.qml` files. A new domain adds a group, lists it under one of that page's sub-tabs, and adds its card titles to `cardTabMap`; it never adds a panel.
 
 Pages **stay alive once visited** so scroll position survives switching category. Anything that polls must therefore bind `running: root.visible` rather than `running: true` — an invisible parent propagates `visible: false` to its children, so that stops the timer when the category is off screen.

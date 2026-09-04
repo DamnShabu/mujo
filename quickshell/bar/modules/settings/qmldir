@@ -17,8 +17,6 @@ SettingRow SettingRow.qml
 SystemPage SystemPage.qml
 AppearancePage AppearancePage.qml
 WorkspacePage WorkspacePage.qml
-WallpapersPage WallpapersPage.qml
-IntelligencePage IntelligencePage.qml
 HardwarePage HardwarePage.qml
 SecurityPage SecurityPage.qml
 BarGroup BarGroup.qml

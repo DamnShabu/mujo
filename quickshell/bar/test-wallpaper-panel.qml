@@ -4,8 +4,13 @@ import "modules/settings"
 import "modules/settings/TagQuery.js" as TagQuery
 import "services"
 
-// Self-check for the wallpapers page and the tag-query parsing its two search
+// Self-check for the wallpaper UI and the tag-query parsing its two search
 // boxes share. Run: qs -p ./test-wallpaper-panel.qml
+//
+// The 5-category redesign moved WallpaperBrowseGroup and WallpaperEffectsGroup
+// onto AppearancePage and left WallpapersPage reachable from nothing but this
+// check. A test that is the only thing keeping a page alive is not testing the
+// product, so the page is gone and this points at the live host.
 //
 // Read-only: instantiating the page starts a `mujo wallpaper list` read and
 // nothing else, and TagQuery is pure string handling.
@@ -26,7 +31,7 @@ ShellRoot {
         Loader {
             id: panelLoader
             anchors.fill: parent
-            sourceComponent: WallpapersPage {}
+            sourceComponent: AppearancePage {}
         }
     }
 
@@ -39,14 +44,14 @@ ShellRoot {
         interval: 0
         running: true
         onTriggered: {
-            // 1. The page and the two groups it was split into resolve and load.
-            check("WallpapersPage instantiated", root.panel !== null)
-            check("page defaults to the library tab", root.panel.tab === "library")
-            for (const tab of ["library", "wallhaven", "wallpaperengine", "effects"]) {
+            // 1. The host page and the two wallpaper groups resolve and load.
+            check("AppearancePage instantiated", root.panel !== null)
+            check("page defaults to the themes tab", root.panel.tab === "themes")
+            for (const tab of ["wallpapers", "library", "wallhaven", "wallpaperengine", "effects"]) {
                 root.panel.tab = tab
                 check("tab switches to " + tab, root.panel.tab === tab)
             }
-            root.panel.tab = "library"
+            root.panel.tab = "themes"
 
             // 2. Tag recognition: whole tokens only, decoration and case ignored.
             check("plain tag found", TagQuery.isInQuery("nature forest", "forest"))
@@ -90,9 +95,9 @@ ShellRoot {
             panelLoader.sourceComponent = null
 
             if (root.fails.length === 0) {
-                console.log("PASS  wallpapers page: components resolve, tag query parses, error pill handling verified")
+                console.log("PASS  wallpaper UI: components resolve, tag query parses, error pill handling verified")
             } else {
-                console.log("FAIL  wallpapers page: " + root.fails.length + " check(s) failed")
+                console.log("FAIL  wallpaper UI: " + root.fails.length + " check(s) failed")
                 for (const f of root.fails) console.log("        - " + f)
             }
             Qt.exit(root.fails.length === 0 ? 0 : 1)

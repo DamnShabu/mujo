@@ -80,8 +80,9 @@ Those five, each classified:
 
 | Metric | Phase-0 baseline | Now | Note |
 |---|---|---|---|
-| Tracked files | 484 | 484 | −2 orphans, +2 (a service and its check) |
-| Lines (non-binary) | 65 063 | 64 891 | −172 |
+| Tracked files (this pass alone) | 484 | 482 | −4 orphans, +2 (a service and its check) |
+| Lines removed by this pass | — | −738 | four dead files (566) plus 12 settings keys, 13 controls and 18 literals |
+| Tracked files (tree, incl. the parallel redesign) | 484 | 486 | the user's 5-category work landed on this branch mid-pass |
 | `nix flake check` | green, 9.6s | green, 9.6s | unchanged |
 | System closure | 15.8 GiB | 15.8 GiB | measured on a worktree at `HEAD`; the working tree's 16.2 GiB is the user's in-flight `helium` (462.7 MiB), decision 1 |
 | `qs -p shell.qml` to `Configuration Loaded` | 369–399 ms | 369–399 ms | unchanged |
@@ -98,6 +99,8 @@ Those five, each classified:
 |---|---|---|
 | `quickshell/bar/components/DashboardCard.qml` | 156 | nothing — its only consumer, `OverviewPanel.qml`, was deleted by the refactor this tree arrived with |
 | `quickshell/bar/modules/bar/IslandPanel.qml` | 257 | `modules/settings/IslandGroup.qml`, once its surface-colour picker was ported across |
+| `quickshell/bar/modules/settings/IntelligencePage.qml` | 17 | `SecurityPage` and `HardwarePage`, which the 5-category redesign re-homed all four of its groups onto |
+| `quickshell/bar/modules/settings/WallpapersPage.qml` | 136 | `AppearancePage`, which now owns the `wallpaper.json` watcher and both wallpaper groups |
 
 Also removed, not as files: 12 settings keys and 13 controls that wrote them
 (see phase 1–2 below), and 18 hex literals that became six named tokens.
@@ -150,6 +153,107 @@ Also removed, not as files: 12 settings keys and 13 controls that wrote them
    otherwise were removed rather than faked.
 
 ---
+
+## Per-file verdicts — pass 2
+
+Pass 1's table below covers 472 files and still holds for everything this pass
+did not touch. This table covers the 29 files that had no row (the settings
+refactor's additions, plus this pass's own) and the files this pass changed.
+`CORRECT` names a property that was checked, never "not touched".
+
+Two properties were checked mechanically across every settings file and are not
+repeated per row: every `SettingsBus` key read has a writer and every key
+written has a reader (the sweep that found 17 fake controls now reports zero),
+and every `.qml` in a directory appears in that directory's `qmldir` with no
+orphan entries.
+
+### New since pass 1
+
+| Path | Verdict | Note | Phase |
+|---|---|---|---|
+| `quickshell/bar/components/BarCluster.qml` | CORRECT | renamed from `BarGroup.qml` for a real reason it states: a settings `BarGroup` shadowed it wherever a page imported both directories | 3 |
+| `quickshell/bar/components/FocusRing.qml` | CORRECT | 28 lines, one job; `visible` is bound to `target.activeFocus` with `target` defaulting to `parent`, so no call site can forget to wire it | 3 |
+| `quickshell/bar/modules/settings/SystemPage.qml` | CORRECT | the five category pages. Each is composition plus one sub-tab selector: a `tab`, a `cardTabMap` from card title to sub-tab, and `revealCard()` so omni-search selects the tab before scrolling. `test-settings-ui.qml` fails if a `SearchIndex` `card:` has no `cardTabMap` entry, which is the failure mode that shape introduces | 3 |
+| `quickshell/bar/modules/settings/AppearancePage.qml` | CORRECT | same, and it absorbed the wallpaper UI: it now owns the single `wallpaper.json` watcher the two wallpaper groups read | 3 |
+| `quickshell/bar/modules/settings/WorkspacePage.qml` | CORRECT | same | 3 |
+| `quickshell/bar/modules/settings/SecurityPage.qml` | CORRECT | same, plus one documented exception: `ApplicationsTrustTab` is already a column of cards, so it takes the width rather than a wrapper card | 3 |
+| `quickshell/bar/modules/settings/IntelligencePage.qml` | DELETED | 17 lines; the 5-category redesign re-homed all four of its groups onto `SecurityPage` and `HardwarePage` and left the file and its `qmldir` entry behind | 1 |
+| `quickshell/bar/modules/settings/WallpapersPage.qml` | DELETED | 136 lines duplicating `AppearancePage`'s `wallpaper.json` watcher and hosting the same two groups. Reachable from nothing but its own self-check — a test that is the only thing keeping a page alive is not testing the product | 1 |
+| `quickshell/bar/test-wallpaper-panel.qml` | CHANGED | retargeted at `AppearancePage`, so the same 24 assertions now run against the page a user can actually open | 1 |
+| `quickshell/bar/theme/Icons.qml` | CORRECT | the parallel redesign removed `actions` and `path()`; no caller remains, `MaterialIcon` draws glyphs directly, and the three surviving functions are the theme lookups for files and applications | 6 |
+| `quickshell/bar/test-icons.qml` | CORRECT | shrank with `Icons.actions`; covers the 48 file types. Nothing now guards a Material Symbol name no glyph covers — noted in `quickshell/bar/AGENTS.md` rather than papered over | 6 |
+| `quickshell/bar/modules/settings/SearchIndex.js` | CHANGED | `.pragma library` so the app and the check read one list; two rows retargeted to the cards this pass renamed. `test-settings-ui.qml` fails if any `card:` stops matching a `MujoCard` title | 3, 6 |
+| `quickshell/bar/modules/settings/BarGroup.qml` | CORRECT | 630 lines, one domain (bar layout, modules, tray); every row store-backed, `bar.spacing` now reaches `Bar.qml` | 1 |
+| `quickshell/bar/modules/settings/IslandGroup.qml` | CHANGED | surface-colour picker ported back from the deleted `IslandPanel.qml`; `island.background` had a reader in `Island.qml` and no writer left | 2 |
+| `quickshell/bar/modules/settings/WidgetsGroup.qml` | CORRECT | per-widget config; `desktop.calendar.showWeekNumbers` now reaches `CalendarMenu` | 1, 5 |
+| `quickshell/bar/modules/settings/ShelfGroup.qml` | CORRECT | 68 lines, four store-backed rows, all read by `Shelf.qml` | 1 |
+| `quickshell/bar/modules/settings/ThemeGroup.qml` | CORRECT | 34 hex literals, all of them the user-selectable accent palette the colour rule exempts | 1 |
+| `quickshell/bar/modules/settings/MotionGroup.qml` | CORRECT | `bget`/`bset` indirection is real: the rows are generated from a model, so the key is not a literal | 1 |
+| `quickshell/bar/modules/settings/AiGroup.qml` | CHANGED | dropped `ai.allowShellContext` and `ai.confirmActions`; both wrote a key nothing read, and the second implied the mandatory confirm modal was optional | 1, 2 |
+| `quickshell/bar/modules/settings/NotificationsGroup.qml` | CORRECT | its one `repeat: true` timer is a bounded progress simulation that calls `stop()` at 100 and starts only from a button — not a poll, so the visibility rule does not apply | 4 |
+| `quickshell/bar/modules/settings/NetworkGroup.qml` | CORRECT | two timers, the polling one gated on visibility | 4 |
+| `quickshell/bar/modules/settings/WeatherGroup.qml` | CORRECT | writes `weather.*` through `mujo weather set`, which is the store's only writer for those keys | 1 |
+| `quickshell/bar/modules/settings/NixosHostGroup.qml` | CORRECT | every escalating action goes through `pkexec`; no path builds a `--flake` argument without an absolute path | 2 |
+| `quickshell/bar/modules/settings/HealthGroup.qml` | CORRECT | reads `SentinelService`, writes nothing the service does not own | 1 |
+| `quickshell/bar/modules/settings/PreferencesGroup.qml` | CHANGED | removed `system.soundAlerts` (a second switch for `notifications.sound`) and the three cliphist rows the shell cannot enforce; `setNixosPref` path unchanged | 1 |
+| `quickshell/bar/modules/settings/ApplicationsGroup.qml` | CORRECT | 58 lines: tab state and composition, each tab self-contained | 3 |
+| `quickshell/bar/modules/settings/PersistenceGroup.qml` | CORRECT | writes only through `mujo persist`, which takes the lock | 2 |
+| `quickshell/bar/modules/settings/PrivacyGroup.qml` | CHANGED | rewritten: five fake toggles removed, `mujo privacy purge-history` (not a verb) replaced with `clear-recent`, and the unconditional success message replaced with the exit code | 2 |
+| `quickshell/bar/modules/settings/WallpaperBrowseGroup.qml` | CORRECT | catalogue chrome only; the engines are `Wallhaven.qml` and `WallpaperEngine.qml` | 3 |
+| `quickshell/bar/modules/settings/WallpaperEffectsGroup.qml` | CORRECT | its 8 hex literals are the user-selectable background palette the colour rule exempts | 1 |
+| `quickshell/bar/services/VmService.qml` | CHANGED | new: the engine half of `VmGroup`, deliberately not self-polling because the view owns a 2s cadence that must stop off-screen | 3 |
+| `quickshell/bar/test-vm-service.qml` | CHANGED | new: seven assertions on the progress parser, the only non-trivial logic in the service | 3 |
+
+
+### Landed on this branch after the overhaul commits
+
+The user committed a 5-category redesign of the settings IA (`e626797`..`16a42f5`)
+on top of this pass while it was running. Every fix above survives it and the
+whole check set is green on the merged tree; these rows cover what it added.
+
+| Path | Verdict | Note | Phase |
+|---|---|---|---|
+| `nixos/apps/helium.nix` | CORRECT | 15 lines: package plus its two persistence entries, which is what the impermanence rule requires of a browser | 1 |
+| `quickshell/bar/components/MujoReorderList.qml` | CORRECT | one reorderable list, replacing the up/down/remove triplet each caller was rolling; `test-reorder-list.qml` covers it | 3 |
+| `quickshell/bar/test-reorder-list.qml` | CORRECT | asserts the reorder maths; passes | 3 |
+| `docs/superpowers/plans/2026-09-04-settings-information-architecture-redesign.md` | CORRECT | the plan the redesign was built from; describes the tree as it now is | 6 |
+| `docs/superpowers/specs/2026-09-04-settings-information-architecture-redesign.md` | CORRECT | its spec, likewise | 6 |
+
+### Changed by this pass
+
+| Path | Verdict | Note | Phase |
+|---|---|---|---|
+| `quickshell/bar/components/DashboardCard.qml` | DELETED | 156 lines; its only consumer `OverviewPanel.qml` no longer exists | 1 |
+| `quickshell/bar/modules/bar/IslandPanel.qml` | DELETED | 257 lines; `IslandGroup.qml` absorbed it once the colour picker was ported | 1 |
+| `quickshell/bar/modules/settings/qmldir` | CHANGED | four orphan entries removed; every `.qml` in the directory has exactly one entry and every entry has a file | 1 |
+| `quickshell/bar/modules/bar/Bar.qml` | CHANGED | `bar.spacing` wired to both clusters; the default maps to today's 6/4 exactly, so the render is unchanged at the default | 1 |
+| `quickshell/bar/modules/bar/CalendarMenu.qml` | CHANGED | opt-in ISO week gutter as a sibling column, so the 7-wide grid keeps its fixed-cell shape and the widget's uniform scale still works | 5 |
+| `quickshell/bar/modules/desktop/CalendarWidget.qml` | CHANGED | passes `desktop.calendar.showWeekNumbers` through; the bar's popup keeps the `false` default | 5 |
+| `quickshell/bar/services/Launch.qml` | CHANGED | `recordRecent` returns early when `privacy.recentFiles` is off | 2 |
+| `quickshell/bar/services/IdleService.qml` | CHANGED | `before-sleep` gated on `security.lockOnSuspend`; swayidle now also starts when that hook is the only rule, which it previously did not | 2 |
+| `quickshell/bar/services/SecurityService.qml` | CHANGED | vault buttons called `mujo vault open\|close`; `mujo` has no vault verb. Now `pkexec mujo-vault`, with unlock in a terminal because cryptsetup reads the passphrase from a tty | 2 |
+| `quickshell/bar/services/SettingsBus.qml` | CHANGED | 12 defaults removed with the controls that were their only writers | 1 |
+| `quickshell/bar/services/VmService.qml`, `qmldir` | CHANGED | see above | 3 |
+| `quickshell/bar/theme/Theme.qml` | CHANGED | six named media-chrome constants replace 18 literals across four files, and are documented as theme-independent on purpose | 1 |
+| `quickshell/bar/modules/settings/Wallhaven*.qml`, `WallpaperEngine*.qml` | CHANGED | literals replaced by those tokens; two different colours for the same download overlay unified | 1 |
+| `quickshell/bar/modules/settings/ApplicationsLauncherTab.qml` | CHANGED | used `DesktopEntries` without `import Quickshell`, so every application name in it was a runtime `ReferenceError` while the file still loaded clean | 2 |
+| `quickshell/bar/modules/settings/VmGroup.qml` | CHANGED | 971 → 813 lines; engine moved to `VmService` | 3 |
+| `quickshell/mujo.sh` | CHANGED | `privacy.locationAccess` gates the ip-api.com fallback in `weather fetch`; one unused local dropped; `# shellcheck source=` at each library `.` so the CLI checks as one program | 2 |
+| `quickshell/lib/vm.sh` | CHANGED | `mujo vm delete ""` passed the arity check and globbed the VM directory away; `*win*` matched "darwin" so macOS images were categorised Windows; two unguarded `cd` in subshells | 2 |
+| `quickshell/lib/sentinel.sh` | CHANGED | `ls \| grep` replaced with a glob | 2 |
+| `quickshell/lib/{clean,crash,desktop,security}.sh` | CHANGED | `# shellcheck shell=bash` so sourced fragments are checked rather than skipped | 2 |
+| `quickshell/mujo-screenshot.sh` | CHANGED | `local x=$(…)` split so the command's status is not masked | 2 |
+| `nixos/apps/native-sandbox.nix` | CHANGED | the D-Bus proxy readiness wait went from a 10ms sleep-poll to `xdg-dbus-proxy --fd`; min launch 56–63ms → 20–25ms | 4 |
+| `nixos/apps/microvm.nix` | CHANGED | the guest D-Bus bridge's socat wrote its SIGTERM warning into the payload's stream, which 13 boundary assertions read as a crossed boundary | 2 |
+| `nixos/security/devices.nix` | CHANGED | `amd_iommu=on` → `intel_iommu=on`; this host is Intel and the kernel ignores the wrong prefix. Still `default = false` | 2 |
+| `tests/sandbox/test-sandbox-isolation.sh` | CHANGED | the "confined to nixos/sandbox/" check was a path proxy; it now reads `/proc/cmdline`, plus a source guard allowing the two disposable-guest trees | 2 |
+| `AGENTS.md` | CHANGED | CPU was not AMD; the colour rule cited three deleted files and undercounted literals by half; derivation and module lists were short two entries each; shellcheck added as a self-check | 6 |
+| `quickshell/bar/AGENTS.md` | CHANGED | the panel→page migration is finished, the sidebar has seven categories, `SearchIndex.js` documented, and the `import Quickshell` rule that `ApplicationsLauncherTab` violated | 6 |
+| `README.md` | CHANGED | same CPU correction | 6 |
+| `docs/performance-budget.md` | CHANGED | the native-sandbox row measured 4–7% against a documented +2–4%, and §2.3 claimed <1% against its own table | 4, 6 |
+| `docs/privacy-model.md` | CHANGED | claimed telemetry blocking nothing implements, while the configuration installs five agent CLIs that report usage | 6 |
+| `docs/overhaul-ledger.md` | CHANGED | this pass | 6 |
+
 
 # Pass 1 — `overhaul`, off `9870808`
 
