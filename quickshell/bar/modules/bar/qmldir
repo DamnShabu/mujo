@@ -20,3 +20,4 @@ DividerPill DividerPill.qml
 SpacerPill SpacerPill.qml
 singleton BarModuleRegistry BarModuleRegistry.qml
 BarModuleLoader BarModuleLoader.qml
+BarSlot BarSlot.qml

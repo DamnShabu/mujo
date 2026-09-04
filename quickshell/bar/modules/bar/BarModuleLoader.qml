@@ -15,11 +15,21 @@ Loader {
 
     onLoaded: {
         if (item) {
-            if (item.panelWindow !== undefined) item.panelWindow = root.panelWindow
-            if (item.screenName !== undefined) item.screenName = root.screenName
-            if (item.niri !== undefined) item.niri = root.niri
-            if (item.focusedOutput !== undefined) item.focusedOutput = root.focusedOutput
-            if (item.launcherOpen !== undefined) item.launcherOpen = root.launcherOpen
+            if ("panelWindow" in item || item.panelWindow !== undefined) {
+                item.panelWindow = Qt.binding(function() { return root.panelWindow })
+            }
+            if ("screenName" in item || item.screenName !== undefined) {
+                item.screenName = Qt.binding(function() { return root.screenName })
+            }
+            if ("niri" in item || item.niri !== undefined) {
+                item.niri = Qt.binding(function() { return root.niri })
+            }
+            if ("focusedOutput" in item || item.focusedOutput !== undefined) {
+                item.focusedOutput = Qt.binding(function() { return root.focusedOutput })
+            }
+            if ("launcherOpen" in item || item.launcherOpen !== undefined) {
+                item.launcherOpen = Qt.binding(function() { return root.launcherOpen })
+            }
         }
     }
 }
