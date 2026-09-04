@@ -18,3 +18,5 @@ WeatherPill WeatherPill.qml
 CavaPill CavaPill.qml
 DividerPill DividerPill.qml
 SpacerPill SpacerPill.qml
+singleton BarModuleRegistry BarModuleRegistry.qml
+BarModuleLoader BarModuleLoader.qml
