@@ -2,8 +2,8 @@ import QtQuick
 import Quickshell
 import "theme"
 
-// Self-check for system icon theme resolution: every name in theme/Icons.qml
-// must exist in the installed theme, or it is a typo rather than a fallback.
+// Self-check for system icon theme resolution: MIME types and file icons in
+// theme/Icons.qml must exist in the installed theme, or it is a typo.
 // Run: qs -p ./test-icons.qml
 ShellRoot {
     // Quickshell connects Qt.exit() only once the config has finished
@@ -14,11 +14,6 @@ ShellRoot {
         running: true
         onTriggered: {
             var fails = []
-            var actions = 0
-            for (var k in Icons.actions) {
-                actions++
-                if (Icons.path(k) === "") fails.push("action " + k + " -> " + Icons.actions[k] + "-symbolic")
-            }
             var types = 0
             for (var ext in Icons.fileTypes) {
                 types++
@@ -39,9 +34,9 @@ ShellRoot {
             }
 
             if (fails.length === 0) {
-                console.log("PASS  Icons: " + actions + " actions + " + types + " file types resolve")
+                console.log("PASS  Icons: " + types + " file types resolve")
             } else {
-                console.log("FAIL  Icons: " + fails.length + " unresolved of " + (actions + types))
+                console.log("FAIL  Icons: " + fails.length + " unresolved of " + types)
                 for (var i = 0; i < fails.length; i++) console.log("        - " + fails[i])
             }
             Qt.exit(fails.length === 0 ? 0 : 1)

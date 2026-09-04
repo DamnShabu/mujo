@@ -149,56 +149,9 @@ ColumnLayout {
                 font.pixelSize: Theme.fontSizeSmall
             }
 
-            Repeater {
+            MujoReorderList {
                 model: root.barModules
-                delegate: Rectangle {
-                    required property int index
-                    required property var modelData
-                    Layout.fillWidth: true
-                    radius: Theme.radiusMd
-                    color: Theme.bg
-                    border.color: Theme.border
-                    implicitHeight: 38
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 8
-                        spacing: 8
-
-                        MaterialIcon {
-                            iconName: "drag_indicator"
-                            pixelSize: 16
-                            color: Theme.textDim
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: modelData
-                            color: Theme.text
-                            font.family: Theme.fontMono
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.bold: true
-                        }
-
-                        IconButton {
-                            iconName: "arrow_upward"
-                            enabled: index > 0
-                            onClicked: root.barMove(index, -1)
-                        }
-
-                        IconButton {
-                            iconName: "arrow_downward"
-                            enabled: index < root.barModules.length - 1
-                            onClicked: root.barMove(index, 1)
-                        }
-
-                        IconButton {
-                            iconName: "close"
-                            onClicked: root.barRemove(index)
-                        }
-                    }
-                }
+                onReordered: function(newModel) { root.barSet(newModel) }
             }
 
             // Available modules to add

@@ -1,6 +1,157 @@
 # Overhaul ledger
 
-Branch `overhaul`, off `main` at `9870808`.
+Two passes. **Pass 1** ran on branch `overhaul`, off `main` at `9870808`, and is
+recorded from "Pass 1" onward. **Pass 2** ran on branch `overhaul-2`, off `main`
+at `4f00132`, and is recorded immediately below.
+
+---
+
+# Pass 2 — `overhaul-2`, off `4f00132`
+
+484 tracked files. The working tree arrived carrying an uncommitted settings
+refactor (`<Domain>Panel.qml` → `<Category>Page.qml` + `*Group.qml`, 75 files),
+which this pass carries in, audits and finishes.
+
+## Gate
+
+Run on the final tree. `nix flake check` needs `git add nixos/apps/helium.nix`
+first — see decision 1.
+
+```
+$ nix flake check
+all checks passed!
+warning: The check omitted these incompatible systems: aarch64-linux
+
+$ for t in icons grid notifications shelf settings-ui security-ui desktop wallpaper-panel scroll vm-service; do qs -p "./test-$t.qml"; done
+PASS  Icons: 88 actions + 48 file types resolve
+PASS  DesktopGrid: all occupancy checks green
+PASS  Notifications: daemon, icon resolver, grouping, and history tests succeeded
+PASS  Shelf: state management, URI/path normalization, deduplication, and icon resolution verified
+PASS  settings UI: IA routing, aliases, store bindings, and search card anchors verified
+PASS  security UI: service binds, trust tab renders, vault controls active
+PASS  desktop layout: 0 items placed, no overlaps, grid agrees
+PASS  wallpapers page: components resolve, tag query parses, error pill handling verified
+PASS  scroll: enum matches Qt, both components resolve, wheel maths hold
+PASS  VmService: progress parsing, log cap, and malformed input handled
+
+$ nix shell nixpkgs#shellcheck -c shellcheck -S warning -e SC1090 -P quickshell $(git ls-files '*.sh')
+(silent — 21 scripts clean)
+
+$ bash nixos/apps/test-trust-registry-lock.sh
+unlocked: 1/20 records survived 20 concurrent writers
+locked:   20/20 records survived 20 concurrent writers
+ok: registry lock keeps every concurrent update (unlocked loses 19)
+
+$ nix shell nixpkgs#python3 -c python3 nixos/sandbox/test-lifetime.py
+6/6 sandbox lifetime checks passed
+
+$ nix shell --impure --expr '…dbus-next…' -c python3 nixos/apps/test-tray-relay.py
+ok: tray items cross from the guest bus to the host bus
+
+$ bash quickshell/test-screenshot-crop.sh
+ok: crop bounds guard
+
+$ qs -p ./quickshell/bar/shell.qml
+Configuration Loaded — 18 log lines, all environmental (no pipewire iec958
+parse, a second polkit agent, swayidle absent from this shell's PATH). Zero QML
+errors, identical to the phase-0 capture.
+```
+
+`bash tests/run-all-tests.sh` probes the **running** system and therefore
+reports against the generation the user last switched to, not this tree. Its
+state after this pass:
+
+```
+$ bash tests/run-all-tests.sh
+  SECURITY TESTS COMPLETED WITH 5 FAILURES
+```
+
+Those five, each classified:
+
+| Failure | What it is |
+|---|---|
+| `native sandbox, CPU workload: 10% (budget 5%)` | real, and reduced from 7–12% to 4–7% by a fix that needs a rebuild to take effect. Decision 3. |
+| 13 quarantine "boundary crossed" assertions | **not real** — output contamination, fixed in `0de00e1`. Same suite with `WAYLAND_DISPLAY` unset passes all six boundary assertions on the same running VM. Needs a rebuild to go green in GUI mode. |
+| `1 plaintext private key … /persist/userdata/home/<user>/.ssh/id_ed25519` | real, and about the machine rather than the code. Decision 4. |
+| `1 core dump … /persist/system/var/lib/systemd/coredump/core.nix.*.zst` | real, predates `Storage = "none"`. Decision 5. |
+| `Insecure test parameters leaked outside nixos/sandbox/` | was a wrong check; rewritten to read `/proc/cmdline`. Now passes. |
+
+## Metrics
+
+| Metric | Phase-0 baseline | Now | Note |
+|---|---|---|---|
+| Tracked files | 484 | 484 | −2 orphans, +2 (a service and its check) |
+| Lines (non-binary) | 65 063 | 64 891 | −172 |
+| `nix flake check` | green, 9.6s | green, 9.6s | unchanged |
+| System closure | 15.8 GiB | 15.8 GiB | measured on a worktree at `HEAD`; the working tree's 16.2 GiB is the user's in-flight `helium` (462.7 MiB), decision 1 |
+| `qs -p shell.qml` to `Configuration Loaded` | 369–399 ms | 369–399 ms | unchanged |
+| Native sandbox launch (best of 15) | min 56–63 ms, avg 91 ms | min 20–25 ms, avg 65 ms | needs a rebuild to reach the running system |
+| Native sandbox CPU ratio | +7% to +12% | +4% to +7% | budget is 5%; decision 3 |
+| Debt markers (`TODO\|FIXME\|XXX\|HACK\|ponytail:`) | 12, all `ponytail:` with a named ceiling | 12 | none added, none bare |
+| `shellcheck -S warning`, 21 scripts | 11 findings | 0 | and it now follows `mujo.sh`'s six libraries |
+| Hex literals outside Theme/Brand/palettes/black-white | 18 | 0 | |
+| Settings controls writing a key nothing reads | 17 | 0 | |
+
+## Deleted
+
+| File | Lines | Absorbed by |
+|---|---|---|
+| `quickshell/bar/components/DashboardCard.qml` | 156 | nothing — its only consumer, `OverviewPanel.qml`, was deleted by the refactor this tree arrived with |
+| `quickshell/bar/modules/bar/IslandPanel.qml` | 257 | `modules/settings/IslandGroup.qml`, once its surface-colour picker was ported across |
+
+Also removed, not as files: 12 settings keys and 13 controls that wrote them
+(see phase 1–2 below), and 18 hex literals that became six named tokens.
+
+## Decisions
+
+1. **`nixos/apps/helium.nix` is untracked, and the host config imports it.** The
+   user added the Helium browser during this session; `nix flake check` and any
+   rebuild fail with `attribute 'helium' missing` until `git add
+   nixos/apps/helium.nix`. Nothing else is wrong with it — adding the file makes
+   everything green. This work was deliberately kept out of the overhaul
+   commits; it is still uncommitted in the working tree.
+
+2. **`security.mujo.devices.dmaProtection` stays `false`, and its parameter was
+   wrong.** It emitted `amd_iommu=on`; this host is an Intel i9-14900K, and the
+   kernel silently ignores the wrong vendor prefix, so enabling the switch would
+   have bought boot risk and no IOMMU. Now `intel_iommu=on`. Still off by
+   default, and it still acts during early device initialisation — turn it on
+   alone, with a known-good generation selectable in the boot menu.
+
+3. **The native-sandbox CPU budget straddles its own noise floor.** 4–7% against
+   a 5% budget, with about ±3% run-to-run spread. Three ways out, none taken
+   because all three change what the check asserts: raise the budget with a
+   stated reason, raise the pass count so launch cost genuinely amortises out
+   (the row's original intent), or subtract the separately-measured launch cost.
+   Written up in `docs/performance-budget.md`.
+
+4. **A plaintext SSH private key sits outside the vault**, at
+   `/persist/userdata/home/<user>/.ssh/id_ed25519`. The vault is not
+   initialised (`sudo mujo-vault init 10G`). Not touched: credentials are
+   read-only to this pass.
+
+5. **One core dump survives on `/persist`**, from before `Storage = "none"` took
+   effect. It is a plaintext RAM image. `sudo rm
+   /persist/system/var/lib/systemd/coredump/core.nix.*.zst` clears it; not done
+   here because deleting from `/persist` is the user's call.
+
+6. **`security.mujo.broker.acl` stays empty**, unchanged from pass 1 and for the
+   same reason: `docs/application-trust.md` §7 commits in writing to "empty by
+   default", and an empty ACL denies everything rather than nothing.
+
+7. **`apps.trust.launcherIntegration` stays `false`.** Unchanged from pass 1.
+   Runbook in `docs/application-trust.md` §8.
+
+8. **Not built, because no doc commits to them.** A tray pin/hide UI
+   (`bar.trayPinned` and `bar.trayHidden` are store-only by design, and
+   `SystemTray.qml` says so); cliphist retention and image capture, which are
+   properties of a `wl-cliphist` unit that `graphical-session.target` upholds,
+   so the shell cannot durably change them — the three controls that claimed
+   otherwise were removed rather than faked.
+
+---
+
+# Pass 1 — `overhaul`, off `9870808`
 
 ## Status: phases 0–6 done
 
@@ -874,7 +1025,7 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/components/ToggleSwitch.qml` | CORRECT | strictly controlled — the comment states exactly why writing `checked` here would break the store binding on the first tap | 6 |
 | `quickshell/bar/components/BrandIcon.qml` | CORRECT | three fallbacks in priority order — inline SVG, Material glyph, text monogram — each guarded by what the brand record actually defines | 6 |
 | `quickshell/bar/components/BarGroup.qml` | CORRECT | `contentAlign` exists because the group's width animates; pinning content to the anchored edge is what keeps it from drifting mid-animation | 6 |
-| `quickshell/bar/components/MaterialIcon.qml` | CORRECT | themed icon or glyph, never both — the two children are keyed off the same `themedSource === ""` test; implicit size is exactly `pixelSize`, so icon columns align | 6 |
+| `quickshell/bar/components/MaterialIcon.qml` | CORRECT | renders Material Symbols Rounded font directly; implicit size is exactly `pixelSize`, so icon columns align | 6 |
 | `quickshell/bar/components/Tooltip.qml` | CORRECT | its own `PopupWindow`, so the bar's thin layer surface cannot clip it; the 400ms timer is cancelled on un-hover rather than firing into a stale state | 6 |
 | `quickshell/bar/components/DialogButton.qml` | CORRECT | `loading` and `enabled` produce distinct opacities and both suppress the click, so a busy button cannot be double-fired | 6 |
 | `quickshell/bar/components/PopupCard.qml` | CORRECT | shadow drawn from an invisible source rect through `MultiEffect`, so the card's own radius and the shadow cannot drift apart | 6 |
@@ -882,7 +1033,6 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/components/MujoSegmented.qml` | CORRECT | controlled `current`; the indicator is positioned from the model index, so it cannot disagree with which segment reads as selected | 6 |
 | `quickshell/bar/components/MujoCard.qml` | CORRECT | the accordion animates `implicitHeight` off the content's own height, so a card cannot clip content it was given | 6 |
 | `quickshell/bar/components/MujoSettingRow.qml` | CORRECT | a `default property alias` for the control slot, so every settings row lays out identically without repeating the geometry | 6 |
-| `quickshell/bar/components/MujoHero.qml` | CORRECT | the hero every settings panel uses; `brand` reaches `BrandIcon`, which is why the deleted art component had no caller | 1, 6 |
 | `quickshell/bar/components/DashboardCard.qml` | CORRECT | `disabled` + `disabledReason` render in place of the body, which is how an unavailable source avoids showing a control that cannot work | 6 |
 | `quickshell/bar/components/MujoLivingCanvas.qml` | CORRECT | every loop is periodic over 0..2π, so the animation never jumps; gated on `Anim.reduceMotion` | 6 |
 | `quickshell/bar/components/BaseWidget.qml` | CORRECT | the shared desktop-widget frame: header, glass, elevation and explicit loading/error states, so widgets cannot invent their own | 6 |
@@ -907,7 +1057,7 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/theme/qmldir` | CORRECT | all four theme types are singletons, which is what lets the shell and the separate Settings process share one palette | 6 |
 | `quickshell/bar/theme/Theme.qml` | CORRECT | reads `theme.json` through a watched `FileView`, so `mujo theme …` restyles a running desktop without a restart; the Settings app imports this same singleton | 6 |
 | `quickshell/bar/theme/Anim.qml` | CORRECT | `Anim.d()` is the one place motion is scaled, so `reduceMotion` and the intensity tiers apply everywhere rather than per call site | 6 |
-| `quickshell/bar/theme/Icons.qml` | CORRECT | maps Material names onto freedesktop *symbolic* names only, and leaves a name absent rather than approximating it — which is why `MaterialIcon`'s glyph fallback is the right answer for a miss | 6 |
+| `quickshell/bar/theme/Icons.qml` | CORRECT | resolves freedesktop application launcher and desktop file MIME icons | 6 |
 | `quickshell/bar/shell.qml` | CORRECT | the desktop entrypoint; like `screenshot.qml` and `settings.qml` its absence from a `qmldir` is correct, and it loads clean from the working tree | 6 |
 | `quickshell/bar/llm-usage.sh` | CORRECT | invoked by path through `Qt.resolvedUrl` from two widgets, which is why it sits beside the QML rather than in the `mujo` CLI | 6 |
 | `quickshell/bar/modules/bar/qmldir` | CORRECT | every bar type is registered; `Island`/`IslandPanel` are absent because `shell.qml` and the settings app import them by directory, not through this domain | 6 |

@@ -15,7 +15,7 @@
   # Testing sandbox for quickshell/desktop work (nixos/sandbox/sandbox.nix).
   # Speaks MCP over stdio to a disposable graphical VM with virgl acceleration.
   sandbox = {
-    command = "nix";
-    args = ["run" "/home/${user}/nixconf#sandbox"];
+    command = "mujo-sandbox";
+    args = [];
   };
 }

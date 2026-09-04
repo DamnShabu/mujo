@@ -41,6 +41,7 @@
       self.nixosModules.antigravity-ide
       self.nixosModules.cutefetch
       self.nixosModules.herdr
+      self.nixosModules.helium
       self.nixosModules.discord
       self.nixosModules.obsidian
       self.nixosModules.steam
@@ -73,6 +74,7 @@
       self.nixosModules.app-native-sandbox
       self.nixosModules.app-microvm
       self.nixosModules.app-dev-sandbox
+      self.nixosModules.app-sandbox
 
       self.nixosModules.plymouth
 

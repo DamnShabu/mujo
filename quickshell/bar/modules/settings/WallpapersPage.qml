@@ -87,40 +87,16 @@ Item {
         anchors.margins: 24
         spacing: 14
 
-        MujoHero {
-            Layout.fillWidth: true
-            brand: root.tab === "wallhaven" ? "wallhaven"
-                 : (root.tab === "wallpaperengine" ? "wallpaperengine" : "wallpaper")
-            title: root.tab === "wallhaven" ? "Wallhaven Explorer"
-                 : (root.tab === "wallpaperengine" ? "Wallpaper Engine"
-                 : (root.tab === "effects" ? "Wallpaper Effects" : "Wallpaper Library"))
-            subtitle: {
-                if (root.tab === "wallhaven") return "Search millions of high-resolution wallpapers with fast NVMe thumbnail caching, filters, and real-time downloads."
-                if (root.tab === "wallpaperengine") return "Browse Steam Workshop Wallpaper Engine items (431960), manage installed projects, and configure live rendering."
-                if (root.tab === "effects") return "Cursor parallax, letterbox fill colour, and the Wallpaper Engine render budget."
-                return "Apply a wallpaper from your local collection, or download more from Wallhaven and Wallpaper Engine."
-            }
-            badgeText: {
-                if (root.tab === "library") return root.localList.length + " IN LIBRARY"
-                if (root.tab === "wallhaven") return Wallhaven.totalResults > 0
-                    ? (Wallhaven.totalResults.toLocaleString() + " WALLPAPERS") : "ONLINE GALLERY"
-                if (root.tab === "wallpaperengine") return WallpaperEngine.activeSource === "installed"
-                    ? (WallpaperEngine.totalInstalledCount + " INSTALLED")
-                    : (WallpaperEngine.steamRunning ? "STEAM CONNECTED" : "STEAM WORKSHOP")
-                return "MOTION & AMBIENCE"
-            }
-            badgeColor: Theme.accent
-
-            MujoSegmented {
-                model: [
-                    { id: "library",         label: "Library",          icon: "photo_library" },
-                    { id: "wallhaven",       label: "Wallhaven",        icon: "cloud_download" },
-                    { id: "wallpaperengine", label: "Wallpaper Engine", icon: "sports_esports" },
-                    { id: "effects",         label: "Effects",          icon: "tune" }
-                ]
-                current: root.tab
-                onSelected: function (id) { root.tab = id }
-            }
+        MujoSegmented {
+            Layout.alignment: Qt.AlignLeft
+            model: [
+                { id: "library",         label: "Library",          icon: "photo_library" },
+                { id: "wallhaven",       label: "Wallhaven",        icon: "cloud_download" },
+                { id: "wallpaperengine", label: "Wallpaper Engine", icon: "sports_esports" },
+                { id: "effects",         label: "Effects",          icon: "tune" }
+            ]
+            current: root.tab
+            onSelected: function (id) { root.tab = id }
         }
 
         // Catalogue browsers — full remaining height, their own scrolling.
@@ -135,8 +111,7 @@ Item {
         }
 
         // Settings — the standard scrolling MujoCard column. Uses MujoFlickable
-        // directly rather than SettingsPage: the page already drew the hero and
-        // already applies the 24px margin, and SettingsPage would add both again.
+        // directly rather than SettingsPage: the page already applies the 24px margin.
         MujoFlickable {
             visible: root.tab === "effects"
             Layout.fillWidth: true

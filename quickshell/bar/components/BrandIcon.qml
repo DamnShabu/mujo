@@ -30,10 +30,11 @@ Item {
             anchors.centerIn: parent
             width: root.size * 0.58
             height: root.size * 0.58
-            sourceSize.width: Math.round(root.size * 1.2)
+            sourceSize: Qt.size(Math.round(root.size * 4), Math.round(root.size * 4))
             source: root.b.svg !== undefined ? Brand.svgUri(root.brand, root.b.fg) : ""
             fillMode: Image.PreserveAspectFit
             smooth: true
+            mipmap: true
         }
 
         // 2) Material glyph
