@@ -94,6 +94,7 @@ Item {
 
     Connections {
         target: root.niri
+        ignoreUnknownSignals: true
         function onFocusedWindowChanged() { root.refresh() }
     }
 
