@@ -225,8 +225,17 @@
         # so a fixed name would have the second launch unlink the first's socket.
         bus="$XDG_RUNTIME_DIR/host-bus-$$"
         rm -f "$bus"
+        # Diagnostics to a file, not to stderr. This unit's stderr is the vsock
+        # socket (StandardError = "socket"), which is deliberate for the payload
+        # -- a quarantined program that fails should say why on the caller's
+        # terminal. It is wrong for the transport: when the command ends,
+        # systemd SIGTERMs this socat and its "W exiting on signal 15" landed in
+        # the caller's stdout, indistinguishable from program output. That made
+        # `mujo-quarantine-run systemd-detect-virt` answer "kvm\n<socat noise>"
+        # and every boundary check in tests/microvm and tests/redteam read the
+        # mismatch as a crossed boundary -- 13 false failures over an intact VM.
         socat "UNIX-LISTEN:$bus,fork,unlink-early" \
-          VSOCK-CONNECT:2:${toString dbusPort} &
+          VSOCK-CONNECT:2:${toString dbusPort} 2>>"$XDG_RUNTIME_DIR/dbus-bridge.log" &
         for _ in $(seq 1 100); do
           [ -S "$bus" ] && break
           sleep 0.05
