@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 import "../../theme"
@@ -26,13 +27,13 @@ WlSessionLock {
         readonly property bool setup: Greeter.mode === Greeter.modeSetup
         readonly property bool confirming: setup && pw.text.length > 0
 
-        Component.onCompleted: pw.forceActiveFocus()
+        Component.onCompleted: pw.input.forceActiveFocus()
 
         Connections {
             target: Greeter
             function onAttemptsChanged() {
                 if (Greeter.attempts > 0) { pw.text = ""; confirm.text = ""; shake.restart() }
-                pw.forceActiveFocus()
+                pw.input.forceActiveFocus()
             }
         }
 
@@ -48,26 +49,47 @@ WlSessionLock {
             }
         }
 
+        // Accent bloom behind the card. A QML Gradient is linear-only, so a
+        // radial falloff has to come from blurring a flat disc — done through a
+        // layer effect, which rasterises once on resize rather than per frame.
+        // The opacity animation below is applied to the cached layer, so the
+        // breathing costs nothing beyond a composite.
         Rectangle {
             anchors.centerIn: parent
-            width: Math.min(parent.width, parent.height) * 1.2
+            width: Math.min(parent.width, parent.height) * 0.55
             height: width
             radius: width / 2
+            color: Theme.accent
             // Breathes with the global ambient phase when motion is on, sits
             // still at its midpoint when it is not.
-            opacity: Anim.ambient ? 0.10 + 0.05 * Math.sin(Anim.breathPhase) : 0.12
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: Theme.accent }
-                GradientStop { position: 0.55; color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.0) }
-                GradientStop { position: 1.0; color: "transparent" }
+            opacity: Anim.ambient ? 0.16 + 0.05 * Math.sin(Anim.breathPhase) : 0.18
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                blurEnabled: true
+                blur: 1.0
+                // blurMax caps at 64px, which against a ~400px disc still leaves
+                // a visible edge; blurMultiplier is the knob that pushes the
+                // falloff wider than the cap, trading sample quality — invisible
+                // on a flat colour with no detail to smear.
+                blurMax: 64
+                blurMultiplier: 2.5
+                autoPaddingEnabled: true
             }
         }
 
         // ── Content ───────────────────────────────────────────────────────────
         ColumnLayout {
             anchors.centerIn: parent
-            spacing: 30
+            spacing: 26
             width: 380
+
+            // Esc dismisses — the deliberate difference from LockScreen, where
+            // it must not. Nothing here is guarding a session that is already
+            // yours. It lives on the column rather than on the surface
+            // (WlSessionLockSurface is not an Item and has no key handling):
+            // focus sits on the passphrase TextInput, which leaves Escape
+            // unhandled, so it propagates up the focus chain to here.
+            Keys.onEscapePressed: if (!Greeter.busy) Greeter.dismiss()
 
             // Clock. Identical treatment to the lock screen so the two read as
             // the same surface at different moments.
@@ -179,25 +201,26 @@ WlSessionLock {
                 Repeater {
                     model: ["5G", "10G", "25G"]
                     delegate: Rectangle {
+                        id: sizeChip
                         required property string modelData
-                        readonly property bool selected: Greeter.setupSize === modelData
+                        readonly property bool selected: Greeter.setupSize === sizeChip.modelData
                         implicitWidth: 62
                         implicitHeight: 30
                         radius: Theme.radiusSm
-                        color: selected ? Theme.accentDim : Theme.surface
-                        border.color: selected ? Theme.accent : Theme.border
+                        color: sizeChip.selected ? Theme.accentDim : Theme.surface
+                        border.color: sizeChip.selected ? Theme.accent : Theme.border
                         Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
                         Text {
                             anchors.centerIn: parent
-                            text: parent.modelData
-                            color: parent.selected ? Theme.accent : Theme.textSecondary
+                            text: sizeChip.modelData
+                            color: sizeChip.selected ? Theme.accent : Theme.textSecondary
                             font.family: Theme.fontMono
                             font.pixelSize: Theme.fontSizeSmall
                         }
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: Greeter.setupSize = parent.modelData
+                            onClicked: Greeter.setupSize = sizeChip.modelData
                         }
                     }
                 }
@@ -225,6 +248,9 @@ WlSessionLock {
                     enabled: !Greeter.busy
                     placeholder: surface.setup ? "New passphrase" : "Passphrase"
                     invalid: Greeter.error !== ""
+                    // Only in setup; on the unlock pane the confirmation field
+                    // is hidden and chaining to it would trap focus off-screen.
+                    nextField: surface.setup ? confirm : null
                     onTextChanged: if (Greeter.error !== "") Greeter.error = ""
                     onAccepted: surface.submit()
                 }
@@ -299,11 +325,6 @@ WlSessionLock {
                 }
             }
         }
-
-        // Esc dismisses — the deliberate difference from LockScreen, where it
-        // must not. Nothing here is guarding a session that is already yours.
-        Keys.onEscapePressed: if (!Greeter.busy) Greeter.dismiss()
-        focus: true
 
         function canSubmit() {
             if (pw.text.length === 0) return false
