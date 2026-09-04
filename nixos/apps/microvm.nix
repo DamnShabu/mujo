@@ -53,6 +53,8 @@
       ELECTRON_OZONE_PLATFORM_HINT = "auto";
       MOZ_ENABLE_WAYLAND = "1";
       MOZ_WEBRENDER = "1";
+      GTK_A11Y = "none";
+      NO_AT_BRIDGE = "1";
     };
 
     # Unless the guest is on llvmpipe, nothing here may force software
@@ -162,7 +164,10 @@
           # in-guest desktop services that need to share that display.
           # Use --compress none because AF_VSOCK is in-memory IPC: compressing frames
           # with lz4 wastes guest CPU, increases latency, and caps refresh rate.
-          exec waypipe --compress none --vsock -s 2:${toString waypipePort} server -- \
+          # Use --no-gpu because importing guest DMABUFs via Vulkan fails on virtio-gpu
+          # (VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT) and vsock cannot pass raw FDs;
+          # standard wl_shm buffer diffs over in-memory vsock are fast, reliable and crash-free.
+          exec waypipe --no-gpu --compress none --vsock -s 2:${toString waypipePort} server -- \
             ${lib.getExe guestSession} "$cmdline"
         fi
 
@@ -730,7 +735,7 @@
       systemd.user.services.mujo-waypipe-client = {
         description = "Host end of the Mujo quarantine Wayland bridge";
         serviceConfig = {
-          ExecStart = "${lib.getExe pkgs.waypipe} --compress none --vsock -s ${toString waypipePort} client";
+          ExecStart = "${lib.getExe pkgs.waypipe} --no-gpu --compress none --vsock -s ${toString waypipePort} client";
           Restart = "on-failure";
           RestartSec = 2;
         };
