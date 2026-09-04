@@ -109,7 +109,16 @@
         if [ -S "$RUNTIME_DIR/bus" ]; then
           dbus_proxy_dir=$(mktemp -d "$RUNTIME_DIR/mujo-dbus-XXXXXX" 2>/dev/null || mktemp -d "/tmp/mujo-dbus-XXXXXX")
           dbus_sock="$dbus_proxy_dir/bus"
+          # xdg-dbus-proxy writes one byte to --fd once its sockets are bound,
+          # and exits when that fd closes. Waiting on it costs ~3ms; the 10ms
+          # sleep-poll this replaced cost 40-50ms of every sandboxed launch,
+          # which is most of what the CPU-workload budget was measuring.
+          # Opened read-write so neither open() blocks and a proxy that never
+          # starts hits the read timeout instead of hanging the launch.
+          mkfifo "$dbus_proxy_dir/ready"
+          exec 9<>"$dbus_proxy_dir/ready"
           xdg-dbus-proxy "unix:path=$RUNTIME_DIR/bus" "$dbus_sock" \
+            --fd=3 \
             --filter \
             --call="org.freedesktop.Notifications=org.freedesktop.Notifications.Notify@/org/freedesktop/Notifications" \
             --call="org.freedesktop.Notifications=org.freedesktop.Notifications.CloseNotification@/org/freedesktop/Notifications" \
@@ -122,12 +131,9 @@
             --talk="org.freedesktop.DBus" \
             --talk="org.freedesktop.portal.Desktop" \
             --talk="org.freedesktop.portal.Documents" \
-            --talk="org.freedesktop.portal.Flatpak" &
+            --talk="org.freedesktop.portal.Flatpak" 3>&9 &
           proxy_pid=$!
-          for _ in $(seq 1 50); do
-            [ -S "$dbus_sock" ] && break
-            sleep 0.01
-          done
+          IFS= read -r -n1 -t 2 -u 9 _ || true
           if [ -S "$dbus_sock" ]; then
             binds+=(--ro-bind "$dbus_sock" "$RUNTIME_DIR/bus")
           fi

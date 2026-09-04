@@ -52,7 +52,12 @@
         ]
         ++ lib.optionals cfg.devices.dmaProtection [
           # Force the IOMMU on rather than relying on firmware defaults.
-          "amd_iommu=on"
+          # This host is Intel (i9-14900K), so the parameter is intel_iommu.
+          # It used to read amd_iommu=on, which the AMD GPU made look right --
+          # but the IOMMU belongs to the CPU, and the kernel silently ignores
+          # the wrong vendor prefix. Enabling dmaProtection would have added
+          # boot risk and no IOMMU.
+          "intel_iommu=on"
 
           # Refuse DMA from devices the firmware left enabled before the kernel
           # took over -- the window an evil-maid Thunderbolt/PCIe device uses.

@@ -41,7 +41,7 @@ To achieve strong security without exceeding the budget, Mujo employs specific a
 - **ZRAM + High Efficiency Cache**: Slab/inode caches reclaimed smoothly with `vm.vfs_cache_pressure = 150` and ZRAM page clustering.
 
 ### 2.3 Graduated Native Sandboxing
-- Applications that pass 72 hours of clean quarantine observation graduate from MicroVMs to lightweight native systemd/seccomp sandboxes, reducing memory and CPU overhead to <1%.
+- Applications that pass 72 hours of clean quarantine observation graduate from MicroVMs to lightweight native Bubblewrap sandboxes, which cost a fixed per-launch setup rather than a per-cycle tax. Measured overhead is in §3, not <1%.
 
 ---
 
@@ -64,10 +64,30 @@ Numbers below are from an i9-14900K and were stable across repeated runs.
 
 | Boundary | Workload | Measured | Budget | Verdict |
 |---|---|---|---|---|
-| Native sandbox | 10×128MiB SHA-256 | +2% to +4% | <5% | **meets** |
-| Native sandbox | process launch | +10ms | <250ms | **meets** |
+| Native sandbox | 10×128MiB SHA-256 | +4% to +7% | <5% | **straddles — see below** |
+| Native sandbox | process launch | +20ms (min), +65ms (avg) | <250ms | **meets** |
 | Quarantine VM | 10×128MiB SHA-256 | −4% to −5% | <15% | **meets** |
 | Quarantine VM | warm launch | ~100ms | <3s | **meets** |
+
+`bwrap` itself is free: the same hash loop under a bare
+`bwrap --ro-bind / / --dev /dev --proc /proc --unshare-all --share-net`
+runs at 659–673ms against 671ms native, i.e. inside the noise. Everything the
+native-sandbox row measures is `mujo-sandbox-run`'s own setup, and because the
+sandboxed side is one process launch plus ten hash passes, that setup lands
+inside the ratio the row reports.
+
+Most of it was the wait for the filtered D-Bus proxy, which polled for its
+socket in 10ms `sleep`s: 56–63ms minimum per launch. `xdg-dbus-proxy --fd`
+writes a readiness byte in ~3ms instead, which took the minimum launch to
+20–25ms and the CPU-workload ratio from a consistent 7–12% to 4–7%.
+
+**Open decision.** 4–7% straddles the 5% budget, and repeated best-of-7 runs on
+this machine vary by about ±3% — the budget now sits at the measurement's own
+noise floor. Three ways out, none taken here: raise the budget with a stated
+reason, raise the pass count so launch cost genuinely amortises out (the row's
+original intent, and what its comment claims it already does), or subtract the
+separately-measured launch cost from the sandboxed time. All three change what
+the check asserts, so the choice is the maintainer's, not a cleanup.
 
 The quarantine guest runs sustained CPU work at parity with the host, which is
 what §2.1 predicts: KVM executes guest instructions directly, and `sha_ni` plus

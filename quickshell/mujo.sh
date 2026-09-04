@@ -1539,6 +1539,7 @@ case "${CMD}" in
     ;;
 
   desktop)
+    # shellcheck source=lib/desktop.sh
     . "${MUJO_LIB}/desktop.sh"
     mujo_desktop "$@"
     ;;
@@ -2179,16 +2180,19 @@ case "${CMD}" in
     ;;
 
   crash)
+    # shellcheck source=lib/crash.sh
     . "${MUJO_LIB}/crash.sh"
     mujo_crash "$@"
     ;;
 
   sentinel)
+    # shellcheck source=lib/sentinel.sh
     . "${MUJO_LIB}/sentinel.sh"
     mujo_sentinel "$@"
     ;;
 
   clean)
+    # shellcheck source=lib/clean.sh
     . "${MUJO_LIB}/clean.sh"
     mujo_clean "$@"
     ;;
@@ -2213,6 +2217,7 @@ case "${CMD}" in
     ;;
 
   security)
+    # shellcheck source=lib/security.sh
     . "${MUJO_LIB}/security.sh"
     mujo_security "$@"
     ;;
@@ -2289,6 +2294,7 @@ case "${CMD}" in
     ;;
 
   vm)
+    # shellcheck source=lib/vm.sh
     . "${MUJO_LIB}/vm.sh"
     mujo_vm "$@"
     ;;

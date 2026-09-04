@@ -2,7 +2,7 @@
 
 **This file is the source of truth for the repo.** `quickshell/bar/AGENTS.md` covers the desktop shell in depth.
 
-Personal NixOS flake (flake-parts), one host `main`: AMD CPU + AMD GPU (`amdgpu`), dual monitor, Niri/Wayland, btrfs impermanence.
+Personal NixOS flake (flake-parts), one host `main`: Intel CPU (i9-14900K, `hardware.cpu.intel.updateMicrocode`) + AMD GPU (`amdgpu`), dual monitor, Niri/Wayland, btrfs impermanence.
 
 Correctness has three layers, and they check different things. `nix flake check`
 evaluates the flake *and* builds the host toplevel (via `checks.hostMain`), so an
@@ -39,7 +39,15 @@ nix shell nixpkgs#python3 -c python3 nixos/sandbox/test-lifetime.py   # sandbox 
 bash nixos/apps/test-trust-registry-lock.sh      # trust registry survives concurrent writers
 bash quickshell/test-screenshot-crop.sh          # screenshot crop bounds guard (ImageMagick only)
 bash quickshell/test-screenshot-ocr-lines.sh     # OCR line boxes; SKIPs unless run under nix run .#mujo-screenshot
+
+nix shell nixpkgs#shellcheck -c shellcheck -S warning -e SC1090 -P quickshell \
+  $(git ls-files '*.sh')                         # every tracked script; must stay silent
 ```
+
+`-P quickshell` lets shellcheck follow `mujo.sh`'s six sourced libraries, so the
+CLI is checked as one program rather than seven fragments. `SC1090` is the only
+exclusion: `MUJO_LIB` resolves at runtime, and the `# shellcheck source=`
+directives at each `.` already say where the library lives.
 
 The shell's own checks each print PASS/FAIL and exit 0 or 1, so they can be run
 in a row. Full list in `quickshell/bar/AGENTS.md` → RUNNING:

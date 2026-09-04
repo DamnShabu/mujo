@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # mujo desktop — sourced by mujo.sh, never run on its own.
 #
 # The dispatcher sources this file only when the subcommand is reached, so an
