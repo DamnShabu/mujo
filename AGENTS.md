@@ -37,6 +37,13 @@ nix shell --impure --expr 'with import <nixpkgs> {}; python3.withPackages (p: [p
   -c python3 nixos/apps/test-tray-relay.py       # tray relay: two private buses, no VM
 nix shell nixpkgs#python3 -c python3 nixos/sandbox/test-lifetime.py   # sandbox VM lifetime: mcp.py vs a fake Machine
 bash nixos/apps/test-trust-registry-lock.sh      # trust registry survives concurrent writers
+
+# mujo-vault's non-interactive passphrase path, on a throwaway container (never
+# touches the real vault). Needs root for device-mapper, and e2fsprogs, which is
+# not in systemPackages -- the vault CLI gets it via runtimeInputs:
+E2FS=$(nix build nixpkgs#e2fsprogs.bin --no-link --print-out-paths)
+pkexec env "PATH=$E2FS/bin:/run/current-system/sw/bin" \
+  bash nixos/security/test-vault-passphrase.sh
 bash quickshell/test-screenshot-crop.sh          # screenshot crop bounds guard (ImageMagick only)
 bash quickshell/test-screenshot-ocr-lines.sh     # OCR line boxes; SKIPs unless run under nix run .#mujo-screenshot
 
@@ -54,7 +61,7 @@ in a row. Full list in `quickshell/bar/AGENTS.md` → RUNNING:
 
 ```bash
 cd quickshell/bar
-for t in icons grid notifications shelf settings-ui security-ui desktop wallpaper-panel scroll vm-service reorder-list; do
+for t in icons grid notifications shelf settings-ui security-ui desktop wallpaper-panel scroll vm-service reorder-list greeter bar-modular; do
   qs -p "./test-$t.qml"
 done
 ```
@@ -72,6 +79,9 @@ and then hangs forever.
 - **No hibernation.** Swap is re-keyed with a random key every boot (`randomEncryption` in `disko.nix`), so there is no stable key to resume under; NixOS adds `nohibernate` to the kernel params for the same reason. `security.mujo.storage.encryptedSwap` asserts this at build time.
 - **Two hardening switches are deliberately off** because they act during early boot or replace the bootloader: `security.mujo.boot.secureBoot` and `security.mujo.devices.dmaProtection`. Turn them on one at a time, with a known-good generation still selectable in the boot menu.
 - **Quarantine is a real VM, and it is started on demand.** `mujo-quarantine-run <app>` brings up `microvm@mujo-quarantine.service` (not autostarted — an idle domain would hold 4 GB) and forwards the window over waypipe on vsock. Three vsock ports are the entire guest→host surface (agent, waypipe, filtered session bus). Every payload runs on a private guest session bus (`dbus-run-session`), and `nixos/apps/tray-relay.py` re-exports its tray item and notifications to the host bus; the bridged host bus is reachable only behind the xdg-dbus-proxy policy. Handing the payload that bridged bus directly is what killed every GTK application: the proxy's ownership policy is `--own=org.kde.*` alone, so `RequestName` on an app id came back `ServiceUnknown` and each GApplication exited with `Failed to register` before drawing a window. `apps.microvm.gpu` defaults to `"native"` (virtio-gpu `drm_native_context`, i.e. the guest issues amdgpu ioctls that reach the host driver) — the one setting here that trades real security surface for speed; `"virgl"` and `"none"` narrow it. True VFIO passthrough is impossible on this box: one GPU, it drives both monitors, IOMMU off. Limits and verified properties: `docs/application-trust.md` §6.
+- **The boot greeter is a session-lock surface, not a display manager.** SDDM still autologins; the greeter (`quickshell/bar/modules/system/GreeterScreen.qml`, state in `services/Greeter.qml`) comes up with the shell and takes the `ext-session-lock` surface to unlock the vault — or, when no container exists, to create one. It is deliberately **dismissible** (Esc / Skip): the vault is optional, and a greeter that could not be waved past would be a way to lose the machine to a QML error. Only one session lock may exist at a time, which is why `LockScreen.locked` is `Lock.locked && !Greeter.active`. Turn it off with `greeter.enable = false` (Settings store), which the setup pane's "Don't ask again" sets.
+- **`/persist/secure` is 0700 root, so the user cannot stat the vault container.** `mujo-vault marker` stamps `/run/mujo/vault-present` (0444, in 0755 `/run/mujo`) at boot via `mujo-vault-marker.service`, carrying the container size. That marker — not a `test -f` on the container — is how the greeter picks its pane and how `mujo security summary` reports `vault.containerPresent`; the direct stat is kept as the root-side path. Widening `/persist/secure` instead would fail `tests/storage/test-vault-isolation.sh` and contradict SEC-004.
+- **`mujo-vault init`/`open` read the passphrase from stdin when stdin is not a tty**, which is what lets the greeter drive them without a terminal. `luksFormat` additionally needs `--batch-mode` — without a tty there is nobody to type the "YES" confirmation, and it hangs. Self-check: `nixos/security/test-vault-passphrase.sh`.
 - **The trust registry is root-owned on purpose.** `/var/lib/mujo-trust/registry.json` decides where every application runs, so the user cannot write it. Applications self-report over `mujo-trustd` on a unix socket (`begin`/`end`/`violation` only); `graduate`, `revoke`, `tier` and `rollback` are root CLI verbs. Never "fix" a permission error there by loosening the file.
 - **`mujo-trust run <app>` is the entry point** that picks the runtime from the trust state. A graduated *Flatpak* cannot be nested in the native sandbox, so the engine narrows it instead: `apps.trust.flatpakNarrowing` maps its risk tier to subtractive `flatpak run` overrides (`low` gets none — Steam needs `devices=all`; everything else loses raw devices, `devel` and smartcard access), with `apps.trust.flatpakNarrowingOverrides` per application id. `apps.trust.launcherIntegration` puts the shell's launcher behind it (`Launch.app()` prefixes `mujo-trust run`, gated on `/etc/mujo/launcher-integration`), but it is **off**: with it on, anything not yet graduated boots a VM on first click. Runbook in `docs/application-trust.md` §8. Off, launching from a menu bypasses the engine.
 - **A denied credential request revokes the application.** `nixos/security/broker.nix` reports every DENY to `mujo-trustd` as a violation — that is the Phase 21 detector. Inert until `security.mujo.broker.acl` is non-empty (no ACL entry, no socket, nothing to deny). Recovery is `sudo mujo-trust rollback <app>` or `sudo mujo-trust graduate <app>`.
