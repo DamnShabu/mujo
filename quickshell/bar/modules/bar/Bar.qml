@@ -35,21 +35,56 @@ Item {
                 default:        return floatingStyleC
             }
         }
-
-        onLoaded: {
-            if (item) {
-                item.niri = Qt.binding(function() { return root.niri })
-                item.screenName = Qt.binding(function() { return root.screenName })
-                item.focusedOutput = Qt.binding(function() { return root.focusedOutput })
-                item.panelWindow = Qt.binding(function() { return root.panelWindow })
-                item.launcherOpen = Qt.binding(function() { return root.launcherOpen })
-            }
-        }
     }
 
-    Component { id: floatingStyleC; FloatingStyle {} }
-    Component { id: fullStyleC;     FullWidthStyle {} }
-    Component { id: islandStyleC;   IslandStyle {} }
-    Component { id: dockStyleC;     DockStyle {} }
-    Component { id: compactStyleC;  CompactStyle {} }
+    Component {
+        id: floatingStyleC
+        FloatingStyle {
+            niri: root.niri
+            screenName: root.screenName
+            focusedOutput: root.focusedOutput
+            panelWindow: root.panelWindow
+            launcherOpen: root.launcherOpen
+        }
+    }
+    Component {
+        id: fullStyleC
+        FullWidthStyle {
+            niri: root.niri
+            screenName: root.screenName
+            focusedOutput: root.focusedOutput
+            panelWindow: root.panelWindow
+            launcherOpen: root.launcherOpen
+        }
+    }
+    Component {
+        id: islandStyleC
+        IslandStyle {
+            niri: root.niri
+            screenName: root.screenName
+            focusedOutput: root.focusedOutput
+            panelWindow: root.panelWindow
+            launcherOpen: root.launcherOpen
+        }
+    }
+    Component {
+        id: dockStyleC
+        DockStyle {
+            niri: root.niri
+            screenName: root.screenName
+            focusedOutput: root.focusedOutput
+            panelWindow: root.panelWindow
+            launcherOpen: root.launcherOpen
+        }
+    }
+    Component {
+        id: compactStyleC
+        CompactStyle {
+            niri: root.niri
+            screenName: root.screenName
+            focusedOutput: root.focusedOutput
+            panelWindow: root.panelWindow
+            launcherOpen: root.launcherOpen
+        }
+    }
 }

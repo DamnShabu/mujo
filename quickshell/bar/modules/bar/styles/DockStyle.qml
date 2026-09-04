@@ -25,19 +25,16 @@ Item {
         implicitHeight: Math.max(Theme.barHeight, 38)
         auraColor: Theme.accent
 
-        RowLayout {
-            spacing: 8
-            Repeater {
-                model: root.combinedModules
-                delegate: BarModuleLoader {
-                    required property var modelData
-                    moduleId: modelData
-                    panelWindow: root.panelWindow
-                    screenName: root.screenName
-                    niri: root.niri
-                    focusedOutput: root.focusedOutput
-                    launcherOpen: root.launcherOpen
-                }
+        Repeater {
+            model: root.combinedModules
+            delegate: BarModuleLoader {
+                required property var modelData
+                moduleId: modelData
+                panelWindow: root.panelWindow
+                screenName: root.screenName
+                niri: root.niri
+                focusedOutput: root.focusedOutput
+                launcherOpen: root.launcherOpen
             }
         }
     }
