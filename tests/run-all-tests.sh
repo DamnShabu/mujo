@@ -22,6 +22,7 @@ run_test() {
 }
 
 run_test "$SCRIPT_DIR/security/test-kernel-hardening.sh"
+run_test "$SCRIPT_DIR/security/test-vulnerability-scan.sh"
 run_test "$SCRIPT_DIR/storage/test-vault-isolation.sh"
 run_test "$SCRIPT_DIR/storage/test-swap-leakage.sh"
 run_test "$SCRIPT_DIR/network/test-firewall-rules.sh"
