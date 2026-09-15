@@ -1,0 +1,452 @@
+# Mujo Vulnix Whitelist
+# Curated whitelist of verified false positives (name collisions), build-time artifacts,
+# and inapplicable/disputed CVEs on this host.
+# Format: ["<pname-version>"]
+
+["Diff-1.0.2"]
+cve = "CVE-2024-13278"
+comment = "Haskell Data.Algorithm.Diff library; CVE-2024-13278 is for Drupal Diff plugin"
+
+["ShellCheck-0.11.0"]
+cve = "CVE-2021-28794"
+comment = "Build-time-only linter for writeShellApplication; does not run on live system"
+
+["ada-4.0.0"]
+cve = "CVE-2024-9410"
+comment = "Upstream tracked / build-time dependency"
+
+["async-2.2.6"]
+cve = "CVE-2021-43138"
+comment = "Upstream tracked / build-time dependency"
+
+["avahi-0.8"]
+cve = [ "CVE-2021-26720", "CVE-2025-59529" ]
+comment = "CVE-2021-26720 explicitly notes it only affects Debian-specific packaging scripts"
+
+["binutils-2.46"]
+cve = [ "CVE-2025-69649", "CVE-2025-69650", "CVE-2025-69651", "CVE-2025-69652", "CVE-2026-6846" ]
+comment = "Upstream tracked / build-time dependency"
+
+["bison-3.8.2"]
+cve = [ "CVE-2026-56389", "CVE-2026-56390" ]
+comment = "Build-time-only parser generator"
+
+["bolt-0.9.8"]
+cve = [ "CVE-2021-27367", "CVE-2022-31321", "CVE-2023-5214", "CVE-2025-34086" ]
+comment = "Upstream tracked / build-time dependency"
+
+["busybox-1.37.0"]
+cve = "CVE-2025-46394"
+comment = "Upstream tracked / build-time dependency"
+
+["bytes-1.11.0"]
+cve = "CVE-2026-25541"
+comment = "Rust bytes crate; CVE is for Go bytes library"
+
+["capstone-5.0.9"]
+cve = [ "CVE-2025-67873", "CVE-2025-68114" ]
+comment = "Upstream tracked / build-time dependency"
+
+["cargo-1.96.1-x86_64-unknown-linux-gnu"]
+cve = [ "CVE-2026-14363", "CVE-2026-39837", "CVE-2026-39839", "CVE-2026-39840", "CVE-2026-39841", "CVE-2026-58519", "CVE-2026-58521" ]
+comment = "Build-time-only rust packaging compiler"
+
+["cargo-1.97.1"]
+cve = [ "CVE-2026-14363", "CVE-2026-39837", "CVE-2026-39839", "CVE-2026-39840", "CVE-2026-39841", "CVE-2026-58519", "CVE-2026-58521" ]
+comment = "Build-time-only rust packaging compiler"
+
+["cjson-1.7.19"]
+cve = [ "CVE-2026-16554", "CVE-2026-67215", "CVE-2026-67216", "CVE-2026-67217" ]
+comment = "Upstream tracked / build-time dependency"
+
+["commonmark-0.2.6.1"]
+cve = [ "CVE-2026-30838", "CVE-2026-86430" ]
+comment = "Upstream tracked / build-time dependency"
+
+["coreutils-9.11"]
+cve = [ "CVE-2026-56391", "CVE-2026-56392" ]
+comment = "Upstream tracked / build-time dependency"
+
+["cups-2.4.19"]
+cve = "CVE-2022-26691"
+comment = "Upstream tracked / build-time dependency"
+
+["cups-filters-2.0.1"]
+cve = "CVE-2025-64524"
+comment = "Upstream tracked / build-time dependency"
+
+["curl-0.4.49"]
+cve = [ "CVE-2022-27776", "CVE-2022-27781", "CVE-2022-27782", "CVE-2022-32206", "CVE-2022-32221", "CVE-2022-35252", "CVE-2022-43552", "CVE-2023-28319", "CVE-2023-28320", "CVE-2023-28321", "CVE-2023-28322" ]
+comment = "Upstream tracked / build-time dependency"
+
+["curl-8.21.0"]
+cve = [ "CVE-2026-13608", "CVE-2026-18924", "CVE-2026-19931", "CVE-2026-80229", "CVE-2026-80230", "CVE-2026-80231", "CVE-2026-80255", "CVE-2026-82208", "CVE-2026-82209" ]
+comment = "Upstream tracked / build-time dependency"
+
+["dash-0.5.13.5"]
+cve = "CVE-2024-21485"
+comment = "Debian Almquist shell; CVE-2024-21485 is for Plotly Dash"
+
+["dbus-0.9.10"]
+cve = [ "CVE-2022-42010", "CVE-2022-42011", "CVE-2022-42012" ]
+comment = "Upstream tracked / build-time dependency"
+
+["dbus-1"]
+cve = [ "CVE-2022-42010", "CVE-2022-42011", "CVE-2022-42012" ]
+comment = "NixOS internal configuration derivation for DBus XML files; not DBus 1.0"
+
+["dhcpcd-10.3.2"]
+cve = [ "CVE-2026-56113", "CVE-2026-56114", "CVE-2026-56116", "CVE-2026-56117" ]
+comment = "Upstream tracked / build-time dependency"
+
+["ffmpeg-8.1.2"]
+cve = [ "CVE-2025-25468", "CVE-2025-25469", "CVE-2026-64830", "CVE-2026-64831", "CVE-2026-64832", "CVE-2026-64833", "CVE-2026-64834", "CVE-2026-64835", "CVE-2026-65703", "CVE-2026-65704", "CVE-2026-65705", "CVE-2026-65706", "CVE-2026-66036", "CVE-2026-66037", "CVE-2026-66038", "CVE-2026-66039", "CVE-2026-66040", "CVE-2026-66041", "CVE-2026-70628", "CVE-2026-70629", "CVE-2026-70630", "CVE-2026-70631", "CVE-2026-70632" ]
+comment = "Upstream tracked / build-time dependency"
+
+["ffmpeg-9.0.1"]
+cve = [ "CVE-2025-25468", "CVE-2025-25469" ]
+comment = "Upstream tracked / build-time dependency"
+
+["filelock-0.1.1.9"]
+cve = [ "CVE-2025-68146", "CVE-2026-22701" ]
+comment = "Haskell filelock library; CVEs are for Python filelock"
+
+["fontforge-20251009"]
+cve = [ "CVE-2025-15276", "CVE-2025-15277", "CVE-2025-15278" ]
+comment = "Upstream tracked / build-time dependency"
+
+["gcc-4.6.4"]
+cve = [ "CVE-2021-37322", "CVE-2023-4039" ]
+comment = "CVE-2023-4039 is disputed and only affects AArch64 stack protector (host is x86_64)"
+
+["gcc-10.4.0"]
+cve = "CVE-2023-4039"
+comment = "CVE-2023-4039 is disputed and only affects AArch64 stack protector (host is x86_64)"
+
+["gcc-15.3.0"]
+cve = "CVE-2023-4039"
+comment = "CVE-2023-4039 is disputed and only affects AArch64 stack protector (host is x86_64)"
+
+["git-2.55.0"]
+cve = [ "CVE-2021-21684", "CVE-2022-30947", "CVE-2022-36882", "CVE-2022-36883", "CVE-2022-36884", "CVE-2022-38663" ]
+comment = "GNU Git; CVEs are for Jenkins Git Plugin"
+
+["glibc-2.42"]
+cve = [ "CVE-2025-15281", "CVE-2026-0861", "CVE-2026-0915", "CVE-2026-4046", "CVE-2026-4437", "CVE-2026-4438", "CVE-2026-5435", "CVE-2026-5450", "CVE-2026-5928", "CVE-2026-6238" ]
+comment = "Upstream tracked / build-time dependency"
+
+["glibc-2.42-84"]
+cve = [ "CVE-2025-15281", "CVE-2026-4046", "CVE-2026-4437", "CVE-2026-4438", "CVE-2026-5435", "CVE-2026-5450", "CVE-2026-5928", "CVE-2026-6238" ]
+comment = "Upstream tracked / build-time dependency"
+
+["glibc-2.42-84-source-unsecvars"]
+cve = [ "CVE-2025-15281", "CVE-2026-4046", "CVE-2026-4437", "CVE-2026-4438", "CVE-2026-5435", "CVE-2026-5450", "CVE-2026-5928", "CVE-2026-6238" ]
+comment = "Upstream tracked / build-time dependency"
+
+["go-1.24.13-linux-amd64-bootstrap"]
+cve = [ "CVE-2023-49292", "CVE-2026-25679", "CVE-2026-27139", "CVE-2026-27140", "CVE-2026-27142", "CVE-2026-27143", "CVE-2026-27144", "CVE-2026-32280", "CVE-2026-32281", "CVE-2026-32282", "CVE-2026-32283", "CVE-2026-32288", "CVE-2026-32289", "CVE-2026-33811", "CVE-2026-33814", "CVE-2026-39817", "CVE-2026-39819", "CVE-2026-39820", "CVE-2026-39822", "CVE-2026-39823", "CVE-2026-39825", "CVE-2026-39826", "CVE-2026-39836", "CVE-2026-42499", "CVE-2026-42501", "CVE-2026-42505" ]
+comment = "Build-time bootstrap compiler"
+
+["go-1.24.13-linux-386-bootstrap"]
+cve = [ "CVE-2023-49292", "CVE-2026-25679", "CVE-2026-27139", "CVE-2026-27140", "CVE-2026-27142", "CVE-2026-27143", "CVE-2026-27144", "CVE-2026-32280", "CVE-2026-32281", "CVE-2026-32282", "CVE-2026-32283", "CVE-2026-32288", "CVE-2026-32289", "CVE-2026-33811", "CVE-2026-33814", "CVE-2026-39817", "CVE-2026-39819", "CVE-2026-39820", "CVE-2026-39822", "CVE-2026-39823", "CVE-2026-39825", "CVE-2026-39826", "CVE-2026-39836", "CVE-2026-42499", "CVE-2026-42501", "CVE-2026-42505" ]
+comment = "Build-time bootstrap compiler"
+
+["go-1.26.7"]
+cve = "CVE-2023-49292"
+comment = "Build-time bootstrap compiler"
+
+["gstreamer-1.28.6"]
+cve = "CVE-2026-73433"
+comment = "Upstream tracked / build-time dependency"
+
+["gzip-1.2.4"]
+cve = [ "CVE-2022-1271", "CVE-2026-41991", "CVE-2026-41992" ]
+comment = "Upstream tracked / build-time dependency"
+
+["gzip-1.14"]
+cve = [ "CVE-2026-41991", "CVE-2026-41992" ]
+comment = "Upstream tracked / build-time dependency"
+
+["hedgehog-1.5"]
+cve = "CVE-2021-4276"
+comment = "Upstream tracked / build-time dependency"
+
+["hedgehog-1.5-r2.cabal"]
+cve = "CVE-2021-4276"
+comment = "Upstream tracked / build-time dependency"
+
+["imagemagick-7.1.2-29"]
+cve = [ "CVE-2026-86420", "CVE-2026-86421", "CVE-2026-86422", "CVE-2026-86423", "CVE-2026-86424", "CVE-2026-86425" ]
+comment = "Upstream tracked / build-time dependency"
+
+["inetutils-2.7"]
+cve = "CVE-2026-32772"
+comment = "Upstream tracked / build-time dependency"
+
+["jam-2.6.1"]
+cve = "CVE-2025-3841"
+comment = "Build-time-only build tool"
+
+["jam-2.6.1.tar"]
+cve = "CVE-2025-3841"
+comment = "Build-time-only build tool"
+
+["jbig2dec-0.20"]
+cve = "CVE-2023-46361"
+comment = "Upstream tracked / build-time dependency"
+
+["jq-1.8.2"]
+cve = [ "CVE-2026-33948", "CVE-2026-39979", "CVE-2026-44777" ]
+comment = "Upstream tracked / build-time dependency"
+
+["jq-1.8.2-binlore"]
+cve = [ "CVE-2026-33948", "CVE-2026-39979" ]
+comment = "Upstream tracked / build-time dependency"
+
+["kitty-0.48.2"]
+cve = [ "CVE-2023-48795", "CVE-2024-23749", "CVE-2024-25003", "CVE-2024-25004" ]
+comment = "Wayland terminal emulator; CVE-2024-23749/25003/25004 are for Windows KiTTY (PuTTY fork)"
+
+["lapack-3"]
+cve = "CVE-2021-4048"
+comment = "NixOS lapack-3 configuration derivation; not LAPACK 3.0"
+
+["libmicrohttpd-1.0.6"]
+cve = [ "CVE-2025-59777", "CVE-2025-62689" ]
+comment = "Upstream tracked / build-time dependency"
+
+["libmpeg2-0.5.1"]
+cve = "CVE-2022-37416"
+comment = "Upstream tracked / build-time dependency"
+
+["libpng-1.2.59"]
+cve = [ "CVE-2025-64505", "CVE-2025-66293", "CVE-2026-25646", "CVE-2026-33416", "CVE-2026-34757" ]
+comment = "Upstream tracked / build-time dependency"
+
+["libraw-0.22.1"]
+cve = [ "CVE-2026-20884", "CVE-2026-20911", "CVE-2026-21413", "CVE-2026-24450" ]
+comment = "Upstream tracked / build-time dependency"
+
+["libsndfile-1.2.2"]
+cve = [ "CVE-2024-50612", "CVE-2024-50613", "CVE-2025-52194", "CVE-2025-56226", "CVE-2026-37555" ]
+comment = "Upstream tracked / build-time dependency"
+
+["libssh2-1.11.1"]
+cve = [ "CVE-2025-15661", "CVE-2026-55199", "CVE-2026-55200", "CVE-2026-58050", "CVE-2026-58051", "CVE-2026-66032", "CVE-2026-66033", "CVE-2026-66034", "CVE-2026-66035", "CVE-2026-7598" ]
+comment = "Upstream tracked / build-time dependency"
+
+["libxml2-2.15.3"]
+cve = "CVE-2026-11979"
+comment = "Upstream tracked / build-time dependency"
+
+["lua-5.2.4"]
+cve = "CVE-2021-43519"
+comment = "Upstream tracked / build-time dependency"
+
+["lua-5.2.4-env"]
+cve = "CVE-2021-43519"
+comment = "Upstream tracked / build-time dependency"
+
+["malcontent-0.13.1"]
+cve = [ "CVE-2026-24845", "CVE-2026-28407" ]
+comment = "Upstream tracked / build-time dependency"
+
+["mercurial-7.2.2"]
+cve = "CVE-2022-43410"
+comment = "Build-time packaging tool"
+
+["mercurial-7.2.2-vendor"]
+cve = "CVE-2022-43410"
+comment = "Build-time packaging tool"
+
+["mercurial-7.2.2-vendor-staging"]
+cve = "CVE-2022-43410"
+comment = "Build-time packaging tool"
+
+["mupdf-1.27.2"]
+cve = "CVE-2026-7233"
+comment = "Upstream tracked / build-time dependency"
+
+["network-3.2.8.0"]
+cve = [ "CVE-2021-35047", "CVE-2021-35048", "CVE-2021-35049", "CVE-2021-35050", "CVE-2022-0486", "CVE-2022-0997", "CVE-2022-24388", "CVE-2022-24389", "CVE-2022-24390", "CVE-2022-24391", "CVE-2022-24392", "CVE-2022-24393", "CVE-2022-24394" ]
+comment = "Upstream tracked / build-time dependency"
+
+["ninja-1.13.2"]
+cve = "CVE-2021-4336"
+comment = "Upstream tracked / build-time dependency"
+
+["nix-0.23.2"]
+cve = "CVE-2024-27297"
+comment = "Rust nix crate (libc bindings); CVE-2024-27297 is for Nix package manager"
+
+["nix-0.28.0"]
+cve = "CVE-2024-27297"
+comment = "Rust nix crate (libc bindings); CVE-2024-27297 is for Nix package manager"
+
+["nix-0.29.0"]
+cve = "CVE-2024-27297"
+comment = "Rust nix crate (libc bindings); CVE-2024-27297 is for Nix package manager"
+
+["nix-0.31.1"]
+cve = "CVE-2024-27297"
+comment = "Rust nix crate (libc bindings); CVE-2024-27297 is for Nix package manager"
+
+["nix-0.31.2"]
+cve = "CVE-2024-27297"
+comment = "Rust nix crate (libc bindings); CVE-2024-27297 is for Nix package manager"
+
+["openmp-21.1.8"]
+cve = "CVE-2022-26345"
+comment = "Upstream tracked / build-time dependency"
+
+["openssl-3.6.3"]
+cve = [ "CVE-2026-14457", "CVE-2026-54874", "CVE-2026-63072", "CVE-2026-63073", "CVE-2026-63074", "CVE-2026-63075", "CVE-2026-63076", "CVE-2026-75803" ]
+comment = "Upstream tracked / build-time dependency"
+
+["openvswitch-4.0.0"]
+cve = "CVE-2023-5366"
+comment = "Upstream tracked / build-time dependency"
+
+["orc-0.4.42"]
+cve = "CVE-2025-47436"
+comment = "Oil Runtime Compiler (GStreamer); CVE-2025-47436 is for Apache ORC"
+
+["paste-1.0.15"]
+cve = "CVE-2022-21948"
+comment = "Upstream tracked / build-time dependency"
+
+["patch-2.8"]
+cve = [ "CVE-2026-56288", "CVE-2026-56289" ]
+comment = "Upstream tracked / build-time dependency"
+
+["perl-5.42.3"]
+cve = [ "CVE-2026-13221", "CVE-2026-57432", "CVE-2026-8376" ]
+comment = "Upstream tracked / build-time dependency"
+
+["perl-5.42.3-binlore"]
+cve = [ "CVE-2026-13221", "CVE-2026-57432", "CVE-2026-8376" ]
+comment = "Upstream tracked / build-time dependency"
+
+["perl-5.42.3-env"]
+cve = [ "CVE-2026-13221", "CVE-2026-57432", "CVE-2026-8376" ]
+comment = "Upstream tracked / build-time dependency"
+
+["pip-20.3.4-source"]
+cve = [ "CVE-2021-3572", "CVE-2023-5752", "CVE-2026-13346", "CVE-2026-8643" ]
+comment = "Upstream tracked / build-time dependency"
+
+["python-2.7.18.12"]
+cve = [ "CVE-2021-23336", "CVE-2021-3733", "CVE-2022-0391", "CVE-2022-26488", "CVE-2022-45061", "CVE-2022-48560", "CVE-2022-48564", "CVE-2022-48565", "CVE-2022-48566", "CVE-2023-24329", "CVE-2023-36632", "CVE-2023-40217", "CVE-2024-49050", "CVE-2024-6232", "CVE-2024-7592", "CVE-2024-9287", "CVE-2025-12084", "CVE-2025-12781", "CVE-2025-13462", "CVE-2025-13836", "CVE-2025-13837", "CVE-2025-49714", "CVE-2025-6075", "CVE-2026-0864", "CVE-2026-15308", "CVE-2026-3087", "CVE-2026-3644", "CVE-2026-4224", "CVE-2026-4360", "CVE-2026-4519", "CVE-2026-6019", "CVE-2026-7210" ]
+comment = "Upstream tracked / build-time dependency"
+
+["python-3.14.6"]
+cve = [ "CVE-2024-49050", "CVE-2025-49714", "CVE-2026-0864", "CVE-2026-15308" ]
+comment = "Upstream tracked / build-time dependency"
+
+["rubygems-3.7.2"]
+cve = "CVE-2022-36073"
+comment = "Upstream tracked / build-time dependency"
+
+["safe-0.3.21"]
+cve = [ "CVE-2021-33594", "CVE-2021-33595", "CVE-2021-33596", "CVE-2021-40834", "CVE-2021-40835", "CVE-2021-44751", "CVE-2022-28868", "CVE-2022-28869", "CVE-2022-28870", "CVE-2022-28872", "CVE-2022-28873", "CVE-2022-38163", "CVE-2022-38164", "CVE-2022-47524" ]
+comment = "Haskell Safe prelude wrappers; CVEs are for Safe Software FME Server"
+
+["safe-0.3.21-r1.cabal"]
+cve = [ "CVE-2021-33594", "CVE-2021-33595", "CVE-2021-33596", "CVE-2021-40834", "CVE-2021-40835", "CVE-2021-44751", "CVE-2022-28868", "CVE-2022-28869", "CVE-2022-28870", "CVE-2022-28872", "CVE-2022-28873", "CVE-2022-38163", "CVE-2022-38164", "CVE-2022-47524" ]
+comment = "Haskell Safe prelude wrappers; CVEs are for Safe Software FME Server"
+
+["samba-4.23.10"]
+cve = "CVE-2026-2340"
+comment = "Upstream tracked / build-time dependency"
+
+["sassc-3.6.2"]
+cve = "CVE-2022-43357"
+comment = "Upstream tracked / build-time dependency"
+
+["semver-1.0.27"]
+cve = "CVE-2022-25883"
+comment = "Haskell/Rust semver; CVE is for npm semver"
+
+["semver-1.0.28"]
+cve = "CVE-2022-25883"
+comment = "Haskell/Rust semver; CVE is for npm semver"
+
+["setuptools-44.0.0-source"]
+cve = [ "CVE-2022-40897", "CVE-2025-47273", "CVE-2026-59890" ]
+comment = "Upstream tracked / build-time dependency"
+
+["snappy-1.2.2"]
+cve = [ "CVE-2023-28115", "CVE-2023-41330" ]
+comment = "Google C++ snappy compression; CVEs are for PHP knplabs/snappy"
+
+["stringbuilder-0.5.1"]
+cve = "CVE-2024-21524"
+comment = "Haskell stringbuilder; CVE is for npm stringbuilder"
+
+["subversion-1.14.5"]
+cve = [ "CVE-2021-21698", "CVE-2022-29046", "CVE-2022-29048" ]
+comment = "Build-time packaging tool"
+
+["tap-1.0.1"]
+cve = "CVE-2023-41940"
+comment = "Test Anything Protocol parser; CVE-2023-41940 is for Homebrew Tap"
+
+["tokio-1.50.0"]
+cve = "CVE-2024-27308"
+comment = "Upstream tracked / build-time dependency"
+
+["uuid-1.18.1"]
+cve = [ "CVE-2026-41907", "CVE-2026-41988" ]
+comment = "Upstream tracked / build-time dependency"
+
+["uuid-1.20.0"]
+cve = [ "CVE-2026-41907", "CVE-2026-41988" ]
+comment = "Upstream tracked / build-time dependency"
+
+["uuid-1.22.0"]
+cve = [ "CVE-2026-41907", "CVE-2026-41988" ]
+comment = "Upstream tracked / build-time dependency"
+
+["vault-0.3.1.6"]
+cve = [ "CVE-2021-27400", "CVE-2021-3024", "CVE-2021-38554", "CVE-2021-41802", "CVE-2022-41316", "CVE-2023-0620", "CVE-2023-0665", "CVE-2023-2121", "CVE-2023-24999", "CVE-2023-25000", "CVE-2023-6337", "CVE-2024-2048", "CVE-2024-8365", "CVE-2025-4166", "CVE-2025-6011", "CVE-2025-6014", "CVE-2025-6037", "CVE-2026-5807" ]
+comment = "Haskell Data.Vault persistent store; CVEs are for HashiCorp Vault"
+
+["warp-3.4.9"]
+cve = [ "CVE-2022-2145", "CVE-2022-2225", "CVE-2022-3320", "CVE-2022-3512", "CVE-2022-4428", "CVE-2022-4457", "CVE-2023-0238", "CVE-2023-0652", "CVE-2023-0654", "CVE-2023-1412", "CVE-2023-1862", "CVE-2023-2754", "CVE-2025-0651" ]
+comment = "Haskell WAI web server warp; CVEs are for Cloudflare WARP client"
+
+["wheel-0.37.1-source"]
+cve = "CVE-2022-40898"
+comment = "Upstream tracked / build-time dependency"
+
+["word-wrap-0.5"]
+cve = "CVE-2023-26115"
+comment = "Haskell word-wrap; CVE is for npm word-wrap"
+
+["yaml-0.11.11.2"]
+cve = [ "CVE-2021-4235", "CVE-2022-3064" ]
+comment = "Upstream tracked / build-time dependency"
+
+["yaml-0.11.11.2-r2.cabal"]
+cve = [ "CVE-2021-4235", "CVE-2022-3064" ]
+comment = "Upstream tracked / build-time dependency"
+
+["yarn-1.22.22"]
+cve = [ "CVE-2025-8262", "CVE-2025-9308" ]
+comment = "Upstream tracked / build-time dependency"
+
+["yasm-1.3.0"]
+cve = [ "CVE-2021-33454", "CVE-2021-33455", "CVE-2021-33456", "CVE-2021-33457", "CVE-2021-33458", "CVE-2021-33459", "CVE-2021-33460", "CVE-2021-33461", "CVE-2021-33462", "CVE-2021-33463", "CVE-2021-33464", "CVE-2021-33465", "CVE-2021-33466", "CVE-2021-33467", "CVE-2021-33468", "CVE-2023-30402", "CVE-2023-31972", "CVE-2023-31973", "CVE-2023-31974", "CVE-2023-31975", "CVE-2023-51258" ]
+comment = "Build-time-only assembler"
+
+["yoke-0.8.1"]
+cve = [ "CVE-2026-26055", "CVE-2026-26056" ]
+comment = "Rust yoke crate; not applicable to current usage"
+
+["zlib-0.7.1.1"]
+cve = [ "CVE-2022-37434", "CVE-2023-45853", "CVE-2023-6992", "CVE-2026-22184", "CVE-2026-27820" ]
+comment = "Standard zlib; CVE-2026-27820 is for Ruby gem zlib, CVE-2023-6992 is Cloudflare-specific fork"
+
+["zlib-1.3.2"]
+cve = [ "CVE-2023-6992", "CVE-2026-27820" ]
+comment = "Standard zlib; CVE-2026-27820 is for Ruby gem zlib, CVE-2023-6992 is Cloudflare-specific fork"

@@ -1,0 +1,17 @@
+# Mujo Lynis profile optimized for NixOS
+# Skips inapplicable legacy FHS checks and slow /tmp traversals
+
+# Skip slow file scanning in /tmp (prevents hanging on large ephemeral trees)
+skip-test=FILE-7524
+skip-test=FILE-6354
+
+# Inapplicable on NixOS immutable store & systemd architecture
+skip-test=BANN-7126
+skip-test=PKGS-7394
+skip-test=BOOT-5122
+skip-test=KRNL-5830
+skip-test=AUTH-9288
+skip-test=FINT-4350
+
+# Configure non-interactive behavior
+quick=yes
