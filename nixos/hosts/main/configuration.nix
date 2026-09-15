@@ -70,6 +70,7 @@
       self.nixosModules.security-privacy
       self.nixosModules.security-vault
       self.nixosModules.security-broker
+      self.nixosModules.security-mineral
       self.nixosModules.app-trust
       self.nixosModules.app-native-sandbox
       self.nixosModules.app-microvm
