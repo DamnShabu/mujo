@@ -224,6 +224,55 @@ mujo_security() {
         fi
         ;;
 
+      vulnix)
+        shift || true
+        wl="/etc/mujo/vulnix-whitelist.toml"
+        if [[ ! -f "${wl}" ]]; then
+          script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
+          wl="${script_dir}/nixos/security/vulnix-whitelist.toml"
+        fi
+        if command -v vulnix >/dev/null 2>&1; then
+          if [[ -f "${wl}" ]]; then
+            vulnix --system -C -w "${wl}" "$@"
+          else
+            vulnix --system -C "$@"
+          fi
+        else
+          if [[ -f "${wl}" ]]; then
+            nix run nixpkgs#vulnix -- --system -C -w "${wl}" "$@"
+          else
+            nix run nixpkgs#vulnix -- --system -C "$@"
+          fi
+        fi
+        ;;
+
+      lynis)
+        shift || true
+        prf="/etc/lynis/mujo.prf"
+        if [[ ! -f "${prf}" ]]; then
+          script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)"
+          prf="${script_dir}/nixos/security/lynis-mujo.prf"
+        fi
+        priv=false
+        args=()
+        for arg in "$@"; do
+          if [[ "${arg}" == "--privileged" ]]; then
+            priv=true
+          else
+            args+=("${arg}")
+          fi
+        done
+        cmd=(lynis)
+        if ! command -v lynis >/dev/null 2>&1; then
+          cmd=(nix shell nixpkgs#lynis -c lynis)
+        fi
+        if [[ "${priv}" == "true" ]]; then
+          pkexec env PATH="$PATH" "${cmd[@]}" audit system --profile "${prf}" --quick --no-colors "${args[@]}"
+        else
+          "${cmd[@]}" audit system --profile "${prf}" --quick --no-colors "${args[@]}"
+        fi
+        ;;
+
       *) security_usage ;;
     esac
 }
