@@ -22,6 +22,15 @@
 
       # Auditd service for event logging
       security.auditd.enable = lib.mkDefault true;
+
+      # Vulnerability scanner and curated false-positive / build-time artifact whitelist
+      environment.systemPackages = [
+        pkgs.vulnix
+        pkgs.lynis
+      ];
+
+      environment.etc."mujo/vulnix-whitelist.toml".source = ./vulnix-whitelist.toml;
+      environment.etc."lynis/mujo.prf".source = ./lynis-mujo.prf;
     };
   };
 }
