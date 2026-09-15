@@ -23,26 +23,15 @@
         enable = true;
         preset = ["compatibility"];
 
-        # Guarantee desktop & virtualization compatibility overrides
-        filesystems = {
-          special = {
-            "/proc".options.hidepid = false;
-          };
-          normal = {
-            "/home".options.noexec = false;
-            "/tmp".options.noexec = false;
-          };
-        };
+        # Mujo manages root as an ephemeral tmpfs, /persist via btrfs subvolumes,
+        # and persistence via impermanence bind mounts. Disable nix-mineral's Kicksecure-style
+        # synthetic filesystem remounts so they do not conflict with impermanence.
+        filesystems.enable = false;
 
         kernel-modules.enable = false; # Mujo manages driver and kernel module loading
         settings.misc.nix-wheel = false; # Allow normal nix operation
         settings.network.random-mac = false; # Mujo privacy.nix manages stable MAC addresses
       };
-
-      fileSystems."/etc".neededForBoot = true;
-      fileSystems."/var".neededForBoot = true;
-      fileSystems."/home".neededForBoot = true;
-      fileSystems."/var/lib".neededForBoot = true;
     };
   };
 }
