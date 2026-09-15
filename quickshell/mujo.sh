@@ -100,6 +100,8 @@ Commands:
   summary                   Unified security architecture status (JSON)
   coredump [enable|disable|toggle|status]  Configure persistent core dump protection
   inventory                 Run sensitive data inventory audit (JSON)
+  vulnix [options]          Run vulnerability scan with curated whitelist (runtime closure)
+  lynis [--privileged]      Run Lynis system security audit with curated profile
 EOF
   exit 1
 }
@@ -342,7 +344,7 @@ Commands:
   set <path>                     Set wallpaper for all monitors
   set <path> --monitor <name>    Set wallpaper for specific monitor
   motion <on|off>                 Toggle zoom + pan effect
-  background <hex>                Set letterbox/background color
+  background <hex|theme>        Set letterbox/background color ("theme" or #rrggbb)
   list                            List local wallpaper files (JSON array)
   search [query|json] [options]  Search Wallhaven wallpapers (JSON result)
   details <id>                    Get metadata for a specific wallpaper (JSON)
@@ -895,7 +897,11 @@ EOF
 
   # 5. Synchronize wallpaper background color
   if [[ -f "${CONF}" ]]; then
-    jq --arg bg "${bg}" '.background = $bg' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
+    local cur_bg
+    cur_bg="$(jq -r '.background // "theme"' "${CONF}" 2>/dev/null || echo "theme")"
+    if [[ "${cur_bg}" != "theme" ]]; then
+      jq --arg bg "${bg}" '.background = $bg' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
+    fi
   fi
 }
 
@@ -970,8 +976,8 @@ case "${CMD}" in
       background)
         [[ $# -ge 1 ]] || wallpaper_usage
         HEX="$1"
-        if [[ ! "${HEX}" =~ ^#[0-9a-fA-F]{6}$ ]]; then
-          echo "Error: background must be #rrggbb" >&2; exit 1
+        if [[ "${HEX}" != "theme" && ! "${HEX}" =~ ^#[0-9a-fA-F]{6}$ ]]; then
+          echo "Error: background must be #rrggbb or 'theme'" >&2; exit 1
         fi
         jq --arg v "${HEX}" '.background = $v' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
         echo "Background: ${HEX}"
@@ -2050,7 +2056,7 @@ case "${CMD}" in
     ;;
 
   clipboard)
-    [[ $# -ge 1 ]] || { echo "Usage: mujo clipboard status|clear|count" >&2; exit 1; }
+    [[ $# -ge 1 ]] || { echo "Usage: mujo clipboard status|clear|count|list|decode|delete|copy" >&2; exit 1; }
     SUB="$1"; shift
     case "${SUB}" in
       status)
@@ -2066,7 +2072,25 @@ case "${CMD}" in
       count)
         cliphist list 2>/dev/null | wc -l || echo 0
         ;;
-      *) echo "Usage: mujo clipboard status|clear|count" >&2; exit 1 ;;
+      list)
+        cliphist list 2>/dev/null || true
+        ;;
+      decode)
+        if [[ $# -ge 1 ]]; then
+          printf '%s' "$1" | cliphist decode 2>/dev/null || true
+        else
+          cliphist decode 2>/dev/null || true
+        fi
+        ;;
+      delete)
+        [[ $# -ge 1 ]] || { echo "Usage: mujo clipboard delete <entry>" >&2; exit 1; }
+        printf '%s' "$1" | cliphist delete 2>/dev/null || true
+        ;;
+      copy)
+        [[ $# -ge 1 ]] || { echo "Usage: mujo clipboard copy <entry>" >&2; exit 1; }
+        printf '%s' "$1" | cliphist decode | wl-copy
+        ;;
+      *) echo "Usage: mujo clipboard status|clear|count|list|decode|delete|copy" >&2; exit 1 ;;
     esac
     ;;
 
