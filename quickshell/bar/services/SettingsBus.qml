@@ -8,8 +8,8 @@ import Quickshell.Io
 // Store: one JSON file — ~/.config/qsshell/settings.json — the single source of
 // truth for every namespaced shell setting (bar.*, island.*, notifications.*,
 // weather.*, apps.*, ai.*, idle.*, lock.*, cava.*, backup.*, motion.*, …). The
-// color palette (theme.json, `mujo theme`) and wallpaper (wallpaper.json) keep
-// their own files; this store owns everything else.
+// color palette (theme.json, `mujo theme`) keeps its own file, while wallpaper
+// is handled externally by skwd-wall; this store owns everything else.
 //
 //   read   get(path, fallback)      dotted-path walk over the merged snapshot,
 //                                    falling back to defaults[path] then fallback

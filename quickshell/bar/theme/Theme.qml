@@ -577,19 +577,6 @@ QtObject {
     property color error: active.error
     property color errorDim: withAlpha(active.error, 0.18)
 
-    // ─── Media chrome (deliberately theme-independent) ────────────────────────
-    // The wallpaper browsers render other people's images. Tinting the surface
-    // around a thumbnail with the user's accent misreports the image's own
-    // colours, so this group stays fixed across every preset -- the same reason
-    // Brand.qml's colours do. Named here rather than repeated as literals in the
-    // four browser files, which had already drifted apart.
-    readonly property color mediaBackdrop: "#05070a"    // full-bleed image viewport
-    readonly property color mediaDim: "#d9000000"       // scrim behind a detail modal
-    readonly property color mediaScrim: "#cc000000"     // caption/badge plate over a thumbnail
-    readonly property color mediaPanel: "#ee090c14"     // download-progress panel on a tile
-    readonly property color mediaShield: "#ee0f121a"    // NSFW cover over a tile
-    readonly property color ratingStar: "#ffca28"       // a rating star is gold in every theme
-
     // ─── Typography ───────────────────────────────────────────────────────────
     property string fontFamily: "Ubuntu Sans"
     property string fontMono: "JetBrains Mono"
