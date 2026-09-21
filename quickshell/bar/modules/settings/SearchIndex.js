@@ -8,9 +8,7 @@
 // `key`   routes like SettingsLayout.route() — a category key or any alias in
 //         that category's `keys: [...]`.
 // `card`  names a MujoCard title on the destination page, so a hit scrolls to
-//         the control instead of the top of the page. On Wallpapers it names a
-//         sub-view id instead (library/wallhaven/wallpaperengine), because the
-//         catalogue browsers have no cards.
+//         the control instead of the top of the page.
 //         Every value must match verbatim; test-settings-ui.qml checks that.
 // `cat`   must be one of: "System", "Appearance", "Workspace", "Hardware",
 //         "Security & Privacy".
@@ -163,51 +161,6 @@ var entries = [
         card: "Accent Color & Surface Opacity",
         brand: "appearance",
         tags: ["accent", "color", "hex", "swatch", "transparency", "opacity", "glass", "blur", "surface", "window"]
-    },
-    {
-        title: "Wallpaper Library",
-        desc: "Browse and apply curated high-resolution wallpapers from your local collection",
-        cat: "Appearance",
-        key: "wallpapers",
-        card: "library",
-        brand: "wallpaper",
-        tags: ["wallpaper", "background", "library", "images", "photos", "desktop", "local", "static", "picture"]
-    },
-    {
-        title: "Wallhaven Online Explorer",
-        desc: "Search millions of wallpapers from Wallhaven API with purity filters and NVMe cache",
-        cat: "Appearance",
-        key: "wallhaven",
-        card: "wallhaven",
-        brand: "wallhaven",
-        tags: ["wallhaven", "wallpaper", "online", "search", "api", "purity", "anime", "general", "people", "cache", "download"]
-    },
-    {
-        title: "Wallpaper Engine Steam Workshop",
-        desc: "Browse and launch live animated wallpapers from Steam Workshop (431960)",
-        cat: "Appearance",
-        key: "wallpaperengine",
-        card: "wallpaperengine",
-        brand: "wallpaperengine",
-        tags: ["wallpaperengine", "steam", "workshop", "animated", "live", "video", "431960", "scene", "background"]
-    },
-    {
-        title: "Wallpaper Engine Performance",
-        desc: "Live wallpaper FPS limits, audio automute when media plays, and background volume",
-        cat: "Appearance",
-        key: "effects",
-        card: "Wallpaper Engine Performance",
-        brand: "wallpaperengine",
-        tags: ["wallpaper", "engine", "fps", "performance", "audio", "volume", "automute", "mute", "live"]
-    },
-    {
-        title: "Cursor Parallax & Letterbox Background",
-        desc: "Dynamic mouse parallax depth motion and letterbox background fill color",
-        cat: "Appearance",
-        key: "effects",
-        card: "Parallax & Background",
-        brand: "animations",
-        tags: ["parallax", "depth", "motion", "cursor", "mouse", "letterbox", "fill", "aspect", "ratio", "background"]
     },
     {
         title: "Motion Intensity Profile",
