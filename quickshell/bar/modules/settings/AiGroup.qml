@@ -139,6 +139,19 @@ ColumnLayout {
                 }
                 DialogButton { text: "Save"; onClicked: root.bset("ai.agentCommand", agentCmdField.text.trim()) }
             }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                visible: root.agents.length > 0 || SettingsBus.get("ai.agentCommand", "") !== ""
+
+                DialogButton {
+                    text: "Open Terminal Session"
+                    iconName: "terminal"
+                    primary: true
+                    onClicked: AI.openInTerminal("", root.usingAgent ? root.activeAgentId : "")
+                }
+            }
         }
     }
 

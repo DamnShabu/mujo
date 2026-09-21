@@ -215,21 +215,23 @@ ai_usage() {
 Usage: mujo ai <command>
 
 Commands:
-  chat    Run a chat completion. Reads a JSON messages array on stdin; prints
-          the assistant reply on stdout. With ai.provider="agent" the active
-          agent CLI (claude, opencode, agy, codex, ...) answers headlessly in
-          its read-only mode; otherwise it POSTs an OpenAI-compatible
-          completion, reading ai.{baseUrl,model,maxTokens} from the settings
-          store and the API key from the keyring (service qsshell, account
-          <provider>-api-key). Kill the process to cancel.
-  test    Connectivity check for the resolved backend, as
-          {ok,latencyMs,models[]} JSON: GET <baseUrl>/models for the HTTP
-          path, <bin> --version for an agent CLI.
-  agents  List the known agent CLIs and which of them are installed, as
-          {agents:[{id,name,bin,available,run[],term[]}], active} JSON.
+  term [prompt] Open an interactive terminal session with the active AI provider CLI.
+                Alias: open.
+  chat          Run a chat completion. Reads a JSON messages array on stdin; prints
+                the assistant reply on stdout. With ai.provider="agent" the active
+                agent CLI (claude, opencode, agy, codex, ...) answers headlessly in
+                its read-only mode; otherwise it POSTs an OpenAI-compatible
+                completion, reading ai.{baseUrl,model,maxTokens} from the settings
+                store and the API key from the keyring (service qsshell, account
+                <provider>-api-key). Kill the process to cancel.
+  test          Connectivity check for the resolved backend, as
+                {ok,latencyMs,models[]} JSON: GET <baseUrl>/models for the HTTP
+                path, <bin> --version for an agent CLI.
+  agents        List the known agent CLIs and which of them are installed, as
+                {agents:[{id,name,bin,available,run[],term[],termPrompt[]}], active} JSON.
   use <id>
-          Make <id> the active agent desktop-wide (writes llm-default.json,
-          the same selection the bar's LLM widget shows).
+                Make <id> the active agent desktop-wide (writes llm-default.json,
+                the same selection the bar's LLM widget shows).
 EOF
   exit 1
 }
@@ -265,23 +267,23 @@ AI_SCRATCH="${HOME}/.cache/qsshell/ai-scratch"
 ai_agent_table() {
   jq -n --arg custom "$(ai_get ai.agentCommand)" '
     [ {id:"claude",      name:"Claude Code", bin:"claude",
-       run:["claude","-p","--permission-mode","plan"], term:["claude"]},
+       run:["claude","-p","--permission-mode","plan"], term:["claude"], termPrompt:["claude"]},
       {id:"opencode",    name:"opencode",    bin:"opencode",
        run:["opencode","run","--agent","plan","--format","json"],
        filter:"[inputs | select(.type == \"text\") | .part.text] | join(\"\")",
-       term:["opencode","run","-i"]},
+       term:["opencode"], termPrompt:["opencode","run","-i"]},
       {id:"antigravity", name:"Antigravity", bin:"agy",
-       run:["agy","--mode","plan","-p"],             term:["agy","-i"]},
+       run:["agy","--mode","plan","-p"],             term:["agy"], termPrompt:["agy","-i"]},
       {id:"codex",       name:"Codex",       bin:"codex",
-       run:["codex","exec","--sandbox","read-only"], term:["codex"]},
+       run:["codex","exec","--sandbox","read-only"], term:["codex"], termPrompt:["codex"]},
       {id:"gemini",      name:"Gemini CLI",  bin:"gemini",
-       run:["gemini","-p"],                          term:["gemini","-i"]},
+       run:["gemini","-p"],                          term:["gemini"], termPrompt:["gemini","-i"]},
       {id:"pi",          name:"Pi",          bin:"pi",
-       run:["pi","-p"],                              term:["pi"]}
+       run:["pi","-p"],                              term:["pi"], termPrompt:["pi"]}
     ]
     + (($custom | split(" ") | map(select(. != ""))) as $argv |
        if ($argv | length) == 0 then []
-       else [{id:"custom", name:"Custom command", bin:$argv[0], run:$argv, term:$argv}]
+       else [{id:"custom", name:"Custom command", bin:$argv[0], run:$argv, term:$argv, termPrompt:$argv}]
        end)'
 }
 
@@ -1726,6 +1728,26 @@ case "${CMD}" in
     SUB="$1"; shift
     ai_resolve
     case "${SUB}" in
+      open|term)
+        PROMPT="${*:-}"
+        if [[ "${AI_KIND}" != "agent" || -z "${AI_AGENT}" ]]; then
+          AI_AGENTS="$(ai_agents)"
+          AI_AGENT="$(printf '%s' "${AI_AGENTS}" | jq -r '.active')"
+        fi
+        if [[ -z "${AI_AGENT}" ]]; then
+          echo "ai term: no installed agent CLI found" >&2
+          exit 1
+        fi
+        if [[ -n "${PROMPT}" ]]; then
+          mapfile -t ARGV < <(ai_agent_field termPrompt)
+          [[ ${#ARGV[@]} -gt 0 ]] || mapfile -t ARGV < <(ai_agent_field term)
+          ARGV+=("${PROMPT}")
+        else
+          mapfile -t ARGV < <(ai_agent_field term)
+        fi
+        [[ ${#ARGV[@]} -gt 0 ]] || { echo "ai term: failed to resolve argv for ${AI_AGENT}" >&2; exit 1; }
+        exec kitty -e "${ARGV[@]}"
+        ;;
       agents)
         ai_agents
         ;;

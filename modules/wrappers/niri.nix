@@ -103,6 +103,7 @@
           # (e.g. /var/lib/flatpak/exports/bin/app.zen_browser.zen), so these
           # go through `flatpak run` rather than a bare spawn.
           "Mod+D".spawn = ["kitty" "--app-id" "herdr" "-e" "herdr"];
+          "Mod+A".spawn-sh = "mujo ai term";
           "Mod+B".spawn = "helium";
           "Mod+M".spawn = ["flatpak" "run" "org.jeffvli.feishin"];
           "Mod+T".spawn = ["flatpak" "run" "com.visualstudio.code"];

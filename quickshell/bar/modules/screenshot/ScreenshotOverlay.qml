@@ -540,6 +540,10 @@ Item {
                     root.showOcrCard = false
                     root.doTranslate()
                 }
+                onAskAiRequested: function(text) {
+                    root.close()
+                    AI.openInTerminal("Explain or analyze the following text extracted from a screenshot:\n\n" + text)
+                }
             }
 
             // ─── In-place Translation Plates ─────────────────────────────────────
