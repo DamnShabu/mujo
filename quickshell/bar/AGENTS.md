@@ -1,6 +1,6 @@
 # Quickshell — shell architecture
 
-The mujō desktop for Niri/Wayland: floating grouped top bar, notifications, parallax wallpaper, Cava visualiser, staging shelf, system dialogs, and the standalone settings app. Repo-wide rules live in the root **`AGENTS.md`**.
+The mujō desktop for Niri/Wayland: floating grouped top bar, notifications, Cava visualiser, staging shelf, system dialogs, and the standalone settings app (wallpaper is handled externally by skwd-wall). Repo-wide rules live in the root **`AGENTS.md`**.
 
 ## STACK
 
@@ -16,7 +16,7 @@ The mujō desktop for Niri/Wayland: floating grouped top bar, notifications, par
 - **Config** — `~/.config/qsshell/*.json` and `~/.config/quickshell/*.json`. Key files: `settings.json` (reactive store owned by `services/SettingsBus.qml`), `theme.json` (palette, hot-reloaded).
 - **Ephemeral state** — `~/.local/state/qsshell/*.json` (shelf, notifications, backups, desktop icon grid slots).
 - **Desktop items** — `~/Desktop` is the source of truth for what exists; `desktop-icons.json` holds only grid slots, never anything the user would miss. `mujo desktop list|mkdir|new-file|rename|trash|open|info|path|into|copy|cut|paste|import|terminal|pos|pos-batch|forget` owns every read and write, takes an flock, and deletes via trash rather than `rm`. Anything it spawns that outlives the call (`wl-copy`, a terminal, `gio open`) must be given `9>&-` or it inherits the flock and wedges the next command. Cut/copy/paste go through the system clipboard in `x-special/gnome-copied-files`, so they interoperate with GTK file managers.
-- **Desktop geometry** — the icon/widget surface is inset by `Theme.desktopInset` (+ the bar's reserved band on the bar's edge), which mirrors niri's `layout.gaps + layout.struts` in `modules/wrappers/niri.nix`. That is what keeps widgets from showing in the gap niri leaves around an open window; the wallpaper surface is separate and still edge to edge.
+- **Desktop geometry** — the icon/widget surface is inset by `Theme.desktopInset` (+ the bar's reserved band on the bar's edge), which mirrors niri's `layout.gaps + layout.struts` in `modules/wrappers/niri.nix`. That is what keeps widgets from showing in the gap niri leaves around an open window; wallpaper is handled externally by skwd-wall and not rendered as a QuickShell surface.
 - **All writes go through the `mujo` CLI** (`quickshell/mujo.sh`), never bare shell tools — it is a `makeWrapper` package with jq/curl/git/tmux on `PATH` and writes atomically. QML invokes it via `Quickshell.execDetached`. The dispatcher sources its six largest subcommands (`vm`, `desktop`, `sentinel`, `crash`, `security`, `clean`) from `quickshell/lib/*.sh`, only when that subcommand is reached; `MUJO_LIB` points at them and the wrapper sets it. A new one goes in `lib/` as `mujo_<name>()` and gets a two-line arm here.
 
 ## ICONS
@@ -155,8 +155,8 @@ and `SectionLabel` for a sub-group inside a section.
   description, component, fill }]` builds one pane per sub-category, each with
   its own heading, scroll position and lazy `Loader`; `cardMap` (card title →
   section id) and `aliases` (extra routing ids → section id) drive `revealCard()`.
-  `fill: true` hands the whole pane to a component that scrolls itself, like the
-  wallpaper browsers. The content column is capped at `contentMax` and centred, so
+  `fill: true` hands the whole pane to a component that scrolls itself. The
+  content column is capped at `contentMax` and centred, so
   a label never sits half a screen from its control. **Navigation stops at a
   section.** No sub-pages and no modal overlays — an "open X" affordance becomes
   an inline card the way VM provisioning did.

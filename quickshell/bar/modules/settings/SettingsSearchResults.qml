@@ -193,7 +193,6 @@ MujoFlickable {
                         { label: "Dark & Light Mode", query: "dark" },
                         { label: "Mullvad VPN", query: "vpn" },
                         { label: "NixOS Rebuild", query: "rebuild" },
-                        { label: "Wallpapers", query: "wallpaper" },
                         { label: "Storage Cleaner", query: "storage" },
                         { label: "AI Assistants", query: "ai" },
                         { label: "Encrypted Vault", query: "vault" },
