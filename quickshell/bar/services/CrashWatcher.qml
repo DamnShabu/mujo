@@ -85,7 +85,10 @@ QtObject {
         if (cw.aiAllowed) {
             actions.push({
                 text: "Ask AI",
-                invoke: function () { cw._runAiDiagnose(e.type, e.id || e.pid || comm) }
+                invoke: function () {
+                    var prompt = "I encountered a crash in '" + comm + "' (" + (e.type || "crash") + "). Please help me investigate the root cause and fix it."
+                    AI.openInTerminal(prompt)
+                }
             })
         }
 

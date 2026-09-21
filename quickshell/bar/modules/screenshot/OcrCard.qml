@@ -13,6 +13,7 @@ Rectangle {
     signal closeRequested()
     signal copyRequested(string text)
     signal translateRequested(string text)
+    signal askAiRequested(string text)
 
     width: 440
     height: 300
@@ -204,6 +205,44 @@ Rectangle {
                 font.pixelSize: 11
                 color: Theme.textDim
                 Layout.fillWidth: true
+            }
+
+            // Ask AI button
+            Rectangle {
+                height: 32
+                width: aiRow.implicitWidth + 20
+                radius: 16
+                color: aiHover.hovered ? Theme.surfaceHover : Theme.surface
+                border.color: Theme.borderStrong
+                border.width: 1
+                visible: !root.busy && textEdit.text.trim().length > 0
+
+                RowLayout {
+                    id: aiRow
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Text {
+                        text: "neurology"
+                        font.family: "Material Symbols Rounded"
+                        font.pixelSize: 14
+                        color: Theme.accent
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    Text {
+                        text: "Ask AI"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: Theme.text
+                    }
+                }
+
+                HoverHandler { id: aiHover }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.askAiRequested(textEdit.text)
+                }
             }
 
             // Translate button

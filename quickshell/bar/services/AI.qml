@@ -69,14 +69,27 @@ QtObject {
             }
         }
         if (!a) a = ai.activeAgent
+        var hasPrompt = !!(prompt && String(prompt).trim() !== "")
+        var promptStr = hasPrompt ? String(prompt).trim() : ""
         if (!a || !a.available) {
-            var fallbackCmd = targetId === "opencode" ? ["opencode", "run", "-i"] : (targetId === "antigravity" || targetId === "agy" ? ["agy", "-i"] : ["claude"])
-            Launch.terminal(fallbackCmd, targetId ? (targetId.charAt(0).toUpperCase() + targetId.slice(1)) : "Claude Code", "neurology")
+            var fallbackCmd = targetId === "opencode"
+                ? (hasPrompt ? ["opencode", "run", "-i", promptStr] : ["opencode"])
+                : (targetId === "antigravity" || targetId === "agy"
+                    ? (hasPrompt ? ["agy", "-i", promptStr] : ["agy"])
+                    : (hasPrompt ? ["claude", promptStr] : ["claude"]))
+            var fallbackName = targetId ? (targetId.charAt(0).toUpperCase() + targetId.slice(1)) : "Claude Code"
+            Launch.terminal(fallbackCmd, fallbackName, "neurology")
             return true
         }
-        var argv = (a.term || []).slice()
+        var argv = []
+        if (hasPrompt && a.termPrompt && a.termPrompt.length > 0) {
+            argv = a.termPrompt.slice()
+            argv.push(promptStr)
+        } else {
+            argv = (a.term || []).slice()
+            if (hasPrompt && argv.length > 0) argv.push(promptStr)
+        }
         if (argv.length === 0) return false
-        if (prompt && prompt.trim() !== "") argv.push(prompt)
         Launch.terminal(argv, a.name, "neurology")
         return true
     }

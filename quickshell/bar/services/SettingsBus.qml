@@ -199,8 +199,7 @@ QtObject {
         "shelf.restoreOnRestart": true,
         "privacy.recentFiles": true,
         "privacy.locationAccess": true,
-        "security.lockOnSuspend": true,
-        "wallhaven.apiKey": ""
+        "security.lockOnSuspend": true
     })
 
     property var values: ({})   // parsed settings.json tree (raw on disk)

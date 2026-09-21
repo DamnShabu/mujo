@@ -117,7 +117,7 @@ BaseWidget {
         anchors.margins: root.chromeless ? 0 : 8
         spacing: 9
 
-        // ---- Header: Icon, Name, Plan, Today total -------------------------
+        // ---- Header: Icon, Name, Plan, Today total & Terminal Launch -------
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
@@ -126,7 +126,7 @@ BaseWidget {
                 Layout.preferredWidth: 26
                 Layout.preferredHeight: 26
                 radius: Theme.radiusSm
-                color: Theme.accentDim
+                color: hdrIconHh.hovered ? Theme.surfaceHover : Theme.accentDim
                 border.color: Theme.accent
                 border.width: 1
 
@@ -136,6 +136,10 @@ BaseWidget {
                     pixelSize: 15
                     color: Theme.accent
                 }
+
+                HoverHandler { id: hdrIconHh; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: AI.openInTerminal("", root.wantId) }
+                Tooltip { text: "Launch " + (root.provider ? root.provider.name : "AI Assistant") + " terminal" }
             }
 
             Text {
@@ -146,6 +150,10 @@ BaseWidget {
                 font.pixelSize: Theme.fontSizeSmall
                 font.bold: true
                 elide: Text.ElideRight
+
+                HoverHandler { id: titleHh; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: AI.openInTerminal("", root.wantId) }
+                Tooltip { text: "Launch " + (root.provider ? root.provider.name : "AI Assistant") + " terminal" }
             }
 
             Rectangle {
@@ -172,6 +180,15 @@ BaseWidget {
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSizeLabel
                 font.bold: true
+            }
+
+            IconButton {
+                iconName: "terminal"
+                pixelSize: 13
+                Layout.preferredWidth: 22
+                Layout.preferredHeight: 22
+                Tooltip { text: "Launch terminal session" }
+                onClicked: AI.openInTerminal("", root.wantId)
             }
         }
 
