@@ -182,15 +182,14 @@ theme_usage() {
 Usage: mujo theme <command> [args...]
 
 Commands:
-  set <preset>              Set the active preset (ayu, catppuccin, crimson,
-                            bloodmoon, dracula, nord, gruvbox, tokyonight,
-                            tokyodark, rosepine, horizon, nightowl, poimandres,
-                            cyberpunk, onedark, everforest, kanagawa, monokaipro,
-                            solarized, githubdark, synthwave, oxocarbon,
-                            palenight, void)
+  set <preset>              Set active preset (dark or light palette)
+  mode <dark|light|auto>    Set theme mode (permanent dark, light, or auto schedule)
+  toggle                    Toggle between dark and light mode
+  schedule <solar|time> [dayStart] [nightStart]
+                            Configure day/night automated schedule
   accent <hex|"">           Override accent color ("" clears the override)
   transparency <0.6-1.0>    Set surface transparency
-  sync                      Apply active theme palette to Kitty and Fish
+  sync                      Apply active theme palette to Kitty, Fish, and GTK
   get [key]                 Show theme config (or one key)
   show                      Show current config
 EOF
@@ -511,7 +510,7 @@ LLM_CONF="${HOME}/.config/qsshell/llm-status.json"
 [[ -f "${LLM_CONF}" ]] || printf '{"models":[],"tokens":0,"updated":null}\n' > "${LLM_CONF}"
 
 THEME_CONF="${HOME}/.config/quickshell/theme.json"
-[[ -f "${THEME_CONF}" ]] || printf '{"preset":"ayu","accent":"","transparency":1.0}\n' > "${THEME_CONF}"
+[[ -f "${THEME_CONF}" ]] || printf '{"preset":"ayu","accent":"","transparency":1.0,"mode":"dark","scheduleType":"solar","dayStart":"07:00","nightStart":"19:00","darkPreset":"ayu","lightPreset":"ayu_light"}\n' > "${THEME_CONF}"
 
 INTEG_CONF="${HOME}/.config/qsshell/integrations.json"
 [[ -d "${INTEG_CONF%/*}" ]] || mkdir -p "${INTEG_CONF%/*}"
@@ -734,6 +733,150 @@ THEME_PRESETS_JSON='{
     "border": "#1c1c22", "borderStrong": "#2e2e38", "text": "#f5f5f7", "textSecondary": "#9e9ea8",
     "textDim": "#5c5c66", "accent": "#ffffff", "success": "#34d399", "warning": "#fbbf24", "error": "#f87171",
     "magenta": "#c084fc", "cyan": "#38bdf8", "orange": "#fb923c"
+  },
+  "ayu_light": {
+    "bg": "#fafafa", "surface": "#ffffff", "surfaceHover": "#f0f2f5", "surfaceActive": "#e1e4e8",
+    "border": "#e1e4e8", "borderStrong": "#d0d7de", "text": "#575f66", "textSecondary": "#8a9199",
+    "textDim": "#abb0b6", "accent": "#399ee6", "success": "#86b300", "warning": "#fa8d3e", "error": "#f07171",
+    "magenta": "#a37acc", "cyan": "#55b4d4", "orange": "#fa8d3e"
+  },
+  "catppuccin_latte": {
+    "bg": "#eff1f5", "surface": "#e6e9ef", "surfaceHover": "#dce0e8", "surfaceActive": "#ccd0da",
+    "border": "#bcc0cc", "borderStrong": "#acb0be", "text": "#4c4f69", "textSecondary": "#6c6f85",
+    "textDim": "#9ca0b0", "accent": "#1e66f5", "success": "#40a02b", "warning": "#df8e1d", "error": "#d20f39",
+    "magenta": "#8839ef", "cyan": "#04a5e5", "orange": "#fe640b"
+  },
+  "crimson_light": {
+    "bg": "#fff5f5", "surface": "#ffe3e3", "surfaceHover": "#fed0d0", "surfaceActive": "#fca5a5",
+    "border": "#fca5a5", "borderStrong": "#f87171", "text": "#4c0519", "textSecondary": "#9f1239",
+    "textDim": "#e11d48", "accent": "#e11d48", "success": "#16a34a", "warning": "#d97706", "error": "#dc2626",
+    "magenta": "#c026d3", "cyan": "#0284c7", "orange": "#ea580c"
+  },
+  "bloodmoon_light": {
+    "bg": "#fff1f2", "surface": "#ffe4e6", "surfaceHover": "#fecdd3", "surfaceActive": "#fda4af",
+    "border": "#fda4af", "borderStrong": "#fb7185", "text": "#4c0519", "textSecondary": "#881337",
+    "textDim": "#9f1239", "accent": "#be123c", "success": "#059669", "warning": "#d97706", "error": "#b91c1c",
+    "magenta": "#be123c", "cyan": "#0891b2", "orange": "#ea580c"
+  },
+  "dracula_light": {
+    "bg": "#f8f8f2", "surface": "#edece6", "surfaceHover": "#e2e0d8", "surfaceActive": "#d4d1c7",
+    "border": "#d4d1c7", "borderStrong": "#6272a4", "text": "#282a36", "textSecondary": "#6272a4",
+    "textDim": "#999eb4", "accent": "#6b46c1", "success": "#22863a", "warning": "#b08800", "error": "#d73a49",
+    "magenta": "#a855f7", "cyan": "#0284c7", "orange": "#d97706"
+  },
+  "nord_light": {
+    "bg": "#eceff4", "surface": "#e5e9f0", "surfaceHover": "#d8dee9", "surfaceActive": "#c2d0e0",
+    "border": "#d8dee9", "borderStrong": "#4c566a", "text": "#2e3440", "textSecondary": "#3b4252",
+    "textDim": "#4c566a", "accent": "#5e81ac", "success": "#a3be8c", "warning": "#ebcb8b", "error": "#bf616a",
+    "magenta": "#b48ead", "cyan": "#88c0d0", "orange": "#d08770"
+  },
+  "gruvbox_light": {
+    "bg": "#fbf1c7", "surface": "#f2e5bc", "surfaceHover": "#ebdbb2", "surfaceActive": "#d5c4a1",
+    "border": "#d5c4a1", "borderStrong": "#bdae93", "text": "#3c3836", "textSecondary": "#665c54",
+    "textDim": "#928374", "accent": "#af3a03", "success": "#79740e", "warning": "#b57614", "error": "#9d0006",
+    "magenta": "#8f3f71", "cyan": "#427b58", "orange": "#af3a03"
+  },
+  "tokyoday": {
+    "bg": "#e1e2e7", "surface": "#e9e9ed", "surfaceHover": "#d5d6db", "surfaceActive": "#c4c6cd",
+    "border": "#c4c6cd", "borderStrong": "#8990b3", "text": "#3760bf", "textSecondary": "#6172b0",
+    "textDim": "#8990b3", "accent": "#3760bf", "success": "#587539", "warning": "#8c6c3e", "error": "#f52a65",
+    "magenta": "#9854f1", "cyan": "#007197", "orange": "#b15c00"
+  },
+  "tokyodark_light": {
+    "bg": "#f3f4f8", "surface": "#e5e7f0", "surfaceHover": "#d7dae6", "surfaceActive": "#c5c9da",
+    "border": "#c5c9da", "borderStrong": "#7b82a0", "text": "#363a4d", "textSecondary": "#5b627d",
+    "textDim": "#7b82a0", "accent": "#e14a68", "success": "#4f8a10", "warning": "#d97706", "error": "#e14a68",
+    "magenta": "#8c44c6", "cyan": "#2e7de9", "orange": "#d97706"
+  },
+  "rosepine_dawn": {
+    "bg": "#faf4ed", "surface": "#fffaf3", "surfaceHover": "#f2e9de", "surfaceActive": "#e4dcd0",
+    "border": "#cecacd", "borderStrong": "#9893a5", "text": "#575279", "textSecondary": "#797593",
+    "textDim": "#9893a5", "accent": "#907aa9", "success": "#56949f", "warning": "#ea9d34", "error": "#b4637a",
+    "magenta": "#907aa9", "cyan": "#56949f", "orange": "#ea9d34"
+  },
+  "horizon_light": {
+    "bg": "#fdf0ed", "surface": "#fadad1", "surfaceHover": "#f7c7b8", "surfaceActive": "#f3ad9a",
+    "border": "#f3ad9a", "borderStrong": "#da707a", "text": "#3b3842", "textSecondary": "#6a6676",
+    "textDim": "#9a94a8", "accent": "#e95678", "success": "#21b380", "warning": "#f2994a", "error": "#e95678",
+    "magenta": "#b877db", "cyan": "#26bbd9", "orange": "#f2994a"
+  },
+  "nightowl_light": {
+    "bg": "#f0f2f5", "surface": "#e4e7eb", "surfaceHover": "#d8dce2", "surfaceActive": "#c6ccd6",
+    "border": "#c6ccd6", "borderStrong": "#7e889b", "text": "#403f53", "textSecondary": "#5f687a",
+    "textDim": "#9099a8", "accent": "#0c969b", "success": "#2aa298", "warning": "#da8b45", "error": "#de3d35",
+    "magenta": "#994cc3", "cyan": "#0c969b", "orange": "#da8b45"
+  },
+  "poimandres_light": {
+    "bg": "#f4f6f8", "surface": "#e7ebf0", "surfaceHover": "#d9e0e8", "surfaceActive": "#c8d2de",
+    "border": "#c8d2de", "borderStrong": "#738091", "text": "#303340", "textSecondary": "#525968",
+    "textDim": "#7e8799", "accent": "#3e8fb0", "success": "#3ba779", "warning": "#dfa435", "error": "#d0679d",
+    "magenta": "#8c62b4", "cyan": "#3e8fb0", "orange": "#dfa435"
+  },
+  "cyberpunk_light": {
+    "bg": "#f8f7ff", "surface": "#eeeafd", "surfaceHover": "#e2dcfc", "surfaceActive": "#d0c5fa",
+    "border": "#d0c5fa", "borderStrong": "#9b8afb", "text": "#201a35", "textSecondary": "#584e78",
+    "textDim": "#8c7fae", "accent": "#d9006c", "success": "#00a86b", "warning": "#d97706", "error": "#d9006c",
+    "magenta": "#7928ca", "cyan": "#0070f3", "orange": "#ff8000"
+  },
+  "onelight": {
+    "bg": "#fafafa", "surface": "#f0f0f0", "surfaceHover": "#e5e5e6", "surfaceActive": "#d7d7d8",
+    "border": "#e5e5e6", "borderStrong": "#a0a1a7", "text": "#383a42", "textSecondary": "#696c77",
+    "textDim": "#a0a1a7", "accent": "#4078f2", "success": "#50a14f", "warning": "#c18401", "error": "#e45649",
+    "magenta": "#a626a4", "cyan": "#0184bc", "orange": "#986801"
+  },
+  "everforest_light": {
+    "bg": "#fdf6e3", "surface": "#f4f0d9", "surfaceHover": "#ebe5c8", "surfaceActive": "#ded5b5",
+    "border": "#ded5b5", "borderStrong": "#939f91", "text": "#5c6a72", "textSecondary": "#708089",
+    "textDim": "#939f91", "accent": "#8da101", "success": "#8da101", "warning": "#dfa000", "error": "#f85552",
+    "magenta": "#df69ba", "cyan": "#35a77c", "orange": "#f57d26"
+  },
+  "kanagawa_lotus": {
+    "bg": "#f2ecde", "surface": "#e7e0ce", "surfaceHover": "#ddd5c0", "surfaceActive": "#cfc5ae",
+    "border": "#cfc5ae", "borderStrong": "#8a8980", "text": "#545464", "textSecondary": "#716e61",
+    "textDim": "#8a8980", "accent": "#4d699b", "success": "#6e915f", "warning": "#de9800", "error": "#c84053",
+    "magenta": "#b35b79", "cyan": "#597b75", "orange": "#cc6d00"
+  },
+  "monokaipro_light": {
+    "bg": "#fafafa", "surface": "#ececec", "surfaceHover": "#dfdfdf", "surfaceActive": "#cccccc",
+    "border": "#cccccc", "borderStrong": "#939293", "text": "#403e41", "textSecondary": "#69676c",
+    "textDim": "#939293", "accent": "#ff6188", "success": "#78b833", "warning": "#fc9867", "error": "#ff6188",
+    "magenta": "#ab9df2", "cyan": "#78dce8", "orange": "#fc9867"
+  },
+  "solarized_light": {
+    "bg": "#fdf6e3", "surface": "#eee8d5", "surfaceHover": "#e4dcbe", "surfaceActive": "#dacfa6",
+    "border": "#d3cbb7", "borderStrong": "#93a1a1", "text": "#586e75", "textSecondary": "#657b83",
+    "textDim": "#93a1a1", "accent": "#268bd2", "success": "#859900", "warning": "#b58900", "error": "#dc322f",
+    "magenta": "#d33682", "cyan": "#2aa198", "orange": "#cb4b16"
+  },
+  "github_light": {
+    "bg": "#ffffff", "surface": "#f6f8fa", "surfaceHover": "#eaeef2", "surfaceActive": "#d0d7de",
+    "border": "#d0d7de", "borderStrong": "#afb8c1", "text": "#24292f", "textSecondary": "#57606a",
+    "textDim": "#8c959f", "accent": "#0969da", "success": "#1a7f37", "warning": "#9a6700", "error": "#cf222e",
+    "magenta": "#8250df", "cyan": "#0598ab", "orange": "#bc4c00"
+  },
+  "synthwave_light": {
+    "bg": "#faf5ff", "surface": "#f3e8ff", "surfaceHover": "#e9d5ff", "surfaceActive": "#d8b4fe",
+    "border": "#d8b4fe", "borderStrong": "#a855f7", "text": "#581c87", "textSecondary": "#7e22ce",
+    "textDim": "#a855f7", "accent": "#9333ea", "success": "#059669", "warning": "#d97706", "error": "#e11d48",
+    "magenta": "#9333ea", "cyan": "#0284c7", "orange": "#ea580c"
+  },
+  "oxocarbon_light": {
+    "bg": "#ffffff", "surface": "#f2f4f8", "surfaceHover": "#e5e8f0", "surfaceActive": "#dde1eb",
+    "border": "#dde1eb", "borderStrong": "#a2a9b7", "text": "#161616", "textSecondary": "#525252",
+    "textDim": "#8d8d8d", "accent": "#0f62fe", "success": "#198038", "warning": "#b28600", "error": "#da1e28",
+    "magenta": "#8a3ffc", "cyan": "#0f62fe", "orange": "#ba4e00"
+  },
+  "palenight_light": {
+    "bg": "#f5f6fa", "surface": "#eaecf4", "surfaceHover": "#dce0ee", "surfaceActive": "#cbd2e4",
+    "border": "#cbd2e4", "borderStrong": "#8792b5", "text": "#474b66", "textSecondary": "#636888",
+    "textDim": "#8792b5", "accent": "#7c4dff", "success": "#388e3c", "warning": "#f57c00", "error": "#d32f2f",
+    "magenta": "#7c4dff", "cyan": "#00b0ff", "orange": "#f57c00"
+  },
+  "void_light": {
+    "bg": "#ffffff", "surface": "#f4f4f5", "surfaceHover": "#e4e4e7", "surfaceActive": "#d4d4d8",
+    "border": "#d4d4d8", "borderStrong": "#a1a1aa", "text": "#18181b", "textSecondary": "#52525b",
+    "textDim": "#71717a", "accent": "#18181b", "success": "#16a34a", "warning": "#d97706", "error": "#dc2626",
+    "magenta": "#7c3aed", "cyan": "#0284c7", "orange": "#ea580c"
   }
 }'
 
@@ -799,7 +942,7 @@ color9 ${error}
 color2 ${success}
 color10 ${success}
 color3 ${warning}
-color11 ${orange}
+color11 ${warning}
 color4 ${accent}
 color12 ${accent}
 color5 ${magenta}
@@ -807,7 +950,7 @@ color13 ${magenta}
 color6 ${cyan}
 color14 ${cyan}
 color7 ${text}
-color15 ${text}
+color15 ${text_sec}
 EOF
 
   # 2. Fish dynamic theme script
@@ -901,6 +1044,22 @@ EOF
     cur_bg="$(jq -r '.background // "theme"' "${CONF}" 2>/dev/null || echo "theme")"
     if [[ "${cur_bg}" != "theme" ]]; then
       jq --arg bg "${bg}" '.background = $bg' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
+    fi
+  fi
+
+  # 6. Synchronize GTK / GNOME color-scheme via dconf
+  if command -v dconf >/dev/null 2>&1; then
+    local hex_clean="${bg#\#}"
+    if [[ ${#hex_clean} -eq 6 ]]; then
+      local r=$((16#${hex_clean:0:2}))
+      local g=$((16#${hex_clean:2:2}))
+      local b=$((16#${hex_clean:4:2}))
+      local lum=$(( (r * 299 + g * 587 + b * 114) / 1000 ))
+      if (( lum > 128 )); then
+        dconf write /org/gnome/desktop/interface/color-scheme "'prefer-light'" 2>/dev/null || true
+      else
+        dconf write /org/gnome/desktop/interface/color-scheme "'prefer-dark'" 2>/dev/null || true
+      fi
     fi
   fi
 }
@@ -1074,11 +1233,65 @@ case "${CMD}" in
         [[ $# -ge 1 ]] || theme_usage
         PRESET="$1"
         case "${PRESET}" in
-          ayu|catppuccin|crimson|bloodmoon|dracula|nord|gruvbox|tokyonight|tokyodark|rosepine|horizon|nightowl|poimandres|cyberpunk|onedark|everforest|kanagawa|monokaipro|solarized|githubdark|synthwave|oxocarbon|palenight|void) ;;
+          ayu|catppuccin|crimson|bloodmoon|dracula|nord|gruvbox|tokyonight|tokyodark|rosepine|horizon|nightowl|poimandres|cyberpunk|onedark|everforest|kanagawa|monokaipro|solarized|githubdark|synthwave|oxocarbon|palenight|void|\
+          ayu_light|catppuccin_latte|crimson_light|bloodmoon_light|dracula_light|nord_light|gruvbox_light|tokyoday|tokyodark_light|rosepine_dawn|horizon_light|nightowl_light|poimandres_light|cyberpunk_light|onelight|everforest_light|kanagawa_lotus|monokaipro_light|solarized_light|github_light|synthwave_light|oxocarbon_light|palenight_light|void_light) ;;
           *) echo "Error: unknown preset: ${PRESET}" >&2; exit 1 ;;
         esac
-        theme_set '.preset = $v' --arg v "${PRESET}"
+        case "${PRESET}" in
+          *_light|catppuccin_latte|tokyoday|rosepine_dawn|onelight|kanagawa_lotus)
+            theme_set '.preset = $v | .lightPreset = $v' --arg v "${PRESET}"
+            ;;
+          *)
+            theme_set '.preset = $v | .darkPreset = $v' --arg v "${PRESET}"
+            ;;
+        esac
         echo "Preset: ${PRESET}"
+        ;;
+      mode)
+        [[ $# -ge 1 ]] || theme_usage
+        MODE="$1"
+        case "${MODE}" in
+          dark)
+            theme_set '.mode = "dark" | .preset = (.darkPreset // "ayu")'
+            echo "Mode: dark (preset: $(jq -r '.preset' "${THEME_CONF}"))"
+            ;;
+          light)
+            theme_set '.mode = "light" | .preset = (.lightPreset // "ayu_light")'
+            echo "Mode: light (preset: $(jq -r '.preset' "${THEME_CONF}"))"
+            ;;
+          auto)
+            theme_set '.mode = "auto"'
+            echo "Mode: auto schedule"
+            ;;
+          *) echo "Error: mode must be dark, light, or auto" >&2; exit 1 ;;
+        esac
+        ;;
+      toggle)
+        CUR_MODE="$(jq -r '.mode // "dark"' "${THEME_CONF}" 2>/dev/null || echo "dark")"
+        if [[ "${CUR_MODE}" == "light" ]]; then
+          theme_set '.mode = "dark" | .preset = (.darkPreset // "ayu")'
+          echo "Toggled to dark mode"
+        else
+          theme_set '.mode = "light" | .preset = (.lightPreset // "ayu_light")'
+          echo "Toggled to light mode"
+        fi
+        ;;
+      schedule)
+        [[ $# -ge 1 ]] || theme_usage
+        STYPE="$1"; shift
+        case "${STYPE}" in
+          solar)
+            theme_set '.scheduleType = "solar"'
+            echo "Schedule type: solar (sunrise/sunset)"
+            ;;
+          time)
+            D_START="${1:-$(jq -r '.dayStart // "07:00"' "${THEME_CONF}")}"
+            N_START="${2:-$(jq -r '.nightStart // "19:00"' "${THEME_CONF}")}"
+            theme_set '.scheduleType = "time" | .dayStart = $d | .nightStart = $n' --arg d "${D_START}" --arg n "${N_START}"
+            echo "Schedule type: custom hours (day: ${D_START}, night: ${N_START})"
+            ;;
+          *) echo "Error: schedule type must be solar or time" >&2; exit 1 ;;
+        esac
         ;;
       accent)
         [[ $# -ge 1 ]] || theme_usage
@@ -1096,7 +1309,7 @@ case "${CMD}" in
         ;;
       sync)
         theme_sync
-        echo "Theme synced to Kitty and Fish ($(jq -r '.preset // "ayu"' "${THEME_CONF}"))"
+        echo "Theme synced to Kitty, Fish, and GTK ($(jq -r '.preset // "ayu"' "${THEME_CONF}"))"
         ;;
       get|show)
         if [[ -n "${1:-}" ]]; then
@@ -1288,13 +1501,14 @@ case "${CMD}" in
           --argjson obsidian "$(is_running obsidian)" \
           --argjson feishin "$(is_running feishin)" \
           --argjson zen "$(is_running zen)" \
+          --argjson helium "$(is_running helium)" \
           --argjson brave "$(is_running brave)" \
           --argjson steam "$(is_running steam)" \
           --argjson code "$(is_running code)" \
           --argjson bottles "$(is_running bottles)" \
           --argjson superprod "$(is_running superproductivity)" \
           --argjson zed "$(is_running zed)" \
-          '{vesktop: $vesktop, telegram: $telegram, obsidian: $obsidian, feishin: $feishin, zen: $zen, brave: $brave, steam: $steam, code: $code, bottles: $bottles, superprod: $superprod, zed: $zed}'
+          '{vesktop: $vesktop, telegram: $telegram, obsidian: $obsidian, feishin: $feishin, zen: $zen, helium: $helium, brave: $brave, steam: $steam, code: $code, bottles: $bottles, superprod: $superprod, zed: $zed}'
         ;;
 
       *) echo "Usage: mujo apps defaults|flatpaks|running" >&2; exit 1 ;;
@@ -1431,7 +1645,7 @@ case "${CMD}" in
         FC="$(curl -fsSL --connect-timeout 2 --max-time 8 -G "https://api.open-meteo.com/v1/forecast" \
           --data-urlencode "latitude=${LAT}" --data-urlencode "longitude=${LON}" \
           --data-urlencode "current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m" \
-          --data-urlencode "daily=temperature_2m_max,temperature_2m_min,weather_code" \
+          --data-urlencode "daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset" \
           --data-urlencode "forecast_days=5" --data-urlencode "temperature_unit=${TUNIT}" \
           --data-urlencode "wind_speed_unit=${WUNIT}" --data-urlencode "timezone=auto" 2>/dev/null)"
         if [[ -z "${FC}" ]] || ! jq -e .current >/dev/null 2>&1 <<<"${FC}"; then
@@ -1441,6 +1655,7 @@ case "${CMD}" in
           temp: ($f.current.temperature_2m | round), feels: ($f.current.apparent_temperature | round),
           code: $f.current.weather_code, humidity: $f.current.relative_humidity_2m,
           wind: ($f.current.wind_speed_10m | round), city: $city, units: $units, windUnit: $wind,
+          sunrise: ($f.daily.sunrise[0] // null), sunset: ($f.daily.sunset[0] // null),
           daily: [range(0; ($f.daily.time | length)) as $i | {min: ($f.daily.temperature_2m_min[$i] | round), max: ($f.daily.temperature_2m_max[$i] | round), code: $f.daily.weather_code[$i], date: $f.daily.time[$i]}],
           updated: now
         }' | tee "${WEATHER_CACHE}"

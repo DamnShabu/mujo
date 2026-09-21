@@ -1,27 +1,25 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import "../../theme"
 import "../../components"
 import "../../services"
 
-// Bar trigger for the launcher. The launcher surface itself lives in
-// Launcher.qml (a layer-shell overlay owned by shell.qml); this is just the
-// button that toggles it via PopupCoordinator.
+// Bar trigger for the launcher (toggles vicinae).
 Rectangle {
     id: root
     property var panelWindow          // kept for Bar wiring compatibility
     property string screenName: ""
-    property bool launcherOpen: false // (unused; overlay derives its own state)
+    property bool launcherOpen: false // (unused; kept for Bar wiring compatibility)
 
     readonly property string iconStyle: SettingsBus.get("bar.launcher.icon", "search")
     readonly property bool showLabel: SettingsBus.get("bar.launcher.showLabel", false)
     readonly property string labelText: SettingsBus.get("bar.launcher.label", "Apps")
 
-    readonly property bool active: PopupCoordinator.isLauncherOpen
-        && (PopupCoordinator.launcherScreen === "" || PopupCoordinator.launcherScreen === root.screenName)
+    readonly property bool active: false
 
-    implicitHeight: Theme.barHeight - 6
-    implicitWidth: contentRow.implicitWidth + (root.showLabel ? 16 : 8)
+    implicitHeight: Theme.barItemHeight
+    implicitWidth: root.showLabel ? (contentRow.implicitWidth + Theme.barItemPadding * 2) : Theme.barItemSquare
     radius: Theme.radiusSm
 
     color: root.active ? Theme.accentDim
@@ -72,5 +70,5 @@ Rectangle {
     }
 
     HoverHandler { id: hh; cursorShape: Qt.PointingHandCursor }
-    TapHandler { onTapped: PopupCoordinator.toggleLauncher(root.screenName) }
+    TapHandler { onTapped: Quickshell.execDetached(["vicinae", "toggle"]) }
 }

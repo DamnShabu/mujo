@@ -89,78 +89,72 @@ ColumnLayout {
         Repeater {
             model: root.items
 
-            delegate: Rectangle {
+            delegate: ListRow {
                 required property var modelData
-                Layout.fillWidth: true
-                implicitHeight: 58
-                radius: Theme.radiusMd
-                color: Theme.bg
-                border.color: Theme.border
+                readonly property bool revealed: root.revealedId === modelData.id
 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 10
-                    spacing: 12
+                MaterialIcon {
+                    iconName: modelData.locked ? "lock" : "key"
+                    pixelSize: 18
+                    color: modelData.locked ? Theme.textDim : Theme.accent
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.rightMargin: 2
+                }
 
-                    Rectangle {
-                        width: 36; height: 36; radius: Theme.radiusSm
-                        color: Theme.accentDim
-                        MaterialIcon { anchors.centerIn: parent; iconName: modelData.locked ? "lock" : "key"; pixelSize: 19; color: Theme.accent }
-                    }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
 
-                    ColumnLayout {
+                    Text {
+                        text: (modelData.service && modelData.service !== "") ? modelData.service : modelData.label
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeBody
+                        elide: Text.ElideRight
                         Layout.fillWidth: true
-                        spacing: 1
-                        Text {
-                            text: (modelData.service && modelData.service !== "") ? modelData.service : modelData.label
-                            color: Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeBody
-                            font.bold: true
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
-                        Text {
-                            readonly property bool revealed: root.revealedId === modelData.id
-                            text: revealed ? root.revealedSecret
-                                  : (modelData.account && modelData.account !== "" ? modelData.account : modelData.label)
-                            color: revealed ? Theme.accent : Theme.textSecondary
-                            font.family: revealed ? Theme.fontMono : Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
                     }
 
-                    IconButton {
-                        iconName: root.revealedId === modelData.id ? "visibility_off" : "visibility"
-                        enabled: !modelData.locked
-                        opacity: modelData.locked ? 0.4 : 1
-                        onClicked: root.reveal(modelData.id)
-                    }
-                    IconButton {
-                        iconName: "delete"
-                        onClicked: root.remove(modelData.id)
+                    Text {
+                        text: revealed ? root.revealedSecret
+                            : (modelData.account && modelData.account !== "" ? modelData.account : modelData.label)
+                        color: revealed ? Theme.accent : Theme.textSecondary
+                        font.family: revealed ? Theme.fontMono : Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
                     }
                 }
+
+                StatusTag { visible: modelData.locked; text: "LOCKED"; tone: "warning" }
+
+                IconButton {
+                    iconName: revealed ? "visibility_off" : "visibility"
+                    enabled: !modelData.locked
+                    opacity: modelData.locked ? 0.4 : 1
+                    onClicked: root.reveal(modelData.id)
+                }
+
+                IconButton { iconName: "delete"; onClicked: root.remove(modelData.id) }
             }
         }
 
-        Text {
+        EmptyState {
             Layout.fillWidth: true
+            Layout.topMargin: 16
+            Layout.bottomMargin: 16
             visible: root.items.length === 0
-            horizontalAlignment: Text.AlignHCenter
-            text: root.error !== "" ? root.error : "No stored credentials yet."
-            color: Theme.textDim
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeBody
+            iconName: root.error !== "" ? "lock" : "key"
+            title: root.error !== "" ? "The keyring is locked" : "No credentials stored"
+            hint: root.error !== ""
+                ? root.error
+                : "Add one below and it goes into the system keyring, never into a config file."
         }
     }
 
     MujoCard {
         title: "Add credential"
         iconName: "add_circle"
+        collapsible: true
         expanded: false
 
         // One 2-column grid for the four fields, with the button on its own

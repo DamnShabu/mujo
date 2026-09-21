@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
 import "../../theme"
 import "../../components"
 import "../../services"
@@ -11,12 +13,25 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: 14
 
+    property string powerProfile: "balanced"
     readonly property var idleActions: ["dim", "screenOff", "lock", "suspend", "hibernate", "effects"]
     function idleRules() { return SettingsBus.get("idle.rules", []) }
     function _idleClone() { return root.idleRules().map(function (x) { return Object.assign({}, x) }) }
     function idleUpd(i, k, v) { var a = root._idleClone(); a[i][k] = v; SettingsBus.set("idle.rules", a) }
     function idleAdd() { var a = root._idleClone(); a.push({ timeoutSec: 300, action: "lock" }); SettingsBus.set("idle.rules", a) }
     function idleDel(i) { var a = root._idleClone(); a.splice(i, 1); SettingsBus.set("idle.rules", a) }
+
+    Process {
+        id: powerProc
+        command: ["mujo", "power-profile", "get"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var p = this.text.trim()
+                if (p === "performance" || p === "balanced" || p === "power-saver") root.powerProfile = p
+            }
+        }
+    }
+    Component.onCompleted: powerProc.running = true
 
     MujoCard {
         title: "Idle & Power"
@@ -27,6 +42,25 @@ ColumnLayout {
         actions: ToggleSwitch {
             checked: SettingsBus.get("idle.enabled", true)
             onToggled: function (c) { SettingsBus.set("idle.enabled", c) }
+        }
+
+        MujoSettingRow {
+            iconName: "bolt"
+            title: "Hardware Power Profile"
+            description: "CPU energy performance scaling governor."
+
+            MujoSegmented {
+                model: [
+                    { id: "performance", label: "Performance", icon: "speed" },
+                    { id: "balanced",    label: "Balanced",    icon: "balance" },
+                    { id: "power-saver", label: "Power Saver", icon: "eco" }
+                ]
+                current: root.powerProfile
+                onSelected: function(id) {
+                    root.powerProfile = id
+                    Quickshell.execDetached(["mujo", "power-profile", "set", id])
+                }
+            }
         }
 
         // Lock screen master gate (WP-14). Off = lock triggers (idle rule,
@@ -51,14 +85,11 @@ ColumnLayout {
 
         Repeater {
             model: SettingsBus.get("idle.rules", [])
-            delegate: Rectangle {
+            delegate: InsetPanel {
                 id: ruleCard
                 required property int index
                 required property var modelData
                 Layout.fillWidth: true
-                radius: Theme.radiusMd
-                color: Theme.bg
-                border.color: Theme.border
                 implicitHeight: ruleBody.implicitHeight + 24
                 opacity: SettingsBus.get("idle.enabled", true) ? 1 : 0.5
 
@@ -76,7 +107,7 @@ ColumnLayout {
                             text: String(ruleCard.modelData.timeoutSec)
                             onAccepted: root.idleUpd(ruleCard.index, "timeoutSec", Math.max(1, parseInt(text) || 1))
                         }
-                        Text { text: "seconds →"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
+                        Text { text: "seconds"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
                         Item { Layout.fillWidth: true }
                         DialogButton { text: "Remove"; onClicked: root.idleDel(ruleCard.index) }
                     }

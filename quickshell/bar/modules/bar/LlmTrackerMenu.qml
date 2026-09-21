@@ -210,8 +210,8 @@ Item {
     // ---- Trigger Pill (Top Bar) ---------------------------------------------
     Rectangle {
         id: trigger
-        implicitHeight: Theme.barHeight - 6
-        implicitWidth: (root.showTokens || root.activeTodayTokens > 0) ? (trigRow.implicitWidth + 14) : 28
+        implicitHeight: Theme.barItemHeight
+        implicitWidth: (root.showTokens || root.activeTodayTokens > 0) ? (trigRow.implicitWidth + Theme.barItemPadding * 2) : Theme.barItemSquare
         radius: Theme.radiusSm
         color: root.menuOpen ? Theme.accentDim
              : (trigHh.hovered ? Theme.surfaceHover : "transparent")

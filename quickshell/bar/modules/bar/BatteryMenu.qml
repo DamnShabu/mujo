@@ -21,7 +21,9 @@ Item {
     property int level: 0
     property string status: "Unknown"
 
-    visible: root.present
+    // Read by BarSlot so the empty cell collapses too, not just the icon.
+    readonly property bool barVisible: root.present
+    visible: root.barVisible
     implicitWidth: trigger.width
     implicitHeight: trigger.height
 
@@ -88,8 +90,8 @@ Item {
 
     Rectangle {
         id: trigger
-        implicitHeight: Theme.barHeight - 6
-        implicitWidth: root.showPercentText ? (triggerRow.implicitWidth + 14) : 28
+        implicitHeight: Theme.barItemHeight
+        implicitWidth: root.showPercentText ? (triggerRow.implicitWidth + Theme.barItemPadding * 2) : Theme.barItemSquare
         radius: Theme.radiusSm
         color: root.menuOpen ? Theme.accentDim : (trigHh.hovered ? Theme.surfaceHover : "transparent")
         border.color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.borderStrong : "transparent")

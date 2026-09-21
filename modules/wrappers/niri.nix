@@ -30,6 +30,12 @@
         };
       nin = ns.input or {};
     in {
+      package = pkgs.niri.overrideAttrs (old: {
+        patches = (old.patches or []) ++ [
+          ./niri-fullscreen-capture-cursor.patch
+        ];
+      });
+
       settings = {
         prefer-no-csd = _: {};
 
@@ -77,10 +83,7 @@
           "Mod+Return".spawn = config.terminal;
 
           "Mod+Q".close-window = _: {};
-          # Path must match the qs-bar daemon's launch path (quickshell.nix
-          # barConfig); a bare `qs ipc` can't pick between multiple running
-          # quickshell instances and silently no-ops.
-          "Mod+Space"."spawn-sh" = "qs -p /etc/xdg/quickshell/bar/shell.qml ipc call launcher toggle";
+          "Mod+Space".spawn = ["vicinae" "toggle"];
           # Standalone Settings app (separate quickshell instance, floated by the
           # window-rule matching its title below).
           "Mod+Comma"."spawn-sh" = "qs -p /etc/xdg/quickshell/bar/settings.qml";
@@ -99,7 +102,7 @@
           # (e.g. /var/lib/flatpak/exports/bin/app.zen_browser.zen), so these
           # go through `flatpak run` rather than a bare spawn.
           "Mod+D".spawn = ["kitty" "--app-id" "herdr" "-e" "herdr"];
-          "Mod+B".spawn = ["flatpak" "run" "app.zen_browser.zen"];
+          "Mod+B".spawn = "helium";
           "Mod+M".spawn = ["flatpak" "run" "org.jeffvli.feishin"];
           "Mod+T".spawn = ["flatpak" "run" "com.visualstudio.code"];
           "Mod+P".spawn = ["flatpak" "run" "com.super_productivity.SuperProductivity"];
@@ -156,10 +159,26 @@
           "Mod+Shift+4".move-column-to-workspace = 4;
 
           # mouse/touchpad
-          "Mod+WheelScrollDown".focus-column-left = _: {};
-          "Mod+WheelScrollUp".focus-column-right = _: {};
-          "Mod+Ctrl+WheelScrollDown".focus-workspace-down = _: {};
-          "Mod+Ctrl+WheelScrollUp".focus-workspace-up = _: {};
+          "Mod+WheelScrollUp" = _: {
+            props.cooldown-ms = 150;
+            content.focus-workspace-up = _: {};
+          };
+          "Mod+WheelScrollDown" = _: {
+            props.cooldown-ms = 150;
+            content.focus-workspace-down = _: {};
+          };
+          "Mod+Ctrl+WheelScrollUp" = _: {
+            props.cooldown-ms = 150;
+            content.move-column-to-workspace-up = _: {};
+          };
+          "Mod+Ctrl+WheelScrollDown" = _: {
+            props.cooldown-ms = 150;
+            content.move-column-to-workspace-down = _: {};
+          };
+          "Mod+Shift+WheelScrollDown".focus-column-right = _: {};
+          "Mod+Shift+WheelScrollUp".focus-column-left = _: {};
+          "Mod+WheelScrollRight".focus-column-right = _: {};
+          "Mod+WheelScrollLeft".focus-column-left = _: {};
 
           # audio
           "Mod+V".spawn-sh = "${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle";
@@ -243,6 +262,10 @@
           }
           {
             matches = [{app-id = "(?i)herdr";}];
+            open-maximized = true;
+          }
+          {
+            matches = [{app-id = "(?i)helium";}];
             open-maximized = true;
           }
           {

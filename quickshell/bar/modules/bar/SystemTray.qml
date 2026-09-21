@@ -50,7 +50,8 @@ Item {
 
     implicitWidth: rowL.implicitWidth
     implicitHeight: Theme.barHeight
-    visible: root.allItems.length > 0
+    readonly property bool barVisible: root.allItems.length > 0
+    visible: root.barVisible
 
     onTrayOpenChanged: if (!root.trayOpen) trayMenu.visible = false
 
@@ -75,8 +76,8 @@ Item {
             id: overflowBtn
             visible: root.overflowItems.length > 0
             Layout.alignment: Qt.AlignVCenter
-            implicitWidth: 26
-            implicitHeight: 24
+            implicitWidth: Theme.barItemSquare
+            implicitHeight: Theme.barItemHeight
             radius: Theme.radiusMd
             color: root.trayOpen ? Theme.surfaceActive : (ovHover.hovered ? Theme.surfaceHover : "transparent")
 

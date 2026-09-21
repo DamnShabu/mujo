@@ -1,0 +1,31 @@
+--- a/src/input/mod.rs	2026-09-06 13:04:48.113550465 +0200
++++ b/src/input/mod.rs	2026-09-06 13:05:00.427506689 +0200
+@@ -2491,6 +2491,28 @@ impl State {
+             }
+         }
+ 
++        if !self.niri.layout.is_overview_open() {
++            if let Some(output) = self.niri.global_space.output_under(pos).next() {
++                let is_fullscreen = self
++                    .niri
++                    .layout
++                    .monitor_for_output(output)
++                    .map(|mon| mon.active_workspace_ref().is_active_pending_fullscreen())
++                    .unwrap_or(false);
++
++                if is_fullscreen {
++                    if let Some(geom) = self.niri.global_space.output_geometry(output) {
++                        new_pos.x = new_pos
++                            .x
++                            .clamp(geom.loc.x as f64, (geom.loc.x + geom.size.w - 1) as f64);
++                        new_pos.y = new_pos
++                            .y
++                            .clamp(geom.loc.y as f64, (geom.loc.y + geom.size.h - 1) as f64);
++                    }
++                }
++            }
++        }
++
+         if self
+             .niri
+             .global_space

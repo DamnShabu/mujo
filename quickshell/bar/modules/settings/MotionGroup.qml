@@ -40,157 +40,89 @@ ColumnLayout {
         easing.type: Easing.OutQuad
     }
 
-    // ── 1. Interactive Motion Playground Card ─────────────────────────────────
+    // A place to feel the timings before committing to them. The controls are
+    // live but write nothing — that is the point.
     MujoCard {
         title: "Interactive Motion Playground"
-        iconName: "play_circle"
         badgeText: root.motionEnabled ? (Anim.reduceMotion ? "REDUCED MOTION" : "INTERACTIVE") : "DISABLED"
         badgeColor: root.motionEnabled ? Theme.accent : Theme.textDim
 
-        ColumnLayout {
+        actions: DialogButton {
+            text: "Trigger pulse"
+            iconName: "bolt"
+            onClicked: root.triggerPulse()
+        }
+
+        RowLayout {
             Layout.fillWidth: true
-            spacing: 14
+            Layout.topMargin: 2
+            spacing: 8
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 140
-                radius: Theme.radiusMd
-                color: Theme.withAlpha(Theme.bg, 0.7)
-                border.color: Theme.border
-                clip: true
+            StatusTag {
+                text: root.motionEnabled ? "ENGINE ACTIVE" : "ENGINE OFF"
+                tone: root.motionEnabled ? "success" : "error"
+            }
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 14
+            StatusTag {
+                text: "SPEED " + (Anim.durationScale * 100).toFixed(0) + "%"
+                tone: "accent"
+            }
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
+            Item { Layout.fillWidth: true }
+        }
 
-                        Rectangle {
-                            implicitWidth: engPill.implicitWidth + 12
-                            implicitHeight: 22
-                            radius: Theme.radiusSm
-                            color: Theme.surface
-                            border.color: Theme.border
+        InsetPanel {
+            Layout.fillWidth: true
+            Layout.topMargin: 10
+            implicitHeight: 92
 
-                            RowLayout {
-                                id: engPill
-                                anchors.centerIn: parent
-                                spacing: 5
-                                Rectangle {
-                                    width: 6; height: 6; radius: 3
-                                    color: root.motionEnabled ? Theme.success : Theme.error
-                                }
-                                Text {
-                                    text: root.motionEnabled ? "MOTION ENGINE ACTIVE" : "MOTION ENGINE INACTIVE"
-                                    color: Theme.text
-                                    font.family: Theme.fontMono
-                                    font.pixelSize: Theme.fontSizeLabel - 1
-                                    font.bold: true
-                                }
-                            }
-                        }
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 18
+                anchors.rightMargin: 18
+                spacing: 20
 
-                        Rectangle {
-                            implicitWidth: scalePill.implicitWidth + 12
-                            implicitHeight: 22
-                            radius: Theme.radiusSm
-                            color: Theme.accentDim
-                            border.color: Theme.withAlpha(Theme.accent, 0.3)
+                RowLayout {
+                    spacing: 9
 
-                            Text {
-                                id: scalePill
-                                anchors.centerIn: parent
-                                text: "DURATION SCALE: " + (Anim.durationScale * 100).toFixed(0) + "%"
-                                color: Theme.accent
-                                font.family: Theme.fontMono
-                                font.pixelSize: Theme.fontSizeLabel - 1
-                                font.bold: true
-                            }
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        Rectangle {
-                            implicitWidth: pulseTxt.implicitWidth + 18
-                            implicitHeight: 26
-                            radius: Theme.radiusSm
-                            color: pulseHh.hovered ? Theme.accent : Theme.surface
-                            border.color: Theme.accent
-                            Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-
-                            RowLayout {
-                                anchors.centerIn: parent
-                                spacing: 4
-                                MaterialIcon {
-                                    iconName: "bolt"
-                                    pixelSize: 13
-                                    color: pulseHh.hovered ? Theme.accentText : Theme.accent
-                                }
-                                Text {
-                                    id: pulseTxt
-                                    text: "Trigger Pulse"
-                                    color: pulseHh.hovered ? Theme.accentText : Theme.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    font.bold: true
-                                }
-                            }
-                            HoverHandler { id: pulseHh; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: root.triggerPulse() }
-                        }
+                    ToggleSwitch {
+                        a11yName: "Demonstration toggle"
+                        checked: root.demoToggle
+                        onToggled: function (c) { root.demoToggle = c }
                     }
 
-                    // Interactive Demo Controls Row
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 20
-
-                        RowLayout {
-                            spacing: 8
-                            ToggleSwitch {
-                                checked: root.demoToggle
-                                onToggled: function(c) { root.demoToggle = c }
-                            }
-                            Text {
-                                text: root.demoToggle ? "Active" : "Dormant"
-                                color: Theme.text
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeSmall
-                            }
-                        }
-
-                        Rectangle { width: 1; height: 24; color: Theme.border }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-                            MaterialIcon { iconName: "tune"; pixelSize: 15; color: Theme.accent }
-                            Slider {
-                                Layout.fillWidth: true
-                                value: root.demoSlider
-                                from: 0.0
-                                to: 1.0
-                                format: "%"
-                                valueText: Math.round(root.demoSlider * 100) + "%"
-                                onMoved: function(v) { root.demoSlider = v }
-                            }
-                        }
-
-                        Rectangle { width: 1; height: 24; color: Theme.border }
-
-                        MujoSegmented {
-                            current: root.demoSegmented
-                            model: [
-                                { id: "opt1", label: "Fast", icon: "speed" },
-                                { id: "opt2", label: "Smooth", icon: "gesture" },
-                                { id: "opt3", label: "Fluid", icon: "waves" }
-                            ]
-                            onSelected: function(id) { root.demoSegmented = id }
-                        }
+                    Text {
+                        text: root.demoToggle ? "Active" : "Dormant"
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
                     }
+                }
+
+                Rectangle { implicitWidth: 1; implicitHeight: 24; color: Theme.border }
+
+                Slider {
+                    Layout.fillWidth: true
+                    a11yName: "Demonstration slider"
+                    value: root.demoSlider
+                    from: 0.0
+                    to: 1.0
+                    format: "%"
+                    valueText: Math.round(root.demoSlider * 100) + "%"
+                    onMoved: function (v) { root.demoSlider = v }
+                }
+
+                Rectangle { implicitWidth: 1; implicitHeight: 24; color: Theme.border }
+
+                MujoSegmented {
+                    a11yName: "Demonstration choice"
+                    current: root.demoSegmented
+                    model: [
+                        { id: "opt1", label: "Fast", icon: "speed" },
+                        { id: "opt2", label: "Smooth", icon: "gesture" },
+                        { id: "opt3", label: "Fluid", icon: "waves" }
+                    ]
+                    onSelected: function (id) { root.demoSegmented = id }
                 }
             }
         }

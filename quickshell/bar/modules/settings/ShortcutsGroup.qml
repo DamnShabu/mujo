@@ -66,53 +66,46 @@ ColumnLayout {
 
         actions: TextField {
             Layout.preferredWidth: 200
-            placeholder: "Filter shortcuts…"
+            placeholder: "Filter"
             onTextChanged: root.filter = text
         }
 
+        // A shortcut is a fact — what it does, and what you press. The keycaps
+        // ride in the row's trailing slot, so they line up with every other
+        // right-hand column in the app.
+        //
         // The page owns the scroll, so this is a plain Repeater rather than a
-        // ListView — a virtualised view inside a scrolling column has no
-        // height to virtualise against.
+        // ListView — a virtualised view inside a scrolling column has no height
+        // to virtualise against.
         Repeater {
             model: root.shown
-            delegate: Rectangle {
+
+            delegate: InfoRow {
                 required property var modelData
-                Layout.fillWidth: true
-                implicitHeight: 42
-                radius: Theme.radiusSm
-                color: Theme.bg
-                border.color: Theme.border
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 12
-                    spacing: 12
-                    Text {
-                        Layout.fillWidth: true
-                        text: root.humanize(modelData.action)
-                        color: Theme.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeBody
-                        elide: Text.ElideRight
-                    }
-                    Row {
-                        spacing: 4
-                        Repeater {
-                            model: modelData.key.split("+")
-                            delegate: Rectangle {
-                                required property var modelData
-                                implicitWidth: kc.implicitWidth + 14; implicitHeight: 22
-                                radius: Theme.radiusSm
-                                color: Theme.surface
-                                border.color: Theme.borderStrong
-                                Text {
-                                    id: kc
-                                    anchors.centerIn: parent
-                                    text: modelData
-                                    color: Theme.textSecondary
-                                    font.family: Theme.fontMono
-                                    font.pixelSize: Theme.fontSizeLabel
-                                }
+                label: root.humanize(modelData.action)
+
+                Row {
+                    spacing: 4
+
+                    Repeater {
+                        model: modelData.key.split("+")
+
+                        delegate: Rectangle {
+                            required property var modelData
+                            implicitWidth: cap.implicitWidth + 14
+                            implicitHeight: 21
+                            radius: Theme.radiusSm
+                            color: Theme.surface
+                            border.width: 1
+                            border.color: Theme.borderStrong
+
+                            Text {
+                                id: cap
+                                anchors.centerIn: parent
+                                text: modelData
+                                color: Theme.textSecondary
+                                font.family: Theme.fontMono
+                                font.pixelSize: Theme.fontSizeLabel
                             }
                         }
                     }
@@ -120,14 +113,16 @@ ColumnLayout {
             }
         }
 
-        Text {
+        EmptyState {
             Layout.fillWidth: true
+            Layout.topMargin: 16
+            Layout.bottomMargin: 16
             visible: root.shown.length === 0
-            horizontalAlignment: Text.AlignHCenter
-            text: root.binds.length === 0 ? "Reading shortcuts…" : "No shortcuts match the filter."
-            color: Theme.textDim
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeBody
+            iconName: root.binds.length === 0 ? "keyboard" : "search_off"
+            title: root.binds.length === 0 ? "Reading shortcuts…" : "Nothing matches that filter"
+            hint: root.binds.length === 0
+                ? "These come from the running Niri configuration."
+                : "Try part of an action name, like workspace or screenshot."
         }
     }
 }

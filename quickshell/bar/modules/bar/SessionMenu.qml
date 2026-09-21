@@ -25,6 +25,8 @@ Item {
 
     IconButton {
         id: trigger
+        implicitWidth: Theme.barItemSquare
+        implicitHeight: Theme.barItemHeight
         iconName: root.iconStyle === "user" ? "person" : (root.iconStyle === "logo" ? "fingerprint" : "power_settings_new")
         active: root.menuOpen
         iconColor: root.active ? Theme.accent : (root.hovered ? Theme.error : Theme.textSecondary)

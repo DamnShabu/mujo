@@ -5,17 +5,36 @@ import "../../theme"
 import "../../components"
 import "../../services"
 
-Pill {
+Item {
     id: root
-    interactive: true
-    active: calendarOpen
     implicitHeight: Theme.barHeight
-    implicitWidth: rowLayout.implicitWidth + 26
+    implicitWidth: rowLayout.implicitWidth + Theme.barItemPadding * 2
 
     property var panelWindow
     property string screenName: ""
     readonly property string popupId: root.screenName + ":calendar"
     readonly property bool calendarOpen: PopupCoordinator.activeId === root.popupId
+    readonly property bool active: root.calendarOpen
+
+    // A hover/active plate, not a pill. The clock used to be a full `Pill`
+    // — its own opaque surface and border — nested inside the group's surface
+    // and border, so the centre group drew two rounded outlines one inside the
+    // other and stood a head taller than the chips beside it.
+    Rectangle {
+        anchors.centerIn: parent
+        width: parent.width
+        height: Theme.barItemHeight
+        radius: Theme.radiusSm
+        color: root.active ? Theme.accentDim : (clockHover.hovered ? Theme.surfaceHover : "transparent")
+        border.color: root.active ? Theme.accent : (clockHover.hovered ? Theme.borderStrong : "transparent")
+        border.width: 1
+
+        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+    }
+
+    HoverHandler { id: clockHover; cursorShape: Qt.PointingHandCursor }
+    TapHandler { onTapped: PopupCoordinator.toggle(root.popupId) }
 
     readonly property bool format24: SettingsBus.get("bar.clock.format24", Theme.clock24h)
     readonly property bool showSeconds: SettingsBus.get("bar.clock.showSeconds", Theme.clockShowSeconds)
@@ -54,8 +73,6 @@ Pill {
         if (dateFormat === "iso") return "yyyy-MM-dd"
         return "ddd, MMM d"
     }
-
-    onClicked: PopupCoordinator.toggle(root.popupId)
 
     RowLayout {
         id: rowLayout

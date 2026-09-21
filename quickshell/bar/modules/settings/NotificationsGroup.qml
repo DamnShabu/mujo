@@ -148,7 +148,7 @@ ColumnLayout {
             description: "Test current notification audio chime configuration."
 
             DialogButton {
-                text: "Play Chime"
+                text: "Play chime"
                 onClicked: Notifications.playAlertSound("normal", null)
             }
         }
@@ -186,7 +186,7 @@ ColumnLayout {
                     }
                 }
                 DialogButton {
-                    text: "Mute App"
+                    text: "Mute app"
                     iconName: "volume_off"
                     onClicked: {
                         var val = muteField.text.trim()
@@ -210,9 +210,10 @@ ColumnLayout {
                         required property var modelData
                         implicitWidth: mrow.implicitWidth + 18
                         implicitHeight: 28
-                        radius: Theme.radiusMd
+                        radius: Theme.radiusSm
                         color: Theme.surface
-                        border.color: Theme.borderStrong
+                        border.width: 1
+                        border.color: Theme.border
 
                         RowLayout {
                             id: mrow
@@ -255,19 +256,19 @@ ColumnLayout {
                 spacing: 8
 
                 DialogButton {
-                    text: "Normal Alert"
+                    text: "Normal alert"
                     iconName: "notifications"
                     onClicked: Notifications.notify("New Message", "Alex: The deployment succeeded on server 4.", "chat", "normal", { appName: "Slack" })
                 }
 
                 DialogButton {
-                    text: "Critical Alert"
+                    text: "Critical alert"
                     iconName: "warning"
                     onClicked: Notifications.notify("High Temperature Alert", "CPU Core 0 reached 92°C thermal throttle threshold.", "thermostat", "critical", { appName: "Hardware Sentinel" })
                 }
 
                 DialogButton {
-                    text: "Simulate Progress"
+                    text: "Simulate progress"
                     iconName: "download"
                     onClicked: { root.testProgress = 0; progressSimTimer.start() }
                 }

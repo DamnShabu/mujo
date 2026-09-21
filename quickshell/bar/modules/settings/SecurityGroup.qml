@@ -68,7 +68,7 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: "hide_source"
-            title: "Zero Core Dumps on Persistent Disk"
+            title: "No core dumps on disk"
             description: (root.nixosPrefs.security ? root.nixosPrefs.security.coredumpDisabled !== false : SecurityService.coredumpDisabled)
                 ? "RAM images never persist to disk; crashes stay bounded in journald"
                 : "Core dumps enabled on disk (/var/lib/systemd/coredump) for crash analysis and debugging"
@@ -85,7 +85,7 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: "local_fire_department"
-            title: "NFTables Host Firewall"
+            title: "Host firewall"
             description: (root.nixosPrefs.firewall ? root.nixosPrefs.firewall.enable !== false : SecurityService.firewallActive)
                 ? "Default DROP for all inbound traffic; strictly managed interfaces"
                 : "Firewall disabled; inbound traffic accepted without filtering"
@@ -102,7 +102,7 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: "delete_sweep"
-            title: "Ephemeral Scratch Directory (/tmp in RAM)"
+            title: "Scratch directory in RAM"
             description: (root.nixosPrefs.storage ? root.nixosPrefs.storage.tmpfsTmp !== false : SecurityService.tmpfsTmpActive)
                 ? "All scratch files reside in tmpfs (RAM) and are discarded on reboot"
                 : "Scratch files written to disk (/tmp persisted across reboots)"
@@ -119,7 +119,7 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: SecurityService.encryptedSwapActive ? "key" : "key_off"
-            title: "Per-Boot Encrypted Swap"
+            title: "Encrypted swap, re-keyed each boot"
             description: (root.nixosPrefs.storage ? root.nixosPrefs.storage.encryptedSwap !== false : SecurityService.encryptedSwapActive)
                 ? "Re-keyed on every boot with a random key; persistent hibernation disabled"
                 : "Static swap key; allows hibernation but swap contents persist across boots"
@@ -145,7 +145,7 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: SecurityService.secureBootActive ? "verified" : "gpp_maybe"
-            title: "UEFI Secure Boot (Lanzaboote)"
+            title: "UEFI Secure Boot"
             description: SecurityService.secureBootActive
                 ? "Lanzaboote custom signing keys active and enforcing in UEFI firmware"
                 : "Firmware setup mode or inactive (boots via GRUB); enable declarative Secure Boot and enroll keys"
@@ -155,7 +155,7 @@ ColumnLayout {
 
                 DialogButton {
                     visible: !SecurityService.secureBootActive
-                    text: "Setup Keys"
+                    text: "Set up keys"
                     onClicked: Quickshell.execDetached(["kitty", "--title", "mujō — setup secureboot keys", "-e", "pkexec", "mujo-secureboot", "setup-keys"])
                 }
 
@@ -178,7 +178,7 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: "memory"
-            title: "TPM 2.0 Cryptographic Processor"
+            title: "TPM 2.0"
             description: SecurityService.tpmActive
                 ? "Hardware TPM device (/dev/tpmrm0) active for boot measurements & secrets"
                 : "TPM module not detected or unmeasured"
@@ -200,7 +200,7 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: "shield"
-            title: "Unprivileged eBPF Restriction"
+            title: "Restrict unprivileged eBPF"
             description: "Disables unprivileged eBPF to prevent speculative execution and kernel memory inspection"
 
             ToggleSwitch {
@@ -220,7 +220,7 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: SecurityService.vaultMounted ? "lock_open" : "lock"
-            title: SecurityService.vaultMounted ? "Storage Vault Unlocked & Mounted" : "Storage Vault Locked"
+            title: SecurityService.vaultMounted ? "Vault unlocked" : "Vault locked"
             description: SecurityService.vaultMounted
                 ? "Mounted at " + SecurityService.vaultMountPoint + " with 0700 permissions"
                 : (SecurityService.vaultContainerPresent
@@ -228,21 +228,23 @@ ColumnLayout {
                     : "Initialize with: sudo mujo-vault init 10G")
 
             DialogButton {
-                text: SecurityService.vaultMounted ? "Lock Vault" : "Unlock"
+                text: SecurityService.vaultMounted ? "Lock" : "Unlock"
                 primary: !SecurityService.vaultMounted
                 enabled: SecurityService.vaultMounted || SecurityService.vaultContainerPresent
                 onClicked: SecurityService.vaultMounted ? SecurityService.closeVault() : SecurityService.openVault()
             }
         }
 
-        // Subdirectories Overview (When Mounted)
+        // What the unlocked vault holds. One tag shape, no folder glyph per
+        // chip — the label above already says these are directories.
         ColumnLayout {
             visible: SecurityService.vaultMounted && SecurityService.vaultSubdirectories.length > 0
             Layout.fillWidth: true
-            spacing: 6
+            Layout.topMargin: 2
+            spacing: 7
 
             Text {
-                text: "Encrypted Domains Available:"
+                text: "Encrypted domains"
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
@@ -254,26 +256,10 @@ ColumnLayout {
 
                 Repeater {
                     model: SecurityService.vaultSubdirectories
-                    delegate: Rectangle {
+                    delegate: StatusTag {
                         required property var modelData
-                        implicitWidth: sd_row.implicitWidth + 16
-                        implicitHeight: 24
-                        radius: Theme.radiusSm
-                        color: Theme.surface
-                        border.color: Theme.border
-
-                        RowLayout {
-                            id: sd_row
-                            anchors.centerIn: parent
-                            spacing: 4
-                            MaterialIcon { iconName: "folder"; pixelSize: 13; color: Theme.accent }
-                            Text {
-                                text: modelData
-                                color: Theme.text
-                                font.family: Theme.fontMono
-                                font.pixelSize: Theme.fontSizeLabel - 1
-                            }
-                        }
+                        text: modelData
+                        tone: "accent"
                     }
                 }
             }
@@ -281,7 +267,7 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: "timer"
-            title: "Vault Auto-Lock Timeout"
+            title: "Auto-lock timeout"
             description: "Automatically unmount and lock the encrypted container after inactivity."
 
             MujoSegmented {
@@ -298,7 +284,7 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: SecurityService.inventoryFailed ? "help" : "find_in_page"
-            title: "Sensitive Plaintext Storage Audit"
+            title: "Plaintext storage audit"
             description: !SecurityService.inventoryAudited
                 ? "Audits /persist for unencrypted private keys, tokens, and credentials"
                 : SecurityService.inventoryFailed
@@ -308,7 +294,7 @@ ColumnLayout {
                         : SecurityService.inventoryFindingsCount + " plaintext item(s) found outside the vault")
 
             DialogButton {
-                text: SecurityService.inventoryAudited ? "Re-scan" : "Run Audit Scan"
+                text: SecurityService.inventoryAudited ? "Scan again" : "Run scan"
                 onClicked: SecurityService.auditInventory()
             }
         }
@@ -321,98 +307,65 @@ ColumnLayout {
         badgeText: (SecurityService.totalAppsCount) + " APPS TRACKED"
         badgeColor: Theme.accent
 
+
+        // Four counts, one shape. They were four copies of the same forty-line
+        // tile with only the colour and the words changed.
         RowLayout {
+            id: trustStats
             Layout.fillWidth: true
+            Layout.topMargin: 2
             spacing: 8
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 48
-                radius: Theme.radiusSm
-                color: qHh.hovered ? Theme.surfaceHover : Theme.bg
-                border.color: qHh.hovered ? Theme.warning : Theme.border
-                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+            readonly property var tiers: [
+                { n: SecurityService.quarantinedAppsCount, label: "Quarantine", sub: "MicroVM domain",  tone: Theme.warning },
+                { n: SecurityService.observingAppsCount,   label: "Observing",  sub: "Pre-graduation", tone: Theme.accent  },
+                { n: SecurityService.graduatedAppsCount,   label: "Graduated",  sub: "Native sandbox", tone: Theme.success },
+                { n: SecurityService.revokedAppsCount,     label: "Revoked",    sub: "Blocked",        tone: Theme.error   }
+            ]
 
-                HoverHandler { id: qHh; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.openTrustRequested() }
+            Repeater {
+                model: trustStats.tiers
 
-                RowLayout {
-                    anchors.centerIn: parent
-                    spacing: 8
-                    Text { text: SecurityService.quarantinedAppsCount.toString(); color: Theme.warning; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
-                    ColumnLayout {
-                        spacing: 0
-                        Text { text: "Quarantine"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
-                        Text { text: "MicroVM Domain"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
-                    }
-                }
-            }
+                delegate: InsetPanel {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    implicitHeight: 52
+                    color: tileHh.hovered ? Theme.surfaceHover : Theme.bg
+                    accentBorder: tileHh.hovered ? modelData.tone : Theme.border
+                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 48
-                radius: Theme.radiusSm
-                color: oHh.hovered ? Theme.surfaceHover : Theme.bg
-                border.color: oHh.hovered ? Theme.accent : Theme.border
-                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                    HoverHandler { id: tileHh; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: root.openTrustRequested() }
 
-                HoverHandler { id: oHh; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.openTrustRequested() }
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: 9
 
-                RowLayout {
-                    anchors.centerIn: parent
-                    spacing: 8
-                    Text { text: SecurityService.observingAppsCount.toString(); color: Theme.accent; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
-                    ColumnLayout {
-                        spacing: 0
-                        Text { text: "Observing"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
-                        Text { text: "Pre-Graduation"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
-                    }
-                }
-            }
+                        Text {
+                            text: String(modelData.n)
+                            color: modelData.tone
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeHeading + 2
+                            font.weight: Font.DemiBold
+                        }
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 48
-                radius: Theme.radiusSm
-                color: gHh.hovered ? Theme.surfaceHover : Theme.bg
-                border.color: gHh.hovered ? Theme.success : Theme.border
-                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
+                        ColumnLayout {
+                            spacing: 1
 
-                HoverHandler { id: gHh; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.openTrustRequested() }
+                            Text {
+                                text: modelData.label
+                                color: Theme.text
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeSmall
+                            }
 
-                RowLayout {
-                    anchors.centerIn: parent
-                    spacing: 8
-                    Text { text: SecurityService.graduatedAppsCount.toString(); color: Theme.success; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
-                    ColumnLayout {
-                        spacing: 0
-                        Text { text: "Graduated"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
-                        Text { text: "Native Sandbox"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 48
-                radius: Theme.radiusSm
-                color: rHh.hovered ? Theme.surfaceHover : Theme.bg
-                border.color: rHh.hovered ? Theme.error : Theme.border
-                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-
-                HoverHandler { id: rHh; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.openTrustRequested() }
-
-                RowLayout {
-                    anchors.centerIn: parent
-                    spacing: 8
-                    Text { text: SecurityService.revokedAppsCount.toString(); color: Theme.error; font.bold: true; font.pixelSize: Theme.fontSizeHeading }
-                    ColumnLayout {
-                        spacing: 0
-                        Text { text: "Revoked"; color: Theme.text; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
-                        Text { text: "Blocked"; color: Theme.textDim; font.pixelSize: Theme.fontSizeLabel - 1 }
+                            Text {
+                                text: modelData.sub
+                                color: Theme.textDim
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeLabel
+                            }
+                        }
                     }
                 }
             }
@@ -420,13 +373,13 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: "rocket_launch"
-            title: "Launcher Isolation Integration"
+            title: "Quarantine new applications"
             description: (root.nixosPrefs.trust ? root.nixosPrefs.trust.launcherIntegration === true : SecurityService.launcherIntegrationActive)
                 ? "Launcher automatically runs untrusted applications inside isolated quarantine domains"
                 : "Launcher starts applications directly on host (bypasses automatic quarantine on first click)"
 
             ToggleSwitch {
-                a11yName: "Launcher Isolation Integration"
+                a11yName: "Quarantine new applications"
                 checked: root.nixosPrefs.trust ? (root.nixosPrefs.trust.launcherIntegration === true) : SecurityService.launcherIntegrationActive
                 onToggled: function(c) {
                     root.setNixosPref("trust.launcherIntegration", c)
@@ -437,11 +390,11 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: "security"
-            title: "Strict Flatpak Permission Narrowing"
+            title: "Narrow Flatpak permissions"
             description: "Subtractive overrides: strip raw /dev, ptrace, and smartcard access from graduated Flatpaks"
 
             ToggleSwitch {
-                a11yName: "Strict Flatpak Permission Narrowing"
+                a11yName: "Narrow Flatpak permissions"
                 checked: root.nixosPrefs.trust ? (root.nixosPrefs.trust.flatpakNarrowing !== false) : true
                 onToggled: function(c) { root.setNixosPref("trust.flatpakNarrowing", c) }
             }
@@ -449,19 +402,19 @@ ColumnLayout {
 
         MujoSettingRow {
             iconName: "policy"
-            title: "Application Trust & Policy Engine"
+            title: "Per-application policy"
             description: "Configure individual application risk tiers, quarantine overrides, and graduation logs."
 
             RowLayout {
                 spacing: 8
 
                 DialogButton {
-                    text: "Evaluate Policy"
+                    text: "Evaluate now"
                     onClicked: SecurityService.evaluateTrust()
                 }
 
                 DialogButton {
-                    text: "Manage Apps →"
+                    text: "Manage apps"
                     primary: true
                     onClicked: root.openTrustRequested()
                 }

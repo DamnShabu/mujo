@@ -27,7 +27,8 @@ Item {
     readonly property int count: model ? model.length : 0
     readonly property int step: itemHeight + spacing
 
-    implicitWidth: parent ? parent.width : 300
+    Layout.fillWidth: true
+    implicitWidth: 300
     implicitHeight: count > 0 ? (count * itemHeight + (count - 1) * spacing) : 0
 
     property int dragIndex: -1

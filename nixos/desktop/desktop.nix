@@ -47,6 +47,8 @@
     environment.sessionVariables = {
       NIXOS_OZONE_WL = "1";
       QT_QPA_PLATFORM = "wayland;xcb";
+      DEFAULT_BROWSER = "helium";
+      BROWSER = "helium";
 
       XDG_CURRENT_DESKTOP = "niri:GNOME";
     };
@@ -55,6 +57,7 @@
     environment.systemPackages = [
       selfpkgs.terminal
       pkgs.wl-clipboard
+      pkgs.cliphist
       pkgs.xdg-utils
       pkgs.gparted
       pkgs.nautilus
@@ -103,22 +106,24 @@
     xdg.mime = {
       enable = true;
       defaultApplications = {
-        "text/html" = ["app.zen_browser.zen.desktop"];
-        "x-scheme-handler/http" = ["app.zen_browser.zen.desktop"];
-        "x-scheme-handler/https" = ["app.zen_browser.zen.desktop"];
-        "application/pdf" = ["app.zen_browser.zen.desktop"];
-        "image/png" = ["org.gimp.GIMP.desktop"];
-        "image/jpeg" = ["org.gimp.GIMP.desktop"];
-        "image/gif" = ["org.gimp.GIMP.desktop"];
-        "image/webp" = ["org.gimp.GIMP.desktop"];
-        "image/bmp" = ["org.gimp.GIMP.desktop"];
-        "image/svg+xml" = ["org.gimp.GIMP.desktop"];
+        "text/html" = ["helium.desktop"];
+        "x-scheme-handler/http" = ["helium.desktop"];
+        "x-scheme-handler/https" = ["helium.desktop"];
+        "application/pdf" = ["helium.desktop"];
         "text/markdown" = ["md.obsidian.Obsidian.desktop"];
-        "text/plain" = ["org.gnome.TextEditor.desktop" "kitty.desktop"];
-        "inode/directory" = ["kitty.desktop"];
-        "x-scheme-handler/file" = ["kitty.desktop"];
+        # kitty.desktop declares no MimeType and takes no file argument, so
+        # every consumer that validates the handler (xdg-desktop-portal, GIO)
+        # rejects it and falls back to an "Open With" chooser. kitty-open is
+        # the entry kitty ships for opening things; folders go to Nautilus,
+        # which is what Mod+E opens too.
+        "text/plain" = ["kitty-open.desktop"];
+        "inode/directory" = ["org.gnome.Nautilus.desktop"];
+        "x-scheme-handler/file" = ["org.gnome.Nautilus.desktop"];
         "x-scheme-handler/tg" = ["org.telegram.desktop.desktop"];
-        "x-scheme-handler/spotify" = ["spotify.desktop"];
+        # Nothing is mapped for image/* or x-scheme-handler/spotify: GIMP and
+        # Spotify are not installed, and a default pointing at a missing
+        # application produces an empty chooser instead of falling through to
+        # the applications that do register for the type.
       };
     };
 

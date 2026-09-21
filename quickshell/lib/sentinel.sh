@@ -56,7 +56,7 @@ mujo_sentinel() {
             --arg gpu_busy "${GPU_BUSY}" \
             --arg vram_used "${VRAM_USED}" \
             --arg vram_total "${VRAM_TOTAL}" '
-            def is_exempt: .comm | test("(^|\\.)(quickshell|niri|agy|claude|opencode|codex|gemini|pi|kitty|ghostty|foot|alacritty|wezterm|zen|firefox|chromium|chrome|brave|systemd|dbus-daemon|wireplumber|pipewire|Xwayland|qemu|qemu-system|nixos-test|nix-test|bash|sh|fish|zsh|ps|awk|jq|sed|grep|rg|ripgrep|rtk|git|nix|nix-daemon)(-|$|\\.)");
+            def is_exempt: .comm | test("(^|\\.)(quickshell|niri|agy|claude|opencode|codex|gemini|pi|kitty|ghostty|foot|alacritty|wezterm|zen|helium|firefox|chromium|chrome|brave|systemd|dbus-daemon|wireplumber|pipewire|Xwayland|qemu|qemu-system|nixos-test|nix-test|bash|sh|fish|zsh|ps|awk|jq|sed|grep|rg|ripgrep|rtk|git|nix|nix-daemon)(-|$|\\.)");
             ($procs | map(select(.stat | startswith("Z")))) as $zombies |
             ($procs | map(select((.stat | startswith("Z") | not) and (.pid as $p | ($orphanHelpers | index($p) != null))) | . + {type: "orphaned_process", label: "Orphaned Process"})) as $orphans |
             ($procs | map(select((.stat | startswith("Z") | not) and .cpu >= 70 and (is_exempt | not)) | . + {type: "cpu_runaway", label: "CPU Runaway"})) as $cpuRunaways |
@@ -116,7 +116,7 @@ mujo_sentinel() {
 
         # Parents with at least one live (non-zombie) child = still doing work underneath
         LIVE_CHILD_JSON="$(ps -eo ppid=,stat= | awk '$2 !~ /^Z/ && $1 != 2 {print $1}' | sort -u | jq -Rs '[split("\n")[] | select(. != "") | tonumber]')"
-        PROTECTED_RE='(^|\.)(quickshell|niri|agy|claude|opencode|codex|gemini|pi|kitty|ghostty|foot|alacritty|wezterm|zen|firefox|chromium|chrome|brave|systemd|dbus-daemon|wireplumber|pipewire|Xwayland|qemu|qemu-system|nixos-test|nix-test|bash|sh|fish|zsh|ps|awk|jq|sed|grep|rg|ripgrep|rtk|git|nix|nix-daemon)(-|$|\.)'
+        PROTECTED_RE='(^|\.)(quickshell|niri|agy|claude|opencode|codex|gemini|pi|kitty|ghostty|foot|alacritty|wezterm|zen|helium|firefox|chromium|chrome|brave|systemd|dbus-daemon|wireplumber|pipewire|Xwayland|qemu|qemu-system|nixos-test|nix-test|bash|sh|fish|zsh|ps|awk|jq|sed|grep|rg|ripgrep|rtk|git|nix|nix-daemon)(-|$|\.)'
 
         # Advance flags for current runaways (max 1/min), drop recovered pids.
         FLAGS_UPDATED="$(printf '%s' "${PREV_FLAGS}" | jq \

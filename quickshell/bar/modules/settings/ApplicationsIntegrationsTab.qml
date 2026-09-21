@@ -74,7 +74,7 @@ ColumnLayout {
         { id: "helium",    name: "Helium Browser",       category: "Web Browsers", brand: "helium",    icon: "public",
           check: "command -v helium",
           launch: "helium",
-          dataDir: ".config/helium", desc: "Private, fast, and honest Chromium-based browser" },
+          dataDir: ".config/net.imput.helium", desc: "Private, fast, and honest Chromium-based browser" },
         { id: "brave",     name: "Brave Browser",        category: "Web Browsers", brand: "brave",    icon: "shield",
           check: "flatpak info com.brave.Browser",
           launch: "flatpak run com.brave.Browser",
@@ -183,138 +183,87 @@ ColumnLayout {
 
     Repeater {
         model: section.categories
+
         delegate: MujoCard {
             id: catCard
             required property var modelData
             readonly property var entries: section.entriesFor(modelData)
+
             visible: entries.length > 0
             title: modelData
-            iconName: "extension"
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 4
+            Repeater {
+                model: catCard.entries
 
-                Repeater {
-                    model: catCard.entries
-                    delegate: Rectangle {
-                        id: intRow
-                        required property var modelData
-                        readonly property bool installed: section.isInstalled(modelData)
-                        readonly property bool running: section.isRunning(modelData)
+                delegate: ListRow {
+                    required property var modelData
+                    readonly property bool installed: section.isInstalled(modelData)
+                    readonly property bool running: section.isRunning(modelData)
+
+                    implicitHeight: 58
+
+                    BrandIcon {
+                        brand: modelData.brand || "desktop"
+                        size: 28
+                        Layout.preferredWidth: 28
+                        Layout.preferredHeight: 28
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        implicitHeight: 56
-                        radius: Theme.radiusMd
-                        color: int_hh.hovered ? Theme.surfaceHover : "transparent"
-                        border.color: int_hh.hovered ? Theme.borderStrong : "transparent"
-                        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-
-                        HoverHandler { id: int_hh }
+                        spacing: 2
 
                         RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            spacing: 12
+                            spacing: 7
 
-                            BrandIcon {
-                                brand: intRow.modelData.brand || "desktop"
-                                size: 32
-                                Layout.preferredWidth: 32
-                                Layout.preferredHeight: 32
-                                Layout.alignment: Qt.AlignVCenter
+                            Text {
+                                text: modelData.name
+                                color: Theme.text
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeBody
+                                font.weight: Font.DemiBold
                             }
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                spacing: 2
-
-                                RowLayout {
-                                    spacing: 8
-                                    Layout.fillWidth: true
-
-                                    Text {
-                                        text: intRow.modelData.name
-                                        color: Theme.text
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeBody
-                                        font.bold: true
-                                    }
-
-                                    // Status pill
-                                    Rectangle {
-                                        implicitWidth: statText.implicitWidth + 10
-                                        implicitHeight: 16
-                                        radius: Theme.radiusSm
-                                        color: intRow.running ? Theme.accentDim : "transparent"
-                                        border.color: intRow.running ? Theme.accent : (intRow.modelData.builtin ? Theme.accent : (intRow.installed ? Theme.success : Theme.border))
-
-                                        RowLayout {
-                                            anchors.centerIn: parent
-                                            spacing: 4
-                                            Rectangle {
-                                                visible: intRow.running
-                                                width: 5; height: 5; radius: 2.5; color: Theme.success
-                                            }
-                                            Text {
-                                                id: statText
-                                                text: intRow.running ? "Running" : (intRow.modelData.builtin ? "Built-in" : (intRow.installed ? "Installed" : "Not installed"))
-                                                color: intRow.running ? Theme.success : (intRow.modelData.builtin ? Theme.accent : (intRow.installed ? Theme.success : Theme.textDim))
-                                                font.family: Theme.fontFamily
-                                                font.pixelSize: Theme.fontSizeLabel - 1
-                                                font.bold: intRow.running
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Text {
-                                    text: intRow.modelData.desc
-                                    color: Theme.textSecondary
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: true
-                                }
-                            }
-
-                            // Open Data Folder button
-                            Rectangle {
-                                visible: intRow.modelData.dataDir !== undefined && intRow.installed
-                                Layout.preferredWidth: 30
-                                Layout.preferredHeight: 30
-                                Layout.alignment: Qt.AlignVCenter
-                                radius: Theme.radiusSm
-                                color: data_hh.hovered ? Theme.surfaceActive : "transparent"
-                                border.color: Theme.border
-                                MaterialIcon {
-                                    anchors.centerIn: parent
-                                    iconName: "folder_open"
-                                    pixelSize: 15
-                                    color: Theme.textSecondary
-                                }
-                                HoverHandler { id: data_hh; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: section.openDataFolder(intRow.modelData.dataDir) }
-                            }
-
-                            // Launch action
-                            DialogButton {
-                                visible: intRow.modelData.launch !== ""
-                                Layout.alignment: Qt.AlignVCenter
-                                text: "Launch"
-                                enabled: intRow.installed
-                                opacity: intRow.installed ? 1 : 0.4
-                                onClicked: section.launch(intRow.modelData)
-                            }
-
-                            // Enable toggle
-                            ToggleSwitch {
-                                Layout.alignment: Qt.AlignVCenter
-                                checked: section.isEnabled(intRow.modelData)
-                                onToggled: function(c) { section.setEnabled(intRow.modelData, c) }
+                            StatusTag {
+                                text: running ? "RUNNING"
+                                    : (modelData.builtin ? "BUILT-IN"
+                                    : (installed ? "INSTALLED" : "NOT INSTALLED"))
+                                tone: running ? "success"
+                                    : (modelData.builtin ? "accent"
+                                    : (installed ? "success" : "neutral"))
                             }
                         }
+
+                        Text {
+                            text: modelData.desc
+                            color: Theme.textSecondary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    IconButton {
+                        visible: modelData.dataDir !== undefined && installed
+                        iconName: "folder_open"
+                        onClicked: section.openDataFolder(modelData.dataDir)
+                    }
+
+                    DialogButton {
+                        visible: modelData.launch !== ""
+                        text: "Launch"
+                        enabled: installed
+                        opacity: installed ? 1 : 0.4
+                        onClicked: section.launch(modelData)
+                    }
+
+                    ToggleSwitch {
+                        Layout.alignment: Qt.AlignVCenter
+                        a11yName: modelData.name
+                        checked: section.isEnabled(modelData)
+                        onToggled: function (c) { section.setEnabled(modelData, c) }
                     }
                 }
             }

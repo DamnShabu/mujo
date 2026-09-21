@@ -2,9 +2,18 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 
-// MujoSettingRow: High-scannability, atmospheric setting row item for Mujo (無常).
-// Layout: [Icon] Title + Description [NixOS/Status Tags] ... [Control Slot]
-Rectangle {
+// One setting on a page: its name and what it does on the left, the control
+// that changes it on the right.
+//
+//     Bar height
+//     Content height of the floating groups          [ ──●── 34px ]
+//
+// The row draws no container of its own. Settings pages are a single flat
+// plane — the sections above give the grouping, the hover band gives the
+// scan line, and the control is the only thing with a shape. The previous
+// version boxed every row's icon in a bordered tile and every group in a
+// filled card, which put three nested rectangles behind one toggle.
+Item {
     id: root
 
     property string iconName: ""
@@ -18,121 +27,75 @@ Rectangle {
     default property alias control: controlSlot.children
 
     Layout.fillWidth: true
-    implicitHeight: Math.max(42, rowLayout.implicitHeight + 12)
-    color: "transparent"
-    opacity: root.disabled ? 0.45 : 1.0
+    implicitHeight: Math.max(46, body.implicitHeight + 14)
+    opacity: root.disabled ? 0.4 : 1
     Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast) } }
 
-    HoverHandler { id: rowHh }
-
-    // The control inside carries the interactive role; the row groups the label
+    // The control inside carries the interactive role; the row groups the name
     // and helper text with it so a screen reader reads them together.
     Accessible.role: Accessible.Grouping
     Accessible.name: root.title
     Accessible.description: root.description
 
-    // The row content sits flush with the card's content column so icons and
-    // controls line up with the card header and its divider. The hover
-    // highlight is a separate rectangle that bleeds outwards into the card's
-    // padding, so it still reads as a padded pill without indenting the row.
+    HoverHandler { id: hh }
+
+    // The scan band. It bleeds past the content column so it reads as a full
+    // row of the page rather than a box drawn around the text.
     Rectangle {
         anchors.fill: parent
-        anchors.leftMargin: -10
-        anchors.rightMargin: -10
-        radius: Theme.radiusMd
-        color: (rowHh.hovered && !root.disabled) ? Theme.surfaceHover : "transparent"
+        anchors.leftMargin: -12
+        anchors.rightMargin: -12
+        radius: Theme.radiusSm
+        color: (hh.hovered && !root.disabled) ? Theme.surfaceHover : "transparent"
         Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
     }
 
     RowLayout {
-        id: rowLayout
+        id: body
         anchors {
             left: parent.left
             right: parent.right
             verticalCenter: parent.verticalCenter
         }
-        spacing: 12
+        spacing: 13
 
-        // Icon with subtle container
-        Item {
+        // A bare glyph, aligned to the name — not a tile. Optional; most rows
+        // read better without one, and the section heading already names the
+        // group they belong to.
+        MaterialIcon {
             visible: root.iconName !== ""
-            implicitWidth: 28
-            implicitHeight: 28
+            iconName: root.iconName
+            pixelSize: 16
+            color: Theme.textSecondary
             Layout.alignment: Qt.AlignVCenter
-
-            Rectangle {
-                anchors.fill: parent
-                radius: Theme.radiusSm
-                color: (rowHh.hovered && !root.disabled) ? Theme.withAlpha(Theme.accent, 0.12) : Theme.withAlpha(Theme.surfaceActive, 0.6)
-                border.color: (rowHh.hovered && !root.disabled) ? Theme.withAlpha(Theme.accent, 0.25) : Theme.border
-                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    iconName: root.iconName
-                    pixelSize: 17
-                    color: (rowHh.hovered && !root.disabled) ? Theme.accent : Theme.textSecondary
-                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                }
-            }
         }
 
-        // Title + Subtitle + Tag Pills
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 2
             Layout.alignment: Qt.AlignVCenter
+            spacing: 3
 
             RowLayout {
-                spacing: 6
+                spacing: 7
+                Layout.fillWidth: true
 
                 Text {
                     text: root.title
                     color: Theme.text
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeBody
-                    font.bold: false
+                    elide: Text.ElideRight
                 }
 
-                // NixOS tag
-                Rectangle {
-                    visible: root.isNixos
-                    implicitWidth: nrTxt.implicitWidth + 8
-                    implicitHeight: 15
-                    radius: 3
-                    color: Theme.withAlpha(Theme.accent, 0.12)
-                    border.color: Theme.withAlpha(Theme.accent, 0.4)
-
-                    Text {
-                        id: nrTxt
-                        anchors.centerIn: parent
-                        text: "NIXOS"
-                        color: Theme.accent
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fontSizeLabel - 1
-                        font.bold: true
-                    }
+                // NIXOS marks a setting the flake owns, so it outranks a
+                // caller.s own badge on the same row.
+                StatusTag {
+                    visible: root.isNixos || root.badgeText !== ""
+                    text: root.isNixos ? "NIXOS" : root.badgeText
+                    toneColor: root.isNixos ? Theme.accent : root.badgeColor
                 }
 
-                // Badge tag
-                Rectangle {
-                    visible: root.badgeText !== "" && !root.isNixos
-                    implicitWidth: brTxt.implicitWidth + 8
-                    implicitHeight: 15
-                    radius: 3
-                    color: Theme.withAlpha(root.badgeColor, 0.12)
-                    border.color: Theme.withAlpha(root.badgeColor, 0.4)
-
-                    Text {
-                        id: brTxt
-                        anchors.centerIn: parent
-                        text: root.badgeText
-                        color: root.badgeColor
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fontSizeLabel - 1
-                        font.bold: true
-                    }
-                }
+                Item { Layout.fillWidth: true }
             }
 
             Text {
@@ -141,12 +104,12 @@ Rectangle {
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
+                lineHeight: 1.25
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
             }
         }
 
-        // Control Slot
         RowLayout {
             id: controlSlot
             spacing: 8

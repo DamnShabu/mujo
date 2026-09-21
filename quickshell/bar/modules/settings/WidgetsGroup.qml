@@ -81,7 +81,7 @@ ColumnLayout {
             spacing: 8
 
             Text {
-                text: "Add New Widget"
+                text: "Add a widget"
                 color: Theme.text
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeBody
@@ -97,9 +97,10 @@ ColumnLayout {
                     delegate: Rectangle {
                         required property var modelData
                         implicitWidth: addRow.implicitWidth + 20
-                        implicitHeight: 32
+                        implicitHeight: 28
                         radius: Theme.radiusSm
-                        color: add_hh.hovered ? Theme.surfaceHover : Theme.surfaceActive
+                        color: add_hh.hovered ? Theme.surfaceHover : Theme.surface
+                        border.width: 1
                         border.color: Theme.border
 
                         RowLayout {
@@ -117,70 +118,68 @@ ColumnLayout {
             }
         }
 
-        // Active Widgets List
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.topMargin: 12
             spacing: 6
 
             Text {
-                text: "Active Widgets (" + root.widgetList.length + ")"
+                text: "On the desktop (" + root.widgetList.length + ")"
                 color: Theme.textSecondary
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
+                Layout.bottomMargin: 2
             }
 
             Repeater {
                 model: root.widgetList
-                delegate: Rectangle {
+
+                delegate: ListRow {
                     required property var modelData
-                    Layout.fillWidth: true
-                    implicitHeight: 40
-                    radius: Theme.radiusSm
-                    color: Theme.bg
-                    border.color: root.selectedWidgetType === modelData.type ? Theme.accent : Theme.border
+                    active: root.selectedWidgetType === modelData.type
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 6
-                        spacing: 10
+                    MaterialIcon {
+                        iconName: root.typeDef(modelData.type).i
+                        pixelSize: 17
+                        color: Theme.accent
+                        Layout.alignment: Qt.AlignVCenter
+                    }
 
-                        MaterialIcon {
-                            iconName: root.typeDef(modelData.type).i
-                            pixelSize: 16
-                            color: Theme.accent
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: root.typeDef(modelData.type).l
-                                + (modelData.monitor ? ("  ·  " + modelData.monitor) : "")
-                                + (modelData.rot ? ("  ·  " + modelData.rot + "°") : "")
-                            color: Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeBody
-                        }
-                        DisplayChip {
-                            label: "Style"
-                            selected: root.selectedWidgetType === modelData.type
-                            onClicked: root.selectedWidgetType = modelData.type
-                        }
-                        IconButton {
-                            iconName: "delete"
-                            onClicked: root.runW(["remove", modelData.id])
-                        }
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.typeDef(modelData.type).l
+                            + (modelData.monitor ? " · " + modelData.monitor : "")
+                            + (modelData.rot ? " · " + modelData.rot + "°" : "")
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeBody
+                        elide: Text.ElideRight
+                    }
+
+                    DisplayChip {
+                        label: "Style"
+                        selected: root.selectedWidgetType === modelData.type
+                        onClicked: root.selectedWidgetType = modelData.type
+                    }
+
+                    IconButton {
+                        iconName: "delete"
+                        onClicked: root.runW(["remove", modelData.id])
                     }
                 }
             }
 
             Text {
                 visible: root.widgetList.length === 0
-                text: "No widgets placed yet. Choose one from above."
-                color: Theme.textDim
+                text: "Nothing on the desktop yet. Add one from the row above."
+                color: Theme.textSecondary
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
+                Layout.fillWidth: true
             }
         }
     }
+
 
     // ── 2. Global Widget Surface & Glassmorphism Card ─────────────────────────
     MujoCard {

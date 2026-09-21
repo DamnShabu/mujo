@@ -19,5 +19,6 @@ CavaPill CavaPill.qml
 DividerPill DividerPill.qml
 SpacerPill SpacerPill.qml
 singleton BarModuleRegistry BarModuleRegistry.qml
-BarModuleLoader BarModuleLoader.qml
 BarSlot BarSlot.qml
+BarLayout BarLayout.qml
+SessionMenu SessionMenu.qml

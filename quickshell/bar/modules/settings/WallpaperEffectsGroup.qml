@@ -56,7 +56,8 @@ ColumnLayout {
 
                 Rectangle {
                     readonly property bool selected:
-                        root.letterbox.toLowerCase() === Theme.active.bg.toLowerCase()
+                        root.letterbox.toLowerCase() === "theme"
+                        || root.letterbox.toLowerCase() === Theme.active.bg.toLowerCase()
                     implicitWidth: 58
                     implicitHeight: 30
                     radius: Theme.radiusSm
@@ -76,7 +77,7 @@ ColumnLayout {
                         font.bold: parent.selected
                     }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: root.wpRun(["background", Theme.active.bg]) }
+                    TapHandler { onTapped: root.wpRun(["background", "theme"]) }
                 }
 
                 Repeater {

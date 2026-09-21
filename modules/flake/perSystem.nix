@@ -34,8 +34,23 @@
       packages.antigravity-cli = unstable.antigravity-cli;
       packages.antigravity-ide = unstable.antigravity-ide;
       packages.claude-code = unstable.claude-code;
+      packages.vicinae = unstable.vicinae;
       packages.herdr = inputs.herdr.packages.${system}.default;
-      packages.helium = inputs.helium.packages.${system}.default;
+      packages.helium = inputs.helium.packages.${system}.default.overrideAttrs (old: {
+        buildInputs = (old.buildInputs or []) ++ [pkgs.libpulseaudio];
+        postFixup =
+          (old.postFixup or "")
+          + ''
+            patchelf --add-rpath ${pkgs.libpulseaudio}/lib $out/opt/helium/helium
+          '';
+        preFixup =
+          (old.preFixup or "")
+          + ''
+            gappsWrapperArgs+=(
+              --prefix LD_LIBRARY_PATH : "${pkgs.libpulseaudio}/lib"
+            )
+          '';
+      });
       packages.cutefetch = pkgs.stdenv.mkDerivation {
         name = "cutefetch";
         src = ../../tools/cutefetch/cutefetch;

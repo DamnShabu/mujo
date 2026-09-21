@@ -38,6 +38,8 @@ Item {
 
     IconButton {
         id: trigger
+        implicitWidth: Theme.barItemSquare
+        implicitHeight: Theme.barItemHeight
         iconName: Notifications.dnd ? "notifications_off"
                 : (Notifications.unread > 0 ? "notifications_active" : "notifications")
         active: root.menuOpen

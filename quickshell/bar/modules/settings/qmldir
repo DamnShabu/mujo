@@ -42,3 +42,6 @@ ShortcutsGroup ShortcutsGroup.qml
 VmGroup VmGroup.qml
 KeyringGroup KeyringGroup.qml
 SecurityGroup SecurityGroup.qml
+SettingsSidebar SettingsSidebar.qml
+SettingsNavRow SettingsNavRow.qml
+SettingsSearchResults SettingsSearchResults.qml

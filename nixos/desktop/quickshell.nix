@@ -14,10 +14,10 @@
     qmlDeps = with pkgs.qt6; [qtmultimedia qtdeclarative qtwayland qt5compat] ++ [pkgs.quickshell inputs.qml-niri.packages.${pkgs.stdenv.hostPlatform.system}.default];
     qmlPath = pkgs.lib.makeSearchPath "lib/qt-6/qml" qmlDeps;
     qtPluginPath = pkgs.lib.makeSearchPath "lib/qt-6/plugins" qmlDeps;
-    # Forces a restart on every switch where the flake's revision changed.
+    # Forces a restart on every switch where the flake's content or qs.bar changed.
     # Can't use config.system.build.toplevel here: these services are part
     # of the toplevel closure, so referencing it back would be a cycle.
-    generationTrigger = self.rev or self.dirtyRev or "unknown";
+    generationTrigger = "${self.sourceInfo.narHash or self.narHash or self.rev or self.dirtyRev or "unknown"}-${qs.bar}";
     mkDaemon = {
       command,
       path ? [],

@@ -65,126 +65,105 @@ ColumnLayout {
         opProc.running = true
     }
 
-    // ── 1. Health Score & Vitals Card ─────────────────────────────────────────
+    // The one number this page exists to move. It is the app's single hero
+    // metric, so it gets size — not a ring, a badge and a sentence all
+    // restating the same status, which is what it had.
     MujoCard {
         title: "System Health Sentinel"
-        iconName: "health_and_safety"
-        badgeText: SentinelService.healthStatus.toUpperCase()
-        badgeColor: SentinelService.healthScore >= 85 ? Theme.success
-                  : (SentinelService.healthScore >= 60 ? Theme.warning : Theme.error)
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 16
-
-            Rectangle {
-                implicitWidth: 60; implicitHeight: 60; radius: 30
-                color: Theme.withAlpha(
-                    SentinelService.healthScore >= 85 ? Theme.success
-                    : (SentinelService.healthScore >= 60 ? Theme.warning : Theme.error), 0.16)
-                border.color: SentinelService.healthScore >= 85 ? Theme.success
-                            : (SentinelService.healthScore >= 60 ? Theme.warning : Theme.error)
-                border.width: 2
-
-                ColumnLayout {
-                    anchors.centerIn: parent; spacing: 0
-                    Text {
-                        text: String(SentinelService.healthScore)
-                        color: SentinelService.healthScore >= 85 ? Theme.success
-                             : (SentinelService.healthScore >= 60 ? Theme.warning : Theme.error)
-                        font.family: Theme.fontMono
-                        font.pixelSize: 20
-                        font.bold: true
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-                    Text {
-                        text: "SCORE"
-                        color: Theme.textDim
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeLabel - 1
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 2
-                Text {
-                    text: SentinelService.healthScore >= 90 ? "System Performance is Optimal"
-                        : (SentinelService.healthScore >= 70 ? "Minor Performance Bottlenecks Detected"
-                        : "Attention Needed: Resource Runaways Detected")
-                    color: Theme.text
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBody
-                    font.bold: true
-                }
-                Text {
-                    text: "Anomalies: " + (SentinelService.anomalies ? SentinelService.anomalies.length : 0) +
-                          " · Zombies: " + SentinelService.zombieCount +
-                          (root.cleanData && root.cleanData.totalReclaimableMb ? (" · Reclaimable: " + (root.cleanData.totalReclaimableMb / 1024).toFixed(1) + " GB") : "")
-                    color: Theme.textSecondary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSmall
-                }
-            }
-
+        actions: RowLayout {
+            spacing: 6
+            DialogButton { text: "Scan"; enabled: !root.runningOp; onClicked: root.refreshAll() }
             DialogButton {
-                text: "Scan"
-                enabled: !root.runningOp
-                onClicked: root.refreshAll()
-            }
-            DialogButton {
-                text: "Optimize All"
+                text: "Optimize all"
                 primary: true
                 enabled: !root.runningOp
                 onClicked: root.runClean("all", "Full System Optimization")
             }
         }
-    }
 
-    // ── 2. Maintenance Log Output ─────────────────────────────────────────────
-    Rectangle {
-        Layout.fillWidth: true
-        Layout.preferredHeight: 140
-        visible: root.runningOp || root.logLines.length > 0
-        radius: Theme.radiusMd
-        color: Theme.bg
-        border.color: root.failedOp ? Theme.error : (root.runningOp ? Theme.accent : Theme.border)
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            spacing: 18
 
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 10
-            spacing: 6
+            readonly property color tone: SentinelService.healthScore >= 85 ? Theme.success
+                                        : (SentinelService.healthScore >= 60 ? Theme.warning : Theme.error)
 
-            RowLayout {
-                Layout.fillWidth: true; spacing: 8
-                Spinner { size: 13; visible: root.runningOp }
-                MaterialIcon {
-                    visible: !root.runningOp
-                    iconName: root.failedOp ? "error" : "check_circle"
-                    pixelSize: 14
-                    color: root.failedOp ? Theme.error : Theme.success
-                }
+            Text {
+                text: String(SentinelService.healthScore)
+                color: parent.tone
+                font.family: Theme.fontMono
+                font.pixelSize: 34
+                font.weight: Font.DemiBold
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 3
+
                 Text {
-                    text: root.opLabel || "Maintenance Operation"
+                    text: SentinelService.healthScore >= 90 ? "Everything is running normally"
+                        : (SentinelService.healthScore >= 70 ? "Minor bottlenecks — worth a look"
+                        : "Resource runaways need attention")
                     color: Theme.text
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeSmall
-                    font.bold: true
-                    Layout.fillWidth: true
-                    elide: Text.ElideRight
+                    font.pixelSize: Theme.fontSizeBody
+                    font.weight: Font.DemiBold
                 }
-                DialogButton { text: "Cancel"; visible: root.runningOp; onClicked: if (root.runningOp) opProc.running = false }
-                DialogButton { text: "Clear"; visible: !root.runningOp && root.logLines.length > 0; onClicked: root.logLines = [] }
+
+                Text {
+                    text: {
+                        var n = SentinelService.anomalies ? SentinelService.anomalies.length : 0
+                        var s = n + (n === 1 ? " anomaly" : " anomalies")
+                            + ", " + SentinelService.zombieCount
+                            + (SentinelService.zombieCount === 1 ? " zombie" : " zombies")
+                        if (root.cleanData && root.cleanData.totalReclaimableMb)
+                            s += ", " + (root.cleanData.totalReclaimableMb / 1024).toFixed(1) + " GB reclaimable"
+                        return s
+                    }
+                    color: Theme.textSecondary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                }
             }
+        }
+    }
+
+    // ── Maintenance output ────────────────────────────────────────────────────
+    MujoCard {
+        visible: root.runningOp || root.logLines.length > 0
+        title: root.opLabel || "Maintenance"
+        badgeText: root.runningOp ? "RUNNING" : (root.failedOp ? "FAILED" : "DONE")
+        badgeColor: root.runningOp ? Theme.accent : (root.failedOp ? Theme.error : Theme.success)
+
+        actions: RowLayout {
+            spacing: 6
+            DialogButton { text: "Cancel"; visible: root.runningOp; onClicked: if (root.runningOp) opProc.running = false }
+            DialogButton {
+                text: "Clear"
+                visible: !root.runningOp && root.logLines.length > 0
+                onClicked: root.logLines = []
+            }
+        }
+
+        InsetPanel {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 170
+            accentBorder: root.failedOp ? Theme.error : (root.runningOp ? Theme.accent : Theme.border)
 
             ListView {
                 id: logView
-                Layout.fillWidth: true; Layout.fillHeight: true
+                anchors.fill: parent
+                anchors.margins: 12
                 clip: true
                 model: root.logLines
                 boundsBehavior: Flickable.DragAndOvershootBounds
                 onCountChanged: positionViewAtEnd()
+                spacing: 1
+
                 delegate: Text {
                     required property var modelData
                     width: logView.width
@@ -195,155 +174,109 @@ ColumnLayout {
                     wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                 }
             }
+
+            Spinner {
+                anchors { right: parent.right; top: parent.top; margins: 10 }
+                size: 13
+                visible: root.runningOp
+            }
         }
     }
 
-    // ── 3. Storage Reclamation Cards ──────────────────────────────────────────
+    // ── Storage ───────────────────────────────────────────────────────────────
+    // Four things you can reclaim is a list, not a two-by-two grid of identical
+    // boxes. Each says how much it is holding and offers the one action.
     MujoCard {
         title: "Storage Reclamation & Cleaner"
-        iconName: "cleaning_services"
 
-        Flow {
-            Layout.fillWidth: true
-            spacing: 10
+        MujoSettingRow {
+            iconName: "delete_sweep"
+            title: "NixOS generations"
+            description: root.cleanData && root.cleanData.nix
+                ? root.cleanData.nix.label
+                : "Counting old generations…"
 
-            // 1. Nix Store
-            Rectangle {
-                width: (parent.width - 10) / 2
-                implicitHeight: 100
-                radius: Theme.radiusMd
-                color: Theme.bg
-                border.color: Theme.border
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 4
-
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 6
-                        MaterialIcon { iconName: "delete_sweep"; pixelSize: 16; color: Theme.accent }
-                        Text { text: "NixOS Generations"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true; Layout.fillWidth: true }
-                    }
-                    Text {
-                        text: root.cleanData && root.cleanData.nix ? (root.cleanData.nix.label + " (~" + ((root.cleanData.nix.reclaimableMb || 0) / 1024).toFixed(1) + " GB)") : "Scanning generations…"
-                        color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel
-                    }
-                    DialogButton {
-                        text: "Clean Generations"
-                        enabled: !root.runningOp
-                        onClicked: root.runClean("nix", "Cleaning old generations & optimizing Nix store")
-                    }
-                }
+            Text {
+                text: root.cleanData && root.cleanData.nix
+                    ? ((root.cleanData.nix.reclaimableMb || 0) / 1024).toFixed(1) + " GB" : "—"
+                color: Theme.textSecondary
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
             }
-
-            // 2. Journal Logs
-            Rectangle {
-                width: (parent.width - 10) / 2
-                implicitHeight: 100
-                radius: Theme.radiusMd
-                color: Theme.bg
-                border.color: Theme.border
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 4
-
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 6
-                        MaterialIcon { iconName: "description"; pixelSize: 16; color: Theme.accent }
-                        Text { text: "Systemd Journals"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true; Layout.fillWidth: true }
-                    }
-                    Text {
-                        text: root.cleanData && root.cleanData.journal ? (root.cleanData.journal.label + " (~" + (root.cleanData.journal.reclaimableMb || 0) + " MB)") : "Scanning journal size…"
-                        color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel
-                    }
-                    DialogButton {
-                        text: "Vacuum Logs (<=100MB)"
-                        enabled: !root.runningOp
-                        onClicked: root.runClean("journal", "Vacuuming systemd journal logs to <=100MB")
-                    }
-                }
+            DialogButton {
+                text: "Clean"
+                enabled: !root.runningOp
+                onClicked: root.runClean("nix", "Cleaning old generations & optimizing Nix store")
             }
+        }
 
-            // 3. User & App Caches
-            Rectangle {
-                width: (parent.width - 10) / 2
-                implicitHeight: 100
-                radius: Theme.radiusMd
-                color: Theme.bg
-                border.color: Theme.border
+        MujoSettingRow {
+            iconName: "description"
+            title: "Systemd journals"
+            description: root.cleanData && root.cleanData.journal
+                ? root.cleanData.journal.label
+                : "Measuring journal size…"
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 4
-
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 6
-                        MaterialIcon { iconName: "folder_delete"; pixelSize: 16; color: Theme.accent }
-                        Text { text: "Disposable Caches"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true; Layout.fillWidth: true }
-                    }
-                    Text {
-                        text: root.cleanData && root.cleanData.caches ? ("Thumbnails, shaders, trash (~" + (root.cleanData.caches.totalMb || 0) + " MB)") : "Scanning caches…"
-                        color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel
-                    }
-                    DialogButton {
-                        text: "Purge Caches"
-                        enabled: !root.runningOp
-                        onClicked: root.runClean("caches", "Purging thumbnail, shader, and trash caches")
-                    }
-                }
+            Text {
+                text: root.cleanData && root.cleanData.journal
+                    ? (root.cleanData.journal.reclaimableMb || 0) + " MB" : "—"
+                color: Theme.textSecondary
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
             }
+            DialogButton {
+                text: "Vacuum to 100 MB"
+                enabled: !root.runningOp
+                onClicked: root.runClean("journal", "Vacuuming systemd journal logs to <=100MB")
+            }
+        }
 
-            // 4. Memory & ZRAM
-            Rectangle {
-                width: (parent.width - 10) / 2
-                implicitHeight: 100
-                radius: Theme.radiusMd
-                color: Theme.bg
-                border.color: Theme.border
+        MujoSettingRow {
+            iconName: "folder_delete"
+            title: "Disposable caches"
+            description: "Thumbnails, shader caches and the trash."
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 4
+            Text {
+                text: root.cleanData && root.cleanData.caches
+                    ? (root.cleanData.caches.totalMb || 0) + " MB" : "—"
+                color: Theme.textSecondary
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
+            }
+            DialogButton {
+                text: "Purge"
+                enabled: !root.runningOp
+                onClicked: root.runClean("caches", "Purging thumbnail, shader, and trash caches")
+            }
+        }
 
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 6
-                        MaterialIcon { iconName: "memory"; pixelSize: 16; color: Theme.accent }
-                        Text { text: "ZRAM & Memory Compaction"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true; Layout.fillWidth: true }
-                    }
-                    Text {
-                        text: "Compact ZRAM swap buffers and drop inactive kernel page cache."
-                        color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel
-                    }
-                    DialogButton {
-                        text: "Compact Memory"
-                        enabled: !root.runningOp
-                        onClicked: root.runClean("memory", "Compacting ZRAM swap and dropping inactive caches")
-                    }
-                }
+        MujoSettingRow {
+            iconName: "memory"
+            title: "ZRAM and page cache"
+            description: "Compact the ZRAM swap buffers and drop inactive kernel page cache."
+
+            DialogButton {
+                text: "Compact"
+                enabled: !root.runningOp
+                onClicked: root.runClean("memory", "Compacting ZRAM swap and dropping inactive caches")
             }
         }
     }
 
-    // ── 4. Sentinel Automation Card ───────────────────────────────────────────
-    // SentinelService reads these three keys on every scan; the migration to
-    // HealthGroup dropped their toggles, leaving the automation reachable only
-    // through `mujo settings set`. Restored declaratively.
+    // ── Automation ────────────────────────────────────────────────────────────
+    // SentinelService reads these three keys on every scan; an earlier
+    // migration dropped their toggles, leaving the automation reachable only
+    // through `mujo settings set`.
     MujoCard {
         title: "Sentinel Automation"
-        iconName: "auto_mode"
 
         SettingRow {
             path: "sentinel.enable"
             def: true
             kind: "toggle"
             iconName: "monitor_heart"
-            title: "Process Sentinel"
-            description: "Monitor background tasks for runaway CPU, memory leaks, and unresponsive states."
+            title: "Process sentinel"
+            description: "Watch background tasks for runaway CPU, memory leaks and unresponsive states."
         }
 
         SettingRow {
@@ -351,8 +284,8 @@ ColumnLayout {
             def: true
             kind: "toggle"
             iconName: "pest_control"
-            title: "Silent Zombie Reaping"
-            description: "Clean up defunct child processes in the background without prompting."
+            title: "Reap zombies silently"
+            description: "Clean up defunct child processes in the background without asking."
             disabled: !SettingsBus.get("sentinel.enable", true)
         }
 
@@ -361,89 +294,87 @@ ColumnLayout {
             def: true
             kind: "toggle"
             iconName: "block"
-            title: "3-Minute Auto-Kill Protection"
+            title: "Auto-kill runaways after 3 minutes"
             description: "Terminate un-whitelisted processes that sustain three consecutive runaway flags without progress."
             disabled: !SettingsBus.get("sentinel.enable", true)
         }
     }
 
-    // ── 5. Problematic Processes Card ─────────────────────────────────────────
+    // ── Anomalies ─────────────────────────────────────────────────────────────
     MujoCard {
         title: "Process Sentinel & Anomaly Tracker"
-        iconName: "pest_control"
-        badgeText: SentinelService.problematicProcesses.length > 0 ? (SentinelService.problematicProcesses.length + " ANOMALIES") : "ALL CLEAN"
+        badgeText: SentinelService.problematicProcesses.length > 0
+            ? SentinelService.problematicProcesses.length + " ANOMALIES" : "ALL CLEAN"
         badgeColor: SentinelService.problematicProcesses.length > 0 ? Theme.error : Theme.success
 
         actions: RowLayout {
             spacing: 6
             DialogButton {
-                text: "Reap Zombies (" + SentinelService.zombieCount + ")"
+                text: "Reap " + SentinelService.zombieCount + " zombies"
                 visible: SentinelService.zombieCount > 0
                 onClicked: SentinelService.reap()
             }
-            IconButton {
-                iconName: "refresh"
-                onClicked: SentinelService.refresh()
-            }
+            IconButton { iconName: "refresh"; onClicked: SentinelService.refresh() }
         }
 
-        ColumnLayout {
+        Text {
+            visible: SentinelService.problematicProcesses.length === 0
+            text: "Every background process is inside its CPU and memory budget."
+            color: Theme.textSecondary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+            wrapMode: Text.WordWrap
             Layout.fillWidth: true
-            spacing: 8
+        }
 
-            Text {
-                visible: SentinelService.problematicProcesses.length === 0
-                text: "All background processes and threads are operating normally within CPU and memory budget."
-                color: Theme.textSecondary
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSmall
-            }
+        Repeater {
+            model: SentinelService.problematicProcesses
 
-            Repeater {
-                model: SentinelService.problematicProcesses
-                delegate: Rectangle {
-                    required property var modelData
+            delegate: ListRow {
+                required property var modelData
+                readonly property bool severe: modelData.warning || modelData.type === "cpu_runaway"
+                border.color: severe ? Theme.withAlpha(Theme.error, 0.55) : Theme.border
+
+                MaterialIcon {
+                    iconName: modelData.type === "zombie" ? "pest_control"
+                            : (modelData.type === "cpu_runaway" ? "speed"
+                            : (modelData.type === "mem_hog" ? "memory" : "warning"))
+                    pixelSize: 17
+                    color: Theme.error
+                }
+
+                Text {
+                    text: String(modelData.pid)
+                    color: Theme.textDim
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
+                    Layout.preferredWidth: 48
+                }
+
+                ColumnLayout {
                     Layout.fillWidth: true
-                    implicitHeight: 44
-                    radius: Theme.radiusSm
-                    color: Theme.bg
-                    border.color: modelData.warning || modelData.type === "cpu_runaway" ? Theme.error : Theme.border
+                    spacing: 1
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 8
-                        spacing: 10
+                    Text {
+                        text: modelData.name || "Unknown"
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
 
-                        MaterialIcon {
-                            iconName: modelData.type === "zombie" ? "pest_control"
-                                    : (modelData.type === "cpu_runaway" ? "speed"
-                                    : (modelData.type === "mem_hog" ? "memory" : "warning"))
-                            pixelSize: 18
-                            color: Theme.error
-                        }
-
-                        Text {
-                            text: String(modelData.pid)
-                            color: Theme.textDim
-                            font.family: Theme.fontMono
-                            font.pixelSize: Theme.fontSizeSmall
-                            Layout.preferredWidth: 50
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 1
-                            Text { text: modelData.name || "Unknown"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; font.bold: true }
-                            Text { text: modelData.reason || ""; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeLabel }
-                        }
-
-                        DialogButton {
-                            text: "Kill"
-                            onClicked: SentinelService.killProcess(modelData.pid)
-                        }
+                    Text {
+                        text: modelData.reason || ""
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeLabel
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
                     }
                 }
+
+                DialogButton { text: "Kill"; onClicked: SentinelService.killProcess(modelData.pid) }
             }
         }
     }

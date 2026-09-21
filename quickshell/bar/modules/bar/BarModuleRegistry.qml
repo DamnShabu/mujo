@@ -1,7 +1,7 @@
 pragma Singleton
 import QtQuick
 import "../notifications"
-import "../launcher"
+import "../../services"
 
 QtObject {
     id: registry
@@ -23,8 +23,28 @@ QtObject {
         { id: "llm",          name: "AI Tokens / Agent",   icon: "psychology",       category: "ai",         defaultSlot: "right" },
         { id: "session",      name: "Session / Power",     icon: "power_settings_new",category: "system",    defaultSlot: "right" },
         { id: "divider",      name: "Visual Separator",    icon: "more_vert",        category: "layout",     defaultSlot: "none" },
-        { id: "spacer",       name: "Flexible Spacer",     icon: "space_bar",        category: "layout",     defaultSlot: "none" }
+        { id: "spacer",       name: "Fixed Gap",           icon: "space_bar",        category: "layout",     defaultSlot: "none" }
     ]
+
+
+    // The three zones' default contents, in one place. Every style presenter and
+    // the settings slot canvas used to carry its own copy of these arrays, which
+    // is how the island style ended up defaulting to a shorter right cluster than
+    // the other four.
+    readonly property var defaultSlots: ({
+        "left":   ["launcher", "workspaces", "activeWindow"],
+        "center": ["clock", "weather"],
+        "right":  ["llm", "network", "bluetooth", "volume", "battery", "notifications", "tray", "session"]
+    })
+
+    // Read one zone from the store. The Array guard is not decoration: `mujo
+    // settings set bar.slots.center '[...]'` stores the JSON as a *string*, and
+    // a string handed to a Repeater silently produces an empty bar.
+    function slot(zone) {
+        var fallback = registry.defaultSlots[zone] || []
+        var v = SettingsBus.get("bar.slots." + zone, fallback)
+        return Array.isArray(v) ? v : fallback
+    }
 
     function metadata(id) {
         for (var i = 0; i < allModules.length; i++) {

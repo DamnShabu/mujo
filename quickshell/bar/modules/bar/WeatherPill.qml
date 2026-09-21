@@ -10,14 +10,16 @@ Item {
     property string screenName: ""
 
     readonly property bool hasWeather: WeatherService.hasData
-    visible: hasWeather
-    implicitWidth: visible ? weatherRow.implicitWidth + 12 : 0
+    readonly property bool barVisible: root.hasWeather
+    visible: root.barVisible
+    implicitWidth: visible ? weatherRow.implicitWidth + Theme.barItemPadding * 2 : 0
     implicitHeight: Theme.barHeight
     Layout.alignment: Qt.AlignVCenter
 
     Rectangle {
-        anchors.fill: parent
-        anchors.margins: 2
+        anchors.centerIn: parent
+        width: parent.width
+        height: Theme.barItemHeight
         radius: Theme.radiusSm
         color: weatherHover.hovered ? Theme.surfaceHover : "transparent"
 

@@ -1,10 +1,13 @@
 import QtQuick
-import QtQuick.Layouts
 import "../../../theme"
-import "../../../components"
 import "../../../services"
 import ".."
 
+// A single centred group holding every module, macOS-dock style. One zone, so
+// there is nothing for BarLayout to arbitrate — but it goes through the same
+// BarSlot as the other styles, because the imperative Loader it used to use
+// re-bound `panelWindow` from an `onLoaded` handler mid-incubation and took
+// PopupAnchor down with it (`QQuickItem::window()` on a half-built item).
 Item {
     id: root
     property var niri
@@ -13,29 +16,24 @@ Item {
     property var panelWindow
     property bool launcherOpen: false
 
-    readonly property var leftModules: SettingsBus.get("bar.slots.left", ["launcher", "workspaces", "activeWindow"])
-    readonly property var centerModules: SettingsBus.get("bar.slots.center", ["clock", "weather"])
-    readonly property var rightModules: SettingsBus.get("bar.slots.right", ["llm", "network", "bluetooth", "volume", "battery", "notifications", "tray", "session"])
-    readonly property var combinedModules: leftModules.concat(centerModules).concat(rightModules)
+    readonly property var combinedModules: BarModuleRegistry.slot("left")
+        .concat(BarModuleRegistry.slot("center"))
+        .concat(BarModuleRegistry.slot("right"))
 
-    BarCluster {
+    BarSlot {
         anchors.centerIn: parent
-        spacing: 8
-        radius: Theme.radiusLg
-        implicitHeight: Math.max(Theme.barHeight, 38)
-        auraColor: Theme.accent
-
-        Repeater {
-            model: root.combinedModules
-            delegate: BarModuleLoader {
-                required property var modelData
-                moduleId: modelData
-                panelWindow: root.panelWindow
-                screenName: root.screenName
-                niri: root.niri
-                focusedOutput: root.focusedOutput
-                launcherOpen: root.launcherOpen
-            }
-        }
+        modules: root.combinedModules
+        alignment: Qt.AlignHCenter
+        spacing: SettingsBus.get("bar.spacing", 8)
+        wrapInCluster: true
+        clusterRadius: Theme.radiusLg
+        // Never wider than the screen it sits on.
+        maxWidth: root.width - Theme.barMargin * 2
+        barWidth: root.width
+        panelWindow: root.panelWindow
+        screenName: root.screenName
+        niri: root.niri
+        focusedOutput: root.focusedOutput
+        launcherOpen: root.launcherOpen
     }
 }

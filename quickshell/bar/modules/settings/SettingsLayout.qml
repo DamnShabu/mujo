@@ -7,27 +7,28 @@ import "../../theme"
 import "../../components"
 import "../../services"
 
-// The settings shell: fixed 260px sidebar (brand, omni-search, five categories
-// with a sliding glider and count badges) + a fluid content pane that crossfades
-// between category pages without reloading them.
+// The settings app: a sidebar tree on the left, one category page on the right.
+// This file owns the state and the routing; the sidebar, its rows and the
+// search results are their own components.
 //
-// Navigation depth stops at two: a sidebar category, then the cards inside it.
-// Nothing here routes to a third level.
+// Navigation is three levels and stops there: a sidebar category, a
+// sub-category under it, then the sections and rows on the page. Sub-categories
+// are the section ids the pages already own, so the rail drives the page
+// through the same route()/revealCard() path the omni-search uses — one
+// navigation model, not two.
 //
 // Categories are data:
-//   { key, label, icon, brand, subtitle, badge, page: Component, keys: [...] }
+//   { key, label, icon, brand, subtitle, page: Component, keys: [...],
+//     subs: [{ id, label, icon }] }
 //
-// `keys` are the routing aliases the category answers to, so every panel key
-// that existed before the five-category consolidation still resolves through
-// route() — `mujo settings wallpaper`, `mujo settings dnd`, and the omni-search
-// all enter here.
+// `keys` are the routing aliases a category answers to, so every panel key that
+// existed before the five-category consolidation still resolves — `mujo
+// settings wallpaper`, `mujo settings dnd`, and the omni-search all enter here.
 Item {
     id: layout
 
     property var categories: []
-    property var searchIndex: []          // [{ title, desc, cat, key, card }] — key routes
-                                          // like route(); card names a MujoCard
-                                          // title to scroll to on arrival.
+    property var searchIndex: []      // [{ title, desc, cat, key, card }]
 
     property string current: categories.length > 0 ? categories[0].key : ""
     readonly property int currentIndex: {
@@ -37,31 +38,114 @@ Item {
     }
     readonly property var currentCategory: categories.length > 0 ? categories[currentIndex] : ({ label: "", icon: "" })
 
+    // ── Sidebar tree ─────────────────────────────────────────────────────────
+    // Which category has its sub-categories open. An accordion, not independent
+    // disclosures: at five categories, several open at once turns the rail into
+    // a wall and buries the selected row.
+    property string expandedKey: ""
 
-    // A search hit names the card it lives on. The page it belongs to may not
-    // be loaded yet, so the name is parked here and the category host flushes
-    // it once its Loader has produced an item.
+    // The one place `current` changes, so selecting a category always opens it.
+    function select(key) {
+        layout.current = key
+        layout.expandedKey = key
+    }
+    Component.onCompleted: layout.expandedKey = layout.current
+
+    // The sub-category the live page is showing. Pages own their own `tab`, so
+    // this follows whether the change came from the rail, from omni-search, or
+    // from `mujo settings <key>`.
+    readonly property string currentTab: (layout.currentPage && layout.currentPage.tab !== undefined)
+        ? layout.currentPage.tab : ""
+
+    // The rail flattened to one list — parents, plus the children of whichever
+    // parent is open. One Repeater over this keeps arrow-key navigation to a
+    // single index and lets the highlight live on the row that owns it.
+    readonly property var railRows: {
+        var rows = []
+        for (var i = 0; i < layout.categories.length; i++) {
+            var c = layout.categories[i]
+            var subs = c.subs || []
+            rows.push({ kind: "cat", id: c.key, cat: c.key, label: c.label, icon: c.icon,
+                        subtitle: c.subtitle || "", count: subs.length })
+            if (c.key === layout.expandedKey) {
+                for (var j = 0; j < subs.length; j++)
+                    rows.push({ kind: "sub", id: subs[j].id, cat: c.key,
+                                label: subs[j].label, icon: subs[j].icon,
+                                subtitle: "", count: 0 })
+            }
+        }
+        return rows
+    }
+
+    function rowIsActive(row) {
+        if (layout.searching) return false
+        if (row.kind === "cat") return row.cat === layout.current && layout.expandedKey !== row.cat
+        return row.cat === layout.current && row.id === layout.currentTab
+    }
+
+    function activateRow(row) {
+        if (row.kind === "sub") {
+            layout.route(row.cat, row.id)
+            layout.expandedKey = row.cat
+            return
+        }
+        // A parent row selects its category and opens it. Clicking the open
+        // category again collapses it, which is the only way to close a branch.
+        layout.clearSearch()
+        if (layout.current === row.cat && layout.expandedKey === row.cat) layout.expandedKey = ""
+        else layout.select(row.cat)
+    }
+
+    // Sidebar arrow-key navigation over the flattened rail, so Up/Down walk into
+    // an open category rather than skipping the branch. Clamped rather than
+    // wrapping: a wrap reads as a jump, not as continuing in the same direction.
+    // Never collapses — that is a click-only action, or arrowing past a parent
+    // would shut the branch you are walking through.
+    function step(d) {
+        var rows = layout.railRows
+        if (rows.length === 0) return
+        var cur = 0
+        for (var i = 0; i < rows.length; i++) {
+            if (layout.rowIsActive(rows[i])) { cur = i; break }
+        }
+        var n = Math.max(0, Math.min(rows.length - 1, cur + d))
+        // Stepping onto the parent of the branch you are already inside would
+        // land on a row that cannot hold the highlight (one of its children
+        // has it), so Up out of a first child would look like a dead key. Carry
+        // on one more row in the same direction instead.
+        if (rows[n].kind === "cat" && rows[n].cat === layout.current && layout.expandedKey === rows[n].cat)
+            n = Math.max(0, Math.min(rows.length - 1, n + d))
+
+        var next = rows[n]
+        if (next.kind === "sub") layout.route(next.cat, next.id)
+        else layout.select(next.cat)
+    }
+
+    // ── Routing ──────────────────────────────────────────────────────────────
+    // A search hit names the card it lives on. The page it belongs to may not be
+    // loaded yet, so the name is parked here and the category host flushes it
+    // once its Loader has produced an item.
     property string pendingCard: ""
 
-    // Accepts a category key or any key a page claims via `keys: [...]` — so
+    // Set by the current category host so route() can reach the live page.
+    // Deliberately `var`, not `Item`: revealCard is duck-typed across the
+    // category pages.
+    property var currentPage: null
+
+    // Accepts a category key or any key a page claims via `keys: [...]`, so
     // `mujo settings wallpaper`, `mujo settings dnd` and the omni-search all
     // keep working through one entry point. `card` is optional and names a
-    // MujoCard title on the destination page. If `card` is not given and `key`
-    // is an alias (not the primary category key), `pendingCard` is set to `key`
-    // so `currentPage.revealCard` can route into that sub-tab.
+    // section or a MujoCard title on the destination page; when it is omitted
+    // and `key` is an alias, the alias itself is handed to the page.
     function route(key, card) {
         if (!key) return
         for (var i = 0; i < categories.length; i++) {
             var c = categories[i]
             if (c.key === key || (c.keys && c.keys.indexOf(key) >= 0)) {
-                if (card) {
-                    layout.pendingCard = card
-                } else if (key !== c.key) {
-                    layout.pendingCard = key
-                } else {
-                    layout.pendingCard = ""
-                }
-                current = c.key
+                if (card) layout.pendingCard = card
+                else if (key !== c.key) layout.pendingCard = key
+                else layout.pendingCard = ""
+                layout.select(c.key)
                 clearSearch()
                 Qt.callLater(layout.flushPendingCard)
                 return
@@ -69,11 +153,6 @@ Item {
         }
     }
 
-    // Set by the current category host so route() can reach the live page.
-    // Deliberately `var`, not `Item`: revealCard is duck-typed across
-    // all category pages. They share no base type that could declare the
-    // function, so the call is guarded rather than typed.
-    property var currentPage: null
     function flushPendingCard() {
         if (layout.pendingCard === "" || !layout.currentPage) return
         if (typeof layout.currentPage.revealCard !== "function") {
@@ -84,67 +163,6 @@ Item {
         layout.pendingCard = ""
     }
 
-    // Below this the sidebar drops its labels and becomes an icon rail: at 260px
-    // of chrome a 700px window leaves too little for a card column.
-    //
-    // searchExpanded overrides it, because an icon-only search box cannot be
-    // typed into. It has to be its own flag rather than searchField.activeFocus:
-    // the field is hidden while compact, and a hidden item cannot take focus, so
-    // keying off focus would never let the rail open.
-    property bool searchExpanded: false
-    readonly property bool compact: layout.width < 860 && !layout.searchExpanded
-
-    function focusSearch() {
-        layout.searchExpanded = true
-        Qt.callLater(function () { searchField.forceActiveFocus() })
-    }
-
-    // Sidebar arrow-key navigation. Clamped rather than wrapping: at five
-    // entries a wrap reads as a jump, not as continuing in the same direction.
-    function step(d) {
-        if (categories.length === 0) return
-        var i = Math.max(0, Math.min(categories.length - 1, currentIndex + d))
-        current = categories[i].key
-    }
-
-    // ── Omni-search ──────────────────────────────────────────────────────────
-    property string query: ""
-    property int searchSel: 0
-    readonly property bool searching: query.trim() !== ""
-
-    function clearSearch() {
-        query = ""
-        searchField.text = ""
-        layout.searchExpanded = false
-    }
-
-    function score(e, q) {
-        var t = e.title.toLowerCase(), d = e.desc.toLowerCase(), c = e.cat.toLowerCase()
-        if (t.indexOf(q) === 0) return 100
-        if (t.indexOf(q) >= 0) return 80
-        if (c.indexOf(q) >= 0) return 60
-        if (d.indexOf(q) >= 0) return 40
-        var j = 0
-        for (var i = 0; i < t.length && j < q.length; i++) if (t[i] === q[j]) j++
-        return j === q.length ? 20 : -1
-    }
-    readonly property var results: {
-        var q = query.trim().toLowerCase()
-        if (q === "") return []
-        var scored = []
-        for (var i = 0; i < searchIndex.length; i++) {
-            var s = score(searchIndex[i], q)
-            if (s >= 0) scored.push({ e: searchIndex[i], s: s })
-        }
-        scored.sort(function (a, b) { return b.s - a.s })
-        return scored.map(function (x) { return x.e })
-    }
-    function activateResult(i) {
-        if (i < 0 || i >= results.length) return
-        route(results[i].key, results[i].card)
-    }
-
-    // ── External routing ─────────────────────────────────────────────────────
     // Panels and dashboard cards navigate through the bus; `mujo settings <key>`
     // writes the target file.
     Connections {
@@ -159,643 +177,170 @@ Item {
         onLoaded: layout.route(text().trim())
     }
 
+    // ── Omni-search ──────────────────────────────────────────────────────────
+    property string query: ""
+    property int searchSel: 0
+    readonly property bool searching: query.trim() !== ""
+
+    // Below this the sidebar drops its labels and becomes an icon rail: 236px of
+    // chrome in a 700px window leaves too little for a settings column.
+    //
+    // searchExpanded overrides it, because an icon-only search box cannot be
+    // typed into. It has to be its own flag rather than the field's focus: the
+    // field is hidden while compact, and a hidden item cannot take focus, so
+    // keying off focus would never let the rail open.
+    property bool searchExpanded: false
+    readonly property bool compact: layout.width < 860 && !layout.searchExpanded
+
+    function focusSearch() {
+        layout.searchExpanded = true
+        Qt.callLater(sidebar.focusField)
+    }
+
+    function setQuery(q) {
+        query = q
+        sidebar.searchText = q
+        searchSel = 0
+        searchExpanded = true
+        sidebar.focusField()
+    }
+
+    function clearSearch() {
+        query = ""
+        sidebar.clearField()
+        layout.searchExpanded = false
+    }
+
+    function score(e, q) {
+        var t = (e.title || "").toLowerCase()
+        var d = (e.desc || "").toLowerCase()
+        var c = (e.cat || "").toLowerCase()
+        var cd = (e.card || "").toLowerCase()
+
+        if (t.indexOf(q) === 0) return 100
+        if (t.indexOf(q) >= 0) return 85
+
+        if (Array.isArray(e.tags)) {
+            for (var k = 0; k < e.tags.length; k++) {
+                var tag = (e.tags[k] || "").toLowerCase()
+                if (tag === q) return 80
+                if (tag.indexOf(q) === 0) return 75
+                if (tag.indexOf(q) >= 0) return 70
+            }
+        }
+
+        if (c.indexOf(q) >= 0 || cd.indexOf(q) >= 0) return 60
+        if (d.indexOf(q) >= 0) return 40
+
+        var j = 0
+        for (var i = 0; i < t.length && j < q.length; i++) {
+            if (t[i] === q[j]) j++
+        }
+        return j === q.length ? 20 : -1
+    }
+
+    readonly property var results: {
+        var q = query.trim().toLowerCase()
+        if (q === "") return []
+        var scored = []
+        for (var i = 0; i < searchIndex.length; i++) {
+            var s = score(searchIndex[i], q)
+            if (s >= 0) scored.push({ e: searchIndex[i], s: s })
+        }
+        scored.sort(function (a, b) { return b.s - a.s })
+        return scored.map(function (x) { return x.e })
+    }
+
+    function stepResult(d) {
+        if (!layout.searching) return
+        layout.searchSel = Math.max(0, Math.min(layout.results.length - 1, layout.searchSel + d))
+    }
+
+    function activateResult(i) {
+        if (i < 0 || i >= results.length) return
+        route(results[i].key, results[i].card)
+    }
+
+    // Ctrl+F is unambiguous. "/" is the fast path, but it is also a character
+    // people type into the Wallhaven query, the API base URL and the persistence
+    // path box — so it only grabs focus when a text field does not already have
+    // it. echoMode is the cheap "is this a text input" test.
+    Shortcut {
+        sequences: ["Ctrl+F"]
+        onActivated: layout.focusSearch()
+    }
+    Shortcut {
+        sequence: "/"
+        enabled: {
+            var f = layout.Window.activeFocusItem
+            return !f || f.echoMode === undefined
+        }
+        onActivated: layout.focusSearch()
+    }
+
+    // ── Composition ──────────────────────────────────────────────────────────
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        // ═════ SIDEBAR ═══════════════════════════════════════════════════════
-        Rectangle {
-            Layout.preferredWidth: layout.compact ? 64 : 260
+        SettingsSidebar {
+            id: sidebar
+            shell: layout
+            compact: layout.compact
+            Layout.preferredWidth: implicitWidth
             Layout.fillHeight: true
-            color: Theme.surface
-            Behavior on Layout.preferredWidth {
-                NumberAnimation { duration: Anim.d(Anim.standard); easing.type: Anim.easeStandard }
-            }
-
-            Rectangle {
-                anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
-                width: 1
-                color: Theme.border
-            }
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 14
-                spacing: 12
-
-                // Brand header
-                ColumnLayout {
-                    visible: !layout.compact
-                    Layout.fillWidth: true
-                    Layout.topMargin: 4
-                    Layout.bottomMargin: 2
-                    Layout.leftMargin: 2
-                    spacing: 3
-
-                    RowLayout {
-                        spacing: 8
-                        Text {
-                            text: "Settings"
-                            color: Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeHeading
-                            font.bold: true
-                        }
-
-                        Rectangle {
-                            implicitWidth: mujoBadge.implicitWidth + 8
-                            implicitHeight: 16
-                            radius: 4
-                            color: Theme.withAlpha(Theme.accent, 0.12)
-                            border.color: Theme.withAlpha(Theme.accent, 0.28)
-                            border.width: 1
-
-                            Text {
-                                id: mujoBadge
-                                anchors.centerIn: parent
-                                text: "mujō"
-                                color: Theme.accent
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeLabel - 1
-                                font.bold: true
-                                font.letterSpacing: 0.5
-                            }
-                        }
-                    }
-
-                    Text {
-                        text: "Desktop Configuration"
-                        color: Theme.textSecondary
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSmall
-                    }
-                }
-
-                // Compact header icon
-                Item {
-                    visible: layout.compact
-                    Layout.fillWidth: true
-                    implicitHeight: 32
-
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        iconName: "tune"
-                        pixelSize: 20
-                        color: Theme.accent
-                    }
-                }
-
-                // Omni-search
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 36
-                    radius: Theme.radiusMd
-                    color: Theme.withAlpha(Theme.bg, 0.85)
-                    border.color: searchField.activeFocus ? Theme.accent : Theme.border
-                    Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-
-                    // Ctrl+F is unambiguous. "/" is the fast path, but it is also a
-                    // character people type into the Wallhaven query, the API
-                    // base URL and the persistence path box — so it only grabs
-                    // focus when a text field does not already have it.
-                    // echoMode is the cheap "is this a text input" test.
-                    Shortcut {
-                        sequences: ["Ctrl+F"]
-                        onActivated: layout.focusSearch()
-                    }
-
-                    Shortcut {
-                        sequence: "/"
-                        enabled: {
-                            var f = layout.Window.activeFocusItem
-                            return !f || f.echoMode === undefined
-                        }
-                        onActivated: layout.focusSearch()
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.IBeamCursor
-                        onClicked: layout.focusSearch()
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        // Compact: no room for a query, so the box becomes a
-                        // centred magnifier. Clicking or Ctrl+F focuses the
-                        // field, which clears `compact` and expands the rail.
-                        anchors.leftMargin: layout.compact ? 0 : 10
-                        anchors.rightMargin: layout.compact ? 0 : 8
-                        spacing: layout.compact ? 0 : 8
-
-                        Item { visible: layout.compact; Layout.fillWidth: true }
-
-                        MaterialIcon {
-                            iconName: "search"
-                            pixelSize: 17
-                            color: searchField.activeFocus ? Theme.accent : Theme.textSecondary
-                            Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                        }
-
-                        Item { visible: layout.compact; Layout.fillWidth: true }
-
-                        TextInput {
-                            id: searchField
-                            visible: !layout.compact
-                            Layout.fillWidth: !layout.compact
-                            color: Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeBody
-                            verticalAlignment: TextInput.AlignVCenter
-                            clip: true
-                            selectByMouse: true
-                            activeFocusOnTab: true
-                            cursorVisible: activeFocus
-                            onTextChanged: { layout.query = text; layout.searchSel = 0 }
-                            Keys.onDownPressed: if (layout.searching) layout.searchSel = Math.min(layout.searchSel + 1, layout.results.length - 1)
-                            Keys.onUpPressed: if (layout.searching) layout.searchSel = Math.max(layout.searchSel - 1, 0)
-                            Keys.onReturnPressed: layout.activateResult(layout.searchSel)
-                            Keys.onEscapePressed: { if (text === "") Qt.quit(); else layout.clearSearch() }
-                            // Let the rail collapse again once the user leaves an
-                            // empty search behind.
-                            onActiveFocusChanged: if (!activeFocus && text === "") layout.searchExpanded = false
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: searchField.text === ""
-                                text: "Search settings…"
-                                color: Theme.textDim
-                                font: searchField.font
-                            }
-                        }
-
-                        Rectangle {
-                            visible: !layout.compact
-                            implicitWidth: hintTxt.implicitWidth + 10
-                            implicitHeight: 18
-                            radius: Theme.radiusSm
-                            color: Theme.withAlpha(Theme.surfaceActive, 0.7)
-                            border.color: Theme.border
-
-                            Text {
-                                id: hintTxt
-                                anchors.centerIn: parent
-                                text: searchField.text === "" ? "/" : "esc"
-                                color: Theme.textDim
-                                font.family: Theme.fontMono
-                                font.pixelSize: Theme.fontSizeLabel - 1
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                enabled: searchField.text !== ""
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: layout.clearSearch()
-                            }
-                        }
-                    }
-                }
-
-                // Category rail — one row per category, a sliding glider, count
-                // badges. Focusable, so Up/Down walk the categories without
-                // the pointer.
-                Item {
-                    id: navRail
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    activeFocusOnTab: true
-                    Keys.onUpPressed: layout.step(-1)
-                    Keys.onDownPressed: layout.step(1)
-                    // Keys has no onHome/onEndPressed attached signal.
-                    Keys.onPressed: function (event) {
-                        if (event.key === Qt.Key_Home) { layout.step(-layout.categories.length); event.accepted = true }
-                        else if (event.key === Qt.Key_End) { layout.step(layout.categories.length); event.accepted = true }
-                    }
-
-                    Accessible.role: Accessible.PageTabList
-                    Accessible.name: "Settings categories"
-
-                    readonly property int rowH: 42
-                    readonly property int rowGap: 4
-
-                    // Active glider. Geometry is derived from the index, so it
-                    // never depends on delegate ids surviving a rebuild.
-                    Rectangle {
-                        id: glider
-                        width: parent.width
-                        height: parent.rowH
-                        radius: Theme.radiusMd
-                        y: layout.currentIndex * (parent.rowH + parent.rowGap)
-                        color: Theme.accentDim
-                        // The glider doubles as the rail's focus ring: a full-strength
-                        // accent border means "arrow keys move this".
-                        border.color: navRail.activeFocus ? Theme.accent : Theme.withAlpha(Theme.accent, 0.45)
-                        border.width: navRail.activeFocus ? 2 : 1
-                        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                        opacity: layout.searching ? 0 : 1
-                        Behavior on y { NumberAnimation { duration: Anim.d(Anim.standard); easing.type: Anim.easeStandard } }
-                        Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.fast) } }
-
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 3
-                            height: parent.height * 0.5
-                            radius: 2
-                            color: Theme.accent
-                        }
-                    }
-
-                    Column {
-                        anchors.fill: parent
-                        spacing: parent.rowGap
-
-                        Repeater {
-                            model: layout.categories
-
-                            delegate: Rectangle {
-                                id: navItem
-                                required property var modelData
-                                required property int index
-
-                                readonly property bool isActive: layout.currentIndex === index && !layout.searching
-                                readonly property int count: modelData.badge !== undefined ? modelData.badge : 0
-
-                                width: parent.width
-                                height: 42
-                                radius: Theme.radiusMd
-                                color: (!isActive && navHh.hovered) ? Theme.surfaceHover : "transparent"
-                                Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    // Compact: the icon centres in the rail and the
-                                    // label and badge drop out. Accessible.name on
-                                    // the row still carries the category name.
-                                    anchors.leftMargin: layout.compact ? 0 : 12
-                                    anchors.rightMargin: layout.compact ? 0 : 10
-                                    spacing: layout.compact ? 0 : 10
-
-                                    Item { visible: layout.compact; Layout.fillWidth: true }
-
-                                    MaterialIcon {
-                                        iconName: navItem.modelData.icon
-                                        pixelSize: 17
-                                        color: navItem.isActive ? Theme.accent : (navHh.hovered ? Theme.text : Theme.textSecondary)
-                                        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                    }
-
-                                    Item { visible: layout.compact; Layout.fillWidth: true }
-
-                                    Text {
-                                        visible: !layout.compact
-                                        text: navItem.modelData.label
-                                        color: navItem.isActive ? Theme.text : (navHh.hovered ? Theme.text : Theme.textSecondary)
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeBody
-                                        font.bold: navItem.isActive
-                                        elide: Text.ElideRight
-                                        Layout.fillWidth: true
-                                        Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                    }
-
-                                    Rectangle {
-                                        visible: navItem.count > 0 && !layout.compact
-                                        implicitWidth: Math.max(18, cntTxt.implicitWidth + 10)
-                                        implicitHeight: 18
-                                        radius: Theme.radiusSm
-                                        color: navItem.isActive ? Theme.withAlpha(Theme.accent, 0.18) : Theme.withAlpha(Theme.surfaceActive, 0.7)
-                                        border.color: navItem.isActive ? Theme.withAlpha(Theme.accent, 0.4) : Theme.border
-
-                                        Text {
-                                            id: cntTxt
-                                            anchors.centerIn: parent
-                                            text: navItem.count
-                                            color: navItem.isActive ? Theme.accent : Theme.textDim
-                                            font.family: Theme.fontMono
-                                            font.pixelSize: Theme.fontSizeLabel
-                                            font.bold: true
-                                        }
-                                    }
-                                }
-
-                                Accessible.role: Accessible.PageTab
-                                Accessible.name: navItem.modelData.label
-                                Accessible.description: navItem.modelData.subtitle || ""
-                                Accessible.checked: navItem.isActive
-
-                                HoverHandler { id: navHh; cursorShape: Qt.PointingHandCursor }
-                                TapHandler {
-                                    onTapped: {
-                                        layout.clearSearch()
-                                        layout.current = navItem.modelData.key
-                                        navRail.forceActiveFocus()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Rectangle { Layout.fillWidth: true; height: 1; color: Theme.border }
-
-                // Footer: active theme + close. Compact drops the theme chip —
-                // its label does not fit — and keeps the close button, which is
-                // the one control with no other route.
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    Rectangle {
-                        visible: !layout.compact
-                        Layout.fillWidth: true
-                        implicitHeight: 30
-                        radius: Theme.radiusSm
-                        color: Theme.withAlpha(Theme.accent, 0.1)
-                        border.color: thHh.hovered ? Theme.accent : Theme.withAlpha(Theme.accent, 0.3)
-                        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-
-                        RowLayout {
-                            anchors.centerIn: parent
-                            spacing: 6
-                            Rectangle { width: 8; height: 8; radius: 4; color: Theme.accent }
-                            Text {
-                                text: Theme.presetLabels[Theme.presetName] || Theme.presetName
-                                color: Theme.text
-                                font.family: Theme.fontMono
-                                font.pixelSize: Theme.fontSizeLabel
-                                font.bold: true
-                            }
-                        }
-                        HoverHandler { id: thHh; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: layout.route("appearance") }
-                    }
-
-                    Item { visible: layout.compact; Layout.fillWidth: true }
-
-                    IconButton {
-                        iconName: "close"
-                        onClicked: Qt.quit()
-                    }
-
-                    Item { visible: layout.compact; Layout.fillWidth: true }
-                }
-            }
+            onSearchRequested: layout.focusSearch()
         }
 
-        // ═════ CONTENT PANE ══════════════════════════════════════════════════
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             color: Theme.bg
+            clip: true
 
-            ColumnLayout {
+            // Category hosts. Every visited category keeps its instance, so
+            // swapping back is instant and its scroll position holds.
+            Repeater {
+                model: layout.categories
+
+                delegate: Item {
+                    id: catHost
+                    required property var modelData
+                    required property int index
+
+                    readonly property bool isCurrent: layout.currentIndex === index && !layout.searching
+                    property bool loaded: false
+
+                    anchors.fill: parent
+                    enabled: isCurrent
+                    visible: opacity > 0
+                    opacity: isCurrent ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.enter); easing.type: Anim.easeStandard } }
+
+                    onIsCurrentChanged: if (isCurrent) { loaded = true; catHost.publish() }
+                    Component.onCompleted: if (isCurrent) { loaded = true; catHost.publish() }
+
+                    // Hand the live page to the layout so route() can reach it.
+                    function publish() {
+                        if (!isCurrent) return
+                        layout.currentPage = pageLoader.item
+                        layout.flushPendingCard()
+                    }
+
+                    Loader {
+                        id: pageLoader
+                        anchors.fill: parent
+                        active: catHost.loaded
+                        sourceComponent: catHost.modelData.page
+                        onLoaded: catHost.publish()
+                    }
+                }
+            }
+
+            SettingsSearchResults {
                 anchors.fill: parent
-                spacing: 0
-
-                // Header
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 52
-                    color: Theme.surface
-
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 1
-                        color: Theme.border
-                    }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 24
-                        anchors.rightMargin: 24
-                        spacing: 8
-
-                        Text {
-                            visible: !layout.searching
-                            text: layout.currentCategory.label.toUpperCase()
-                            color: Theme.accent
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeLabel
-                            font.bold: true
-                            font.letterSpacing: Theme.labelSpacing
-                            Layout.alignment: Qt.AlignVCenter
-                        }
-
-                        Text {
-                            visible: !layout.searching
-                            text: "•"
-                            color: Theme.textDim
-                            font.pixelSize: Theme.fontSizeLabel
-                            Layout.alignment: Qt.AlignVCenter
-                        }
-
-                        Text {
-                            text: layout.searching
-                                ? "Search Results"
-                                : (layout.currentCategory.subtitle || layout.currentCategory.label)
-                            color: Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeTitle + 1
-                            font.bold: true
-                            Layout.alignment: Qt.AlignVCenter
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        Rectangle {
-                            visible: !layout.searching
-                            implicitWidth: keyRow.implicitWidth + 14
-                            implicitHeight: 24
-                            radius: Theme.radiusSm
-                            color: Theme.withAlpha(Theme.accent, 0.12)
-                            border.color: Theme.withAlpha(Theme.accent, 0.3)
-                            Layout.alignment: Qt.AlignVCenter
-
-                            RowLayout {
-                                id: keyRow
-                                anchors.centerIn: parent
-                                spacing: 5
-                                MaterialIcon {
-                                    iconName: layout.currentCategory.icon
-                                    pixelSize: 14
-                                    color: Theme.accent
-                                }
-                                Text {
-                                    text: layout.currentCategory.key || ""
-                                    color: Theme.accent
-                                    font.family: Theme.fontMono
-                                    font.pixelSize: Theme.fontSizeLabel
-                                    font.bold: true
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Viewport
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-
-                    // Category hosts. Every visited category keeps its instance,
-                    // so swapping back is instant and its scroll position holds.
-                    Repeater {
-                        model: layout.categories
-
-                        delegate: Item {
-                            id: catHost
-                            required property var modelData
-                            required property int index
-
-                            readonly property bool isCurrent: layout.currentIndex === index && !layout.searching
-                            property bool loaded: false
-
-                            anchors.fill: parent
-                            enabled: isCurrent
-                            visible: opacity > 0
-                            opacity: isCurrent ? 1 : 0
-                            Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.enter); easing.type: Anim.easeStandard } }
-
-                            // Pages load on first visit and are then kept alive,
-                            // so each category holds its own scroll position.
-                            onIsCurrentChanged: if (isCurrent) { loaded = true; catHost.publish() }
-                            Component.onCompleted: if (isCurrent) { loaded = true; catHost.publish() }
-
-                            // Hand the live page to the layout so route() can
-                            // scroll it to a named card.
-                            function publish() {
-                                if (!isCurrent) return
-                                layout.currentPage = pageLoader.item
-                                layout.flushPendingCard()
-                            }
-
-                            Loader {
-                                id: pageLoader
-                                anchors.fill: parent
-                                active: catHost.loaded
-                                sourceComponent: catHost.modelData.page
-                                onLoaded: catHost.publish()
-                            }
-                        }
-                    }
-
-                    // Search overlay
-                    MujoFlickable {
-                        anchors.fill: parent
-                        anchors.margins: 24
-                        visible: layout.searching
-                        contentHeight: resCol.implicitHeight + 30
-
-                        ColumnLayout {
-                            id: resCol
-                            width: parent.width
-                            spacing: 10
-
-                            RowLayout {
-                                spacing: 8
-                                Layout.bottomMargin: 4
-
-                                Text {
-                                    text: layout.results.length + (layout.results.length === 1 ? " setting found" : " settings found")
-                                    color: Theme.textSecondary
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeSmall
-                                }
-
-                                Text {
-                                    text: "• ↑↓ to navigate, Enter to open, Esc to clear"
-                                    color: Theme.textDim
-                                    font.family: Theme.fontMono
-                                    font.pixelSize: Theme.fontSizeLabel
-                                }
-                            }
-
-                            Repeater {
-                                model: layout.results
-
-                                delegate: Rectangle {
-                                    id: resCard
-                                    required property var modelData
-                                    required property int index
-                                    readonly property bool sel: index === layout.searchSel
-
-                                    Layout.fillWidth: true
-                                    implicitHeight: 56
-                                    radius: Theme.radiusMd
-                                    color: sel ? Theme.accentDim : (resHh.hovered ? Theme.surfaceHover : Theme.surface)
-                                    border.color: sel ? Theme.accent : Theme.border
-                                    border.width: sel ? 1.5 : 1
-                                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-                                    Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 14
-                                        anchors.rightMargin: 16
-                                        spacing: 14
-
-                                        BrandIcon { brand: resCard.modelData.key; size: 30 }
-
-                                        ColumnLayout {
-                                            Layout.fillWidth: true
-                                            spacing: 2
-
-                                            Text {
-                                                text: resCard.modelData.title
-                                                color: Theme.text
-                                                font.family: Theme.fontFamily
-                                                font.pixelSize: Theme.fontSizeBody
-                                                font.bold: true
-                                            }
-
-                                            Text {
-                                                text: resCard.modelData.desc
-                                                color: Theme.textSecondary
-                                                font.family: Theme.fontFamily
-                                                font.pixelSize: Theme.fontSizeSmall
-                                                elide: Text.ElideRight
-                                                Layout.fillWidth: true
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            implicitWidth: catBadge.implicitWidth + 14
-                                            implicitHeight: 22
-                                            radius: Theme.radiusSm
-                                            color: Theme.bg
-                                            border.color: Theme.border
-
-                                            Text {
-                                                id: catBadge
-                                                anchors.centerIn: parent
-                                                text: resCard.modelData.cat
-                                                color: Theme.accent
-                                                font.family: Theme.fontMono
-                                                font.pixelSize: Theme.fontSizeLabel
-                                                font.bold: true
-                                            }
-                                        }
-                                    }
-
-                                    HoverHandler { id: resHh; cursorShape: Qt.PointingHandCursor }
-                                    TapHandler { onTapped: layout.activateResult(resCard.index) }
-                                }
-                            }
-
-                            Text {
-                                visible: layout.results.length === 0
-                                text: "No settings match “" + layout.query + "”. Try display, theme, nixos, or ai."
-                                color: Theme.textDim
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeBody
-                                Layout.topMargin: 24
-                            }
-                        }
-                    }
-                }
+                visible: layout.searching
+                shell: layout
             }
         }
     }

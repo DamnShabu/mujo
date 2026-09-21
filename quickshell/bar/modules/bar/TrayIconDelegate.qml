@@ -22,8 +22,8 @@ Rectangle {
     property string closeOnActivate: ""     // non-empty ⇒ lives in the overflow popup
 
     Layout.alignment: Qt.AlignVCenter
-    implicitWidth: d.inPopup ? 36 : 25
-    implicitHeight: d.inPopup ? 36 : 22
+    implicitWidth: d.inPopup ? 36 : Theme.barItemSquare
+    implicitHeight: d.inPopup ? 36 : Theme.barItemHeight
     radius: Theme.radiusMd
     color: ma.pressed ? Theme.surfaceActive : (hh.hovered ? Theme.surfaceHover : "transparent")
     activeFocusOnTab: true

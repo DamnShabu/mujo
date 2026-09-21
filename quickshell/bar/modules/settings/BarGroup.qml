@@ -73,18 +73,6 @@ ColumnLayout {
         }
     }
 
-    function getCategoryColor(category) {
-        switch (category) {
-            case "navigation": return Theme.accentDim
-            case "system":     return Theme.surfaceActive
-            case "media":      return Theme.accentDim
-            case "hardware":   return Theme.surfaceHover
-            case "ai":         return Theme.accentDim
-            case "info":       return Theme.surfaceActive
-            case "layout":     return Theme.bg
-            default:           return Theme.surface
-        }
-    }
 
     // ── 1. Top Bar Layout & Geometry Card ─────────────────────────────────────
     MujoCard {
@@ -129,7 +117,7 @@ ColumnLayout {
         MujoSettingRow {
             iconName: "density_medium"
             title: "Bar Element Density"
-            description: "Spacing and icon padding density across all bar modules."
+            description: "Padding inside every bar control and group. Auto follows bar height."
 
             MujoSegmented {
                 model: [
@@ -290,26 +278,10 @@ ColumnLayout {
                 }
             }
 
-            // Zone Switcher Segmented
-            MujoSegmented {
+            // Zone Switcher / Visual Canvas Mini Bar Preview
+            InsetPanel {
                 Layout.fillWidth: true
-                model: [
-                    { id: "left",   label: "Left Zone (" + root.leftModules.length + ")" },
-                    { id: "center", label: "Center Zone (" + root.centerModules.length + ")" },
-                    { id: "right",  label: "Right Zone (" + root.rightModules.length + ")" }
-                ]
-                current: root.selectedZone
-                onSelected: function(id) { root.selectedZone = id }
-            }
-
-            // Visual Canvas Mini Bar Preview
-            Rectangle {
-                Layout.fillWidth: true
-                height: 48
-                radius: Theme.radiusMd
-                color: Theme.bg
-                border.color: Theme.border
-                border.width: 1
+                implicitHeight: 48
 
                 RowLayout {
                     anchors.fill: parent
@@ -418,15 +390,10 @@ ColumnLayout {
                     font.bold: true
                 }
 
-                // Empty state if no modules in selected zone
-                Rectangle {
+                InsetPanel {
                     visible: root.getZoneModules(root.selectedZone).length === 0
                     Layout.fillWidth: true
-                    height: 52
-                    radius: Theme.radiusMd
-                    color: Theme.surface
-                    border.color: Theme.border
-                    border.width: 1
+                    implicitHeight: 52
 
                     RowLayout {
                         anchors.centerIn: parent
@@ -437,7 +404,7 @@ ColumnLayout {
                             color: Theme.textDim
                         }
                         Text {
-                            text: "No modules currently assigned to this zone. Add one from the pool below."
+                            text: "Nothing in this zone yet. Add a module from the pool below."
                             color: Theme.textSecondary
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
@@ -451,7 +418,6 @@ ColumnLayout {
                     formatter: function(id) { return BarModuleRegistry.metadata(id).name }
                     iconResolver: function(id) { return BarModuleRegistry.metadata(id).icon }
                     badgeResolver: function(id) { return BarModuleRegistry.metadata(id).category.toUpperCase() }
-                    badgeColorResolver: function(id) { return root.getCategoryColor(BarModuleRegistry.metadata(id).category) }
                     onReordered: function(newModel) { root.setZoneModules(root.selectedZone, newModel) }
                     onItemRemoved: function(index, item) { root.removeModuleFromZone(root.selectedZone, index) }
                 }
@@ -887,15 +853,6 @@ ColumnLayout {
                     iconName: "wifi"
                     title: "Show Wi-Fi SSID"
                     description: "Render active wireless network name directly in the pill."
-                }
-
-                SettingRow {
-                    path: "bar.bluetooth.showDevice"
-                    def: false
-                    kind: "toggle"
-                    iconName: "bluetooth"
-                    title: "Show Connected Bluetooth Device"
-                    description: "Display primary Bluetooth accessory name in bar."
                 }
             }
 

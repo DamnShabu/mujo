@@ -55,166 +55,127 @@ ColumnLayout {
             }
         }
     }
+    MujoCard {
+        title: "Installed Flatpaks"
+        badgeText: section.flatpaksList.length + " INSTALLED"
 
-    // Filter search bar
-    Rectangle {
-        Layout.fillWidth: true
-        implicitHeight: 38
-        radius: Theme.radiusMd
-        color: Theme.surface
-        border.color: Theme.border
+        // The search belongs to the list, so it rides in the section header
+        // rather than in a bar of its own above the card.
+        actions: Rectangle {
+            implicitWidth: 220
+            implicitHeight: 30
+            radius: Theme.radiusSm
+            color: Theme.bg
+            border.width: 1
+            border.color: flatSearch.activeFocus ? Theme.borderInteractive : Theme.border
+            Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            spacing: 8
-            MaterialIcon { iconName: "search"; pixelSize: 17; color: Theme.textDim }
-            TextInput {
-                id: flatSearch
-                Layout.fillWidth: true
-                verticalAlignment: Text.AlignVCenter
-                color: Theme.text
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeBody
-                onTextChanged: section.searchQuery = text.trim().toLowerCase()
-                Text {
-                    visible: flatSearch.text === ""
-                    text: "Filter installed Flatpak packages…"
-                    color: Theme.textDim
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 9
+                anchors.rightMargin: 9
+                spacing: 7
+
+                MaterialIcon { iconName: "search"; pixelSize: 15; color: Theme.textDim }
+
+                TextInput {
+                    id: flatSearch
+                    Layout.fillWidth: true
+                    verticalAlignment: Text.AlignVCenter
+                    color: Theme.text
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBody
+                    font.pixelSize: Theme.fontSizeSmall
+                    clip: true
+                    selectByMouse: true
+                    onTextChanged: section.searchQuery = text.trim().toLowerCase()
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: flatSearch.text === ""
+                        text: "Filter packages"
+                        color: Theme.textDim
+                        font: flatSearch.font
+                    }
                 }
             }
         }
-    }
-
-    // Flatpak List Card
-    MujoCard {
-        title: "Installed Flatpaks"
-        iconName: "apps"
-        badgeText: (section.flatpaksList.length) + " INSTALLED"
 
         ColumnLayout {
             id: fpCol
             Layout.fillWidth: true
-            spacing: 4
+            spacing: 6
 
-            Text {
-                visible: fpCol.filteredFlatpaks.length === 0
-                text: section.flatpaksList.length === 0 ? "No Flatpaks installed." : "No Flatpaks matching the search query."
-                color: Theme.textDim
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSmall
-            }
-
-            readonly property var filteredFlatpaks: section.flatpaksList.filter(function(f) {
+            readonly property var filteredFlatpaks: section.flatpaksList.filter(function (f) {
                 if (section.searchQuery === "") return true
                 return (f.name && f.name.toLowerCase().indexOf(section.searchQuery) >= 0)
                     || (f.id && f.id.toLowerCase().indexOf(section.searchQuery) >= 0)
             })
 
+            EmptyState {
+                Layout.fillWidth: true
+                Layout.topMargin: 16
+                Layout.bottomMargin: 16
+                visible: fpCol.filteredFlatpaks.length === 0
+                iconName: section.flatpaksList.length === 0 ? "inventory_2" : "search_off"
+                title: section.flatpaksList.length === 0 ? "No Flatpaks installed" : "Nothing matches that filter"
+                hint: section.flatpaksList.length === 0
+                    ? "Install one with flatpak install, and it shows up here."
+                    : "Try part of an application name or its app id."
+            }
+
             Repeater {
                 model: fpCol.filteredFlatpaks
-                delegate: Rectangle {
-                    id: fpRow
+
+                delegate: ListRow {
                     required property var modelData
-                    Layout.fillWidth: true
-                    implicitHeight: 56
-                    radius: Theme.radiusMd
-                    color: fp_hh.hovered ? Theme.surfaceHover : "transparent"
-                    border.color: fp_hh.hovered ? Theme.borderStrong : "transparent"
-                    Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
-                    HoverHandler { id: fp_hh }
+                    MaterialIcon {
+                        iconName: "inventory_2"
+                        pixelSize: 18
+                        color: Theme.accent
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.rightMargin: 2
+                    }
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        spacing: 12
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
 
-                        Rectangle {
-                            Layout.preferredWidth: 32
-                            Layout.preferredHeight: 32
-                            Layout.alignment: Qt.AlignVCenter
-                            radius: Theme.radiusSm
-                            color: Theme.surfaceActive
-                            MaterialIcon {
-                                anchors.centerIn: parent
-                                iconName: "inventory_2"
-                                pixelSize: 17
-                                color: Theme.accent
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            spacing: 2
-
-                            RowLayout {
-                                spacing: 8
-                                Layout.fillWidth: true
-
-                                Text {
-                                    text: fpRow.modelData.name
-                                    color: Theme.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeBody
-                                    font.bold: true
-                                }
-
-                                Rectangle {
-                                    visible: fpRow.modelData.version !== undefined && fpRow.modelData.version !== ""
-                                    implicitWidth: fpVerTxt.implicitWidth + 8
-                                    implicitHeight: 16
-                                    radius: Theme.radiusSm
-                                    color: Theme.bg
-                                    border.color: Theme.border
-                                    Text {
-                                        id: fpVerTxt
-                                        anchors.centerIn: parent
-                                        text: fpRow.modelData.version || ""
-                                        color: Theme.textDim
-                                        font.family: Theme.fontMono
-                                        font.pixelSize: Theme.fontSizeLabel - 1
-                                    }
-                                }
-                            }
+                        RowLayout {
+                            spacing: 7
 
                             Text {
-                                text: fpRow.modelData.id + (fpRow.modelData.size ? " · " + fpRow.modelData.size : "")
-                                color: Theme.textSecondary
-                                font.family: Theme.fontMono
-                                font.pixelSize: Theme.fontSizeSmall
-                                elide: Text.ElideRight
-                                Layout.fillWidth: true
+                                text: modelData.name
+                                color: Theme.text
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeBody
+                                font.weight: Font.DemiBold
+                            }
+
+                            StatusTag {
+                                visible: modelData.version !== undefined && modelData.version !== ""
+                                text: modelData.version || ""
                             }
                         }
 
-                        Rectangle {
-                            Layout.preferredWidth: 30
-                            Layout.preferredHeight: 30
-                            Layout.alignment: Qt.AlignVCenter
-                            radius: Theme.radiusSm
-                            color: fp_data_hh.hovered ? Theme.surfaceActive : "transparent"
-                            border.color: Theme.border
-                            MaterialIcon {
-                                anchors.centerIn: parent
-                                iconName: "folder_open"
-                                pixelSize: 15
-                                color: Theme.textSecondary
-                            }
-                            HoverHandler { id: fp_data_hh; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: section.openDataFolder(".var/app/" + fpRow.modelData.id) }
+                        Text {
+                            text: modelData.id + (modelData.size ? " · " + modelData.size : "")
+                            color: Theme.textSecondary
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeLabel
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
                         }
+                    }
 
-                        DialogButton {
-                            Layout.alignment: Qt.AlignVCenter
-                            text: "Launch"
-                            onClicked: Launch.run(["mujo-run", "flatpak", "run", fpRow.modelData.id], fpRow.modelData.name, "shield")
-                        }
+                    IconButton {
+                        iconName: "folder_open"
+                        onClicked: section.openDataFolder(".var/app/" + modelData.id)
+                    }
+
+                    DialogButton {
+                        text: "Launch"
+                        onClicked: Launch.run(["mujo-run", "flatpak", "run", modelData.id], modelData.name, "shield")
                     }
                 }
             }

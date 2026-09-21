@@ -42,7 +42,7 @@ ColumnLayout {
             }
         }
 
-        SectionLabel { text: "Module Hierarchy (Top to Bottom)" }
+        SectionLabel { text: "Order, top to bottom" }
 
         MujoReorderList {
             model: root.modules

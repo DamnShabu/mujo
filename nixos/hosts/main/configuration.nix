@@ -55,6 +55,7 @@
       self.nixosModules.notifications
       self.nixosModules.quickshell
       self.nixosModules.keyring-prompter
+      self.nixosModules.vicinae
 
       self.nixosModules.vaultwarden
 

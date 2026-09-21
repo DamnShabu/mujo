@@ -81,7 +81,7 @@ Item {
                 }
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: "Your Library Is Empty"
+                    text: "Your library is empty"
                     color: Theme.text
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeTitle

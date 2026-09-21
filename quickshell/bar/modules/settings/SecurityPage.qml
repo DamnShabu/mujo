@@ -3,181 +3,72 @@ import QtQuick.Layouts
 import "../../theme"
 import "../../components"
 
-// Security & AI — Verified boot, AI assistants, progressive trust sandbox,
-// credentials, privacy & alerts.
-Item {
+// Security & Privacy — what the machine trusts: verified boot, the encrypted vault,
+// per-application sandboxing, stored credentials, AI assistants, and persistence privacy.
+SettingsPage {
     id: root
 
-    property string brand: "security"
-    property string title: "Security & AI"
-    property string subtitle: "Verified boot, AI assistants, progressive trust sandbox, credentials, privacy & alerts."
-    property bool isNixos: true
+    brand: "security"
+    title: "Security & Privacy"
+    subtitle: "Verified boot, progressive trust sandbox, credentials, AI assistants, persistence and privacy."
+    isNixos: true
+    tab: "integrity"
 
-    property string tab: "integrity"   // integrity | ai | trust | keyring | privacy
-    readonly property var tabIds: ["integrity", "ai", "trust", "keyring", "privacy", "vault", "notifications", "dnd", "persistence"]
+    sections: [
+        { id: "integrity", label: "System Integrity", component: integritySection,
+          description: "Verified boot, the encrypted vault, and how far the host is hardened." },
+        { id: "trust", label: "Trust & Sandbox", component: trustSection,
+          description: "Per-application isolation, and what each app is allowed to reach." },
+        { id: "keyring", label: "Credentials", component: keyringSection,
+          description: "Secrets held in the keyring, and what unlocks them." },
+        { id: "ai", label: "AI Assistants", component: aiSection,
+          description: "Which coding assistant runs, where it connects, and what it may touch." },
+        { id: "persistence", label: "Persistence & Privacy", component: persistenceSection,
+          description: "Persisted directories surviving reboot and local activity privacy." }
+    ]
 
-    readonly property var cardTabMap: ({
+    aliases: ({ "vault": "integrity", "privacy": "persistence" })
+
+    cardMap: ({
         "Verified Boot & System Integrity": "integrity",
         "LUKS2 Encrypted Storage Vault": "integrity",
         "Host Hardening & Memory Isolation": "integrity",
+        "Progressive Trust & Sandboxing": "trust",
+        "Progressive Trust & Isolation Engine": "trust",
+        "Application Trust Registry": "trust",
+        "Stored credentials": "keyring",
+        "Add credential": "keyring",
         "Coding Assistant CLI": "ai",
         "API Provider & Endpoint": "ai",
+        "API Credentials & Keyring": "ai",
+        "Generation Parameters": "ai",
         "AI Privacy & Safety Guardrails": "ai",
-        "Progressive Trust & Isolation Engine": "trust",
-        "Stored credentials": "keyring",
-        "Managed Persistence Paths": "privacy",
-        "Local Activity Trail": "privacy",
-        "Session Lock": "privacy",
-        "Behavior & Do Not Disturb": "privacy",
-        "Sound Alerts & Placement": "privacy",
-        "Per-App Mute Rules": "privacy"
+        "Add Persistence Directory": "persistence",
+        "Managed Persistence Paths": "persistence",
+        "Currently Active Bind Mounts": "persistence",
+        "Local Activity Trail": "persistence"
     })
 
-    function revealCard(name) {
-        if (name === "vault") { root.tab = "integrity"; return true }
-        if (name === "ai") { root.tab = "ai"; return true }
-        if (name === "trust") { root.tab = "trust"; return true }
-        if (name === "keyring") { root.tab = "keyring"; return true }
-        if (name === "privacy" || name === "notifications" || name === "dnd" || name === "persistence") { root.tab = "privacy"; return true }
-        if (root.tabIds.indexOf(name) >= 0) {
-            root.tab = name
-            return true
+    Component {
+        id: integritySection
+        ColumnLayout {
+            spacing: 14
+            SecurityGroup {
+                Layout.fillWidth: true
+                onOpenTrustRequested: root.tab = "trust"
+            }
         }
-        var targetTab = root.cardTabMap[name]
-        if (targetTab) {
-            root.tab = targetTab
-            var flick = _getActiveFlickable()
-            if (flick) _scrollFlickToCard(flick, name)
-            return true
-        }
-        return false
     }
-
-    function _getActiveFlickable() {
-        if (root.tab === "integrity") return flickIntegrity
-        if (root.tab === "ai") return flickAi
-        if (root.tab === "trust") return flickTrust
-        if (root.tab === "keyring") return flickKeyring
-        if (root.tab === "privacy") return flickPrivacy
-        return null
-    }
-
-    function _scrollFlickToCard(flick, cardTitle) {
-        var card = _findCard(flick.contentItem, cardTitle)
-        if (!card) return
-        var maxY = Math.max(0, flick.contentHeight - flick.height)
-        var p = card.mapToItem(flick.contentItem, 0, 0)
-        flick.contentY = Math.max(0, Math.min(p.y, maxY))
-    }
-
-    function _findCard(node, cardTitle) {
-        if (!node) return null
-        var kids = node.children
-        for (var i = 0; i < kids.length; i++) {
-            var c = kids[i]
-            if (c.collapsible !== undefined && c.title === cardTitle) return c
-            var hit = _findCard(c, cardTitle)
-            if (hit) return hit
-        }
-        return null
-    }
-
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 24
-        spacing: 14
-
-        MujoSegmented {
-            Layout.alignment: Qt.AlignLeft
-            model: [
-                { id: "integrity", label: "System Integrity",  icon: "verified_user" },
-                { id: "ai",        label: "AI Assistants",     icon: "psychology" },
-                { id: "trust",     label: "Trust & Sandbox",   icon: "shield" },
-                { id: "keyring",   label: "Credentials",       icon: "password" },
-                { id: "privacy",   label: "Privacy & Alerts",  icon: "security" }
-            ]
-            current: root.tab
-            onSelected: function(id) { root.tab = id }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-
-            MujoFlickable {
-                id: flickIntegrity
-                anchors.fill: parent
-                visible: root.tab === "integrity"
-                contentHeight: colIntegrity.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colIntegrity
-                    width: parent.width
-                    spacing: 14
-                    SecurityGroup {
-                        Layout.fillWidth: true
-                        onOpenTrustRequested: root.tab = "trust"
-                    }
-                }
-            }
-
-            MujoFlickable {
-                id: flickAi
-                anchors.fill: parent
-                visible: root.tab === "ai"
-                contentHeight: colAi.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colAi
-                    width: parent.width
-                    spacing: 14
-                    AiGroup { Layout.fillWidth: true }
-                }
-            }
-
-            MujoFlickable {
-                id: flickTrust
-                anchors.fill: parent
-                visible: root.tab === "trust"
-                contentHeight: colTrust.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colTrust
-                    width: parent.width
-                    spacing: 14
-                    ApplicationsTrustTab { Layout.fillWidth: true }
-                }
-            }
-
-            MujoFlickable {
-                id: flickKeyring
-                anchors.fill: parent
-                visible: root.tab === "keyring"
-                contentHeight: colKeyring.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colKeyring
-                    width: parent.width
-                    spacing: 14
-                    KeyringGroup { Layout.fillWidth: true }
-                }
-            }
-
-            MujoFlickable {
-                id: flickPrivacy
-                anchors.fill: parent
-                visible: root.tab === "privacy"
-                contentHeight: colPrivacy.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colPrivacy
-                    width: parent.width
-                    spacing: 14
-                    PersistenceGroup { Layout.fillWidth: true }
-                    PrivacyGroup { Layout.fillWidth: true }
-                    NotificationsGroup { Layout.fillWidth: true }
-                }
-            }
+    Component { id: trustSection; ColumnLayout { spacing: 14; ApplicationsTrustTab { Layout.fillWidth: true } } }
+    Component { id: keyringSection; ColumnLayout { spacing: 14; KeyringGroup { Layout.fillWidth: true } } }
+    Component { id: aiSection; ColumnLayout { spacing: 14; AiGroup { Layout.fillWidth: true } } }
+    Component {
+        id: persistenceSection
+        ColumnLayout {
+            spacing: 14
+            PersistenceGroup { Layout.fillWidth: true }
+            PrivacyGroup { Layout.fillWidth: true }
         }
     }
 }
+

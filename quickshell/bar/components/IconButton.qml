@@ -9,6 +9,7 @@ Rectangle {
     property bool hovered: hoverHandler.hovered
     property bool pressed: tapHandler.pressed
     property color iconColor: root.active ? Theme.accent : (root.hovered ? Theme.text : Theme.textSecondary)
+    property int pixelSize: 17
     signal clicked()
 
     implicitWidth: 30
@@ -35,7 +36,7 @@ Rectangle {
 
     MaterialIcon {
         iconName: root.iconName
-        pixelSize: 17
+        pixelSize: root.pixelSize
         anchors.centerIn: parent
         color: root.iconColor
         Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }
