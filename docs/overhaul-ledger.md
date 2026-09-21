@@ -101,6 +101,23 @@ Those five, each classified:
 | `quickshell/bar/modules/bar/IslandPanel.qml` | 257 | `modules/settings/IslandGroup.qml`, once its surface-colour picker was ported across |
 | `quickshell/bar/modules/settings/IntelligencePage.qml` | 17 | `SecurityPage` and `HardwarePage`, which the 5-category redesign re-homed all four of its groups onto |
 | `quickshell/bar/modules/settings/WallpapersPage.qml` | 136 | `AppearancePage`, which now owns the `wallpaper.json` watcher and both wallpaper groups |
+| `quickshell/bar/modules/desktop/Wallpaper.qml` | 133 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/services/Wallhaven.qml` | 251 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/services/WallpaperEngine.qml` | 338 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/services/WallpaperDownloads.qml` | 157 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/services/WallpaperDownloadWorker.qml` | 108 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/modules/settings/WallpaperBrowseGroup.qml` | 44 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/modules/settings/WallpaperEffectsGroup.qml` | 68 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/modules/settings/WallpaperEngineControls.qml` | 795 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/modules/settings/WallpaperEngineGrid.qml` | 312 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/modules/settings/WallpaperLibraryGrid.qml` | 68 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/modules/settings/WallpaperPanel.qml` | 590 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/modules/settings/WallhavenDetailModal.qml` | 382 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/modules/settings/WallpaperEngineDetailModal.qml` | 382 | `skwd-wall-v2` standalone wallpaper daemon |
+| `quickshell/bar/modules/settings/TagQuery.js` | 134 | obsolete with wallpaper panel removal |
+| `quickshell/bar/test-wallpaper-panel.qml` | 107 | obsolete following wallpaper panel removal |
+| `quickshell/cursor-tracker` | 243 | obsolete with wallpaper engine removal |
+| `quickshell/wallpaper-engine` | 422 | `skwd-wall-v2` standalone wallpaper daemon |
 
 Also removed, not as files: 12 settings keys and 13 controls that wrote them
 (see phase 1–2 below), and 18 hex literals that became six named tokens.
@@ -174,12 +191,12 @@ orphan entries.
 | `quickshell/bar/components/BarCluster.qml` | CORRECT | renamed from `BarGroup.qml` for a real reason it states: a settings `BarGroup` shadowed it wherever a page imported both directories | 3 |
 | `quickshell/bar/components/FocusRing.qml` | CORRECT | 28 lines, one job; `visible` is bound to `target.activeFocus` with `target` defaulting to `parent`, so no call site can forget to wire it | 3 |
 | `quickshell/bar/modules/settings/SystemPage.qml` | CORRECT | the five category pages. Each is composition plus one sub-tab selector: a `tab`, a `cardTabMap` from card title to sub-tab, and `revealCard()` so omni-search selects the tab before scrolling. `test-settings-ui.qml` fails if a `SearchIndex` `card:` has no `cardTabMap` entry, which is the failure mode that shape introduces | 3 |
-| `quickshell/bar/modules/settings/AppearancePage.qml` | CORRECT | same, and it absorbed the wallpaper UI: it now owns the single `wallpaper.json` watcher the two wallpaper groups read | 3 |
+| `quickshell/bar/modules/settings/AppearancePage.qml` | CORRECT | themes presets and motion dynamics; wallpaper UI removed in skwd-wall migration | 3 |
 | `quickshell/bar/modules/settings/WorkspacePage.qml` | CORRECT | same | 3 |
 | `quickshell/bar/modules/settings/SecurityPage.qml` | CORRECT | same, plus one documented exception: `ApplicationsTrustTab` is already a column of cards, so it takes the width rather than a wrapper card | 3 |
 | `quickshell/bar/modules/settings/IntelligencePage.qml` | DELETED | 17 lines; the 5-category redesign re-homed all four of its groups onto `SecurityPage` and `HardwarePage` and left the file and its `qmldir` entry behind | 1 |
 | `quickshell/bar/modules/settings/WallpapersPage.qml` | DELETED | 136 lines duplicating `AppearancePage`'s `wallpaper.json` watcher and hosting the same two groups. Reachable from nothing but its own self-check — a test that is the only thing keeping a page alive is not testing the product | 1 |
-| `quickshell/bar/test-wallpaper-panel.qml` | CHANGED | retargeted at `AppearancePage`, so the same 24 assertions now run against the page a user can actually open | 1 |
+| `quickshell/bar/test-wallpaper-panel.qml` | DELETED | deleted; obsolete following wallpaper panel removal and skwd-wall-v2 migration | 8 |
 | `quickshell/bar/modules/bar/TrayIconDelegate.qml` | CHANGED | its `root` property shadowed the `SystemTray` id of the same name inside the delegate binding scope, so `root: root` bound the property to itself. Every delegate ran with `root === null`: `d.root.recolour` was dead and `closeOnActivate: root.popupId` threw a TypeError per tray item, which is why activating an item in the overflow popup never closed it. Renamed `tray` | 2 |
 | `quickshell/bar/modules/bar/SystemTray.qml` | CHANGED | both call sites pass `tray: root` | 2 |
 | `quickshell/bar/theme/Icons.qml` | CORRECT | the parallel redesign removed `actions` and `path()`; no caller remains, `MaterialIcon` draws glyphs directly, and the three surviving functions are the theme lookups for files and applications | 6 |
@@ -201,8 +218,8 @@ orphan entries.
 | `quickshell/bar/modules/settings/ApplicationsGroup.qml` | CORRECT | 58 lines: tab state and composition, each tab self-contained | 3 |
 | `quickshell/bar/modules/settings/PersistenceGroup.qml` | CORRECT | writes only through `mujo persist`, which takes the lock | 2 |
 | `quickshell/bar/modules/settings/PrivacyGroup.qml` | CHANGED | rewritten: five fake toggles removed, `mujo privacy purge-history` (not a verb) replaced with `clear-recent`, and the unconditional success message replaced with the exit code | 2 |
-| `quickshell/bar/modules/settings/WallpaperBrowseGroup.qml` | CORRECT | catalogue chrome only; the engines are `Wallhaven.qml` and `WallpaperEngine.qml` | 3 |
-| `quickshell/bar/modules/settings/WallpaperEffectsGroup.qml` | CORRECT | its 8 hex literals are the user-selectable background palette the colour rule exempts | 1 |
+| `quickshell/bar/modules/settings/WallpaperBrowseGroup.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 6 |
+| `quickshell/bar/modules/settings/WallpaperEffectsGroup.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 6 |
 | `quickshell/bar/services/VmService.qml` | CHANGED | new: the engine half of `VmGroup`, deliberately not self-polling because the view owns a 2s cadence that must stop off-screen | 3 |
 | `quickshell/bar/test-vm-service.qml` | CHANGED | new: seven assertions on the progress parser, the only non-trivial logic in the service | 3 |
 
@@ -1045,7 +1062,7 @@ property checked), `DELETED` (what absorbed it).
 | `nixos/security/broker.nix` | CHANGED | `read -t 5`; capability-by-socket design verified sound — grants are exact build-time strings and the `[^/]+/[^/]+` assertion makes traversal unreachable | 2 |
 | `nixos/apps/tray-relay.py` | CHANGED | four-member notification allowlist; arity check on `NameOwnerChanged` | 2 |
 | `nixos/apps/test-trust-registry-lock.sh` | CHANGED | new: 20 concurrent writers, fails if the unlocked round stops losing updates | 2 |
-| `quickshell/wallpaper-engine/mujo-wallpaper-engine.py` | CHANGED | `timeout=5` on two `pgrep` and one `pkill`, all inside existing `except` handlers | 2 |
+| `quickshell/wallpaper-engine/mujo-wallpaper-engine.py` | DELETED | deleted; replaced by skwd-wall-v2 | 2 |
 | `nixos/core/base.nix` | CHANGED | removed two `"yurii"` literals that the repo's own rule forbids; both were already shadowed | 2 |
 | `nixos/core/general.nix` | CHANGED | bare `ponytail:` replaced with the actual ceiling: this grants passwordless root | 2 |
 | `nixos/core/user.nix` | CORRECT | sole resolver of the username, from gitignored `secrets/username` with one fallback | 2 |
@@ -1086,19 +1103,19 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/modules/settings/SecurityGroup.qml` | CHANGED | four hardcoded-green hardening cards bound to live telemetry; audit failure rendered as its own state | 5 |
 | `quickshell/bar/services/SentinelService.qml` | CHANGED | `val ?` → `val !== undefined`, so `renice(pid, 0)` keeps its argument | 2 |
 
-| `quickshell/bar/modules/settings/WallpaperPanel.qml` | CHANGED | 2933 → 590; keeps tab state, `wallpaper.json`, the library listing, effects, overlays and modals — every block that only one tab read now lives with that tab | 3 |
-| `quickshell/bar/modules/settings/WallhavenControls.qml` | CHANGED | new: the Wallhaven search box and filter drawer, owning the suggestion state nothing outside it read | 3 |
-| `quickshell/bar/modules/settings/WallpaperEngineControls.qml` | CHANGED | new: the same for Wallpaper Engine; not merged with the above because the two services expose different filter axes | 3 |
-| `quickshell/bar/modules/settings/WallhavenGrid.qml` | CHANGED | new: results grid; owns its pagination trigger, since only it knows the viewport's distance to the end of the model | 3 |
-| `quickshell/bar/modules/settings/WallpaperEngineGrid.qml` | CHANGED | new: same, paginating only for Workshop — the installed list arrives whole | 3 |
-| `quickshell/bar/modules/settings/WallpaperLibraryGrid.qml` | CHANGED | new: local library; `currentImage` is a `required property`, the selection signal replaces a direct `runWp` call | 3 |
-| `quickshell/bar/modules/settings/TagQuery.js` | CHANGED | new: the tag parser both search boxes had a copy of; pure functions, 17 assertions in `test-wallpaper-panel.qml` | 3 |
+| `quickshell/bar/modules/settings/WallpaperPanel.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 6 |
+| `quickshell/bar/modules/settings/WallhavenControls.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 6 |
+| `quickshell/bar/modules/settings/WallpaperEngineControls.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 6 |
+| `quickshell/bar/modules/settings/WallhavenGrid.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 6 |
+| `quickshell/bar/modules/settings/WallpaperEngineGrid.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 6 |
+| `quickshell/bar/modules/settings/WallpaperLibraryGrid.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 6 |
+| `quickshell/bar/modules/settings/TagQuery.js` | DELETED | deleted; obsolete with wallpaper panel removal | 6 |
 | `quickshell/bar/components/MujoGridView.qml` | CHANGED | new: the scroll block all three grids duplicated; a GridView cannot extend `MujoFlickable`, which is why the copies existed | 3 |
 | `quickshell/bar/components/qmldir` | CHANGED | registers `MujoGridView` | 3 |
 | `quickshell/bar/modules/settings/qmldir` | CHANGED | registers the five new settings components | 3 |
-| `quickshell/bar/test-wallpaper-panel.qml` | CHANGED | new: loads the panel through all four tabs and asserts `TagQuery` against the behaviour it replaced | 3 |
+| `quickshell/bar/test-wallpaper-panel.qml` | DELETED | deleted; obsolete following wallpaper panel removal | 8 |
 | `quickshell/bar/services/Notifications.qml` | CHANGED | `soundProc.kill()` → `running = false`; `Process` has no `kill()`, and the `TypeError` silently aborted `playSound()` | 3 |
-| `quickshell/bar/modules/settings/WallpaperEngineDetailModal.qml` | CHANGED | null-guard on `wallpaperItem.is_local`, which threw on every evaluation while the modal was closed; `sourceSize` capped at the modal's 960×680 like its wallhaven twin | 3, 4 |
+| `quickshell/bar/modules/settings/WallpaperEngineDetailModal.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 6 |
 | `quickshell/bar/test-icons.qml` | CHANGED | checks moved into `Timer { interval: 0 }` so the process exits; `Qt.exit()` from `onCompleted` is a no-op | 3 |
 | `quickshell/bar/test-grid.qml` | CHANGED | same | 3 |
 | `quickshell/bar/test-notifications.qml` | CHANGED | same; also the first run of this check to reach its verdict, once `Process.kill` stopped throwing | 3 |
@@ -1143,7 +1160,7 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/components/MujoLivingCanvas.qml` | CORRECT | every loop is periodic over 0..2π, so the animation never jumps; gated on `Anim.reduceMotion` | 6 |
 | `quickshell/bar/components/BaseWidget.qml` | CORRECT | the shared desktop-widget frame: header, glass, elevation and explicit loading/error states, so widgets cannot invent their own | 6 |
 | `quickshell/bar/components/DesktopIcon.qml` | CORRECT | presentational by design — `DesktopIcons.qml` owns hit-testing, selection and drag, so those live in one place; only the rename field takes focus | 6 |
-| `quickshell/bar/services/qmldir` | CORRECT | every singleton is declared `singleton`; the three non-singletons (`WallpaperDownloadWorker`, `CrashWatcher`, `IdleService`) are instantiated per use, which is why they are not | 6 |
+| `quickshell/bar/services/qmldir` | CORRECT | every singleton is declared `singleton`; non-singletons (`CrashWatcher`, `IdleService`) are instantiated per use, which is why they are not | 6 |
 | `quickshell/bar/services/PopupCoordinator.qml` | CORRECT | one `activeId` means at most one popup can be open, which is the invariant every menu depends on | 6 |
 | `quickshell/bar/services/Session.qml` | CORRECT | lock is always offered; everything destructive is gated on `launcher.enableDangerousActions`, default off, and `available()` filters rather than the call sites | 6 |
 | `quickshell/bar/services/Lock.qml` | CORRECT | the only owner of `locked`; `unlock()` is the programmatic release and is separate from `authenticate()`, so a UI cannot bypass PAM by writing state | 6 |
@@ -1154,12 +1171,12 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/services/CrashWatcher.qml` | CORRECT | follows one `mujo crash stream`; four crash sources arrive already normalised by the CLI, so the QML never parses journal text | 6 |
 | `quickshell/bar/services/DesktopFiles.qml` | CORRECT | the filesystem is the source of truth and every mutation goes through the `mujo` CLI; grid slots live in a separate state file, so no UI metadata is written into the user's files | 6 |
 | `quickshell/bar/services/DesktopGrid.qml` | CORRECT | one 24px lattice and one occupancy map for icons and widgets both, so neither can be dropped onto the other without either layer knowing about the other | 6 |
-| `quickshell/bar/services/SettingsBus.qml` | CORRECT | one JSON file, dotted-path reads with a declared default, optimistic write plus debounced flush; the palette and wallpaper deliberately keep their own files | 6 |
+| `quickshell/bar/services/SettingsBus.qml` | CORRECT | one JSON file, dotted-path reads with a declared default, optimistic write plus debounced flush; the palette deliberately keeps its own file | 6 |
 | `quickshell/bar/services/Shelf.qml` | CORRECT | shelved items are references, never copies — the consuming application performs the move, so a shelf entry cannot duplicate a file behind the user's back | 6 |
-| `quickshell/bar/services/Wallhaven.qml` | CORRECT | owns the 429 cooldown centrally, so no panel can retry past the rate limit; its timer runs only while `rateLimitCountdown > 0` | 4, 6 |
-| `quickshell/bar/services/WallpaperDownloads.qml` | CORRECT | keyed by URL, so the same wallpaper cannot be queued twice; progress, speed and ETA come from the worker rather than being guessed | 6 |
-| `quickshell/bar/services/WallpaperDownloadWorker.qml` | CORRECT | a `Process` per download with streamed progress; not a singleton, which is what lets downloads run concurrently | 6 |
-| `quickshell/bar/services/WallpaperEngine.qml` | CORRECT | mirrors `Wallhaven`'s shape over Steam Workshop, with a separate installed model — which is why the grid's `activeSource` switch has two models to choose between | 6 |
+| `quickshell/bar/services/Wallhaven.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 5 |
+| `quickshell/bar/services/WallpaperDownloads.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 5 |
+| `quickshell/bar/services/WallpaperDownloadWorker.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 5 |
+| `quickshell/bar/services/WallpaperEngine.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 5 |
 | `quickshell/bar/theme/qmldir` | CORRECT | all four theme types are singletons, which is what lets the shell and the separate Settings process share one palette | 6 |
 | `quickshell/bar/theme/Theme.qml` | CORRECT | reads `theme.json` through a watched `FileView`, so `mujo theme …` restyles a running desktop without a restart; the Settings app imports this same singleton | 6 |
 | `quickshell/bar/theme/Anim.qml` | CORRECT | `Anim.d()` is the one place motion is scaled, so `reduceMotion` and the intensity tiers apply everywhere rather than per call site | 6 |
@@ -1197,7 +1214,7 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/modules/desktop/VpnWidget.qml` | CORRECT | drives the `mullvad` CLI, matching `NetworkPanel`; the declarative half stays in the NixOS module | 6 |
 | `quickshell/bar/modules/desktop/WeatherWidget.qml` | CORRECT | renders the shared `Weather` singleton, so it adds no network traffic of its own | 4, 6 |
 | `quickshell/bar/modules/desktop/AiUsageWidget.qml` | CORRECT | 5-minute poll of `llm-usage.sh`, the same script the bar menu uses, rather than a second scanner | 6 |
-| `quickshell/bar/modules/desktop/Wallpaper.qml` | CORRECT | per-screen; reads `wallpaper.json`, which `mujo wallpaper` owns, and keeps the blurred backdrop for niri's overview on the same surface | 6 |
+| `quickshell/bar/modules/desktop/Wallpaper.qml` | DELETED | deleted; replaced by skwd-wall-v2 standalone daemon | 4 |
 | `quickshell/bar/modules/desktop/ShelfSurface.qml` | CORRECT | the per-screen edge drawer; renders the same `ShelfView` body as the bar popup | 6 |
 | `quickshell/bar/modules/desktop/ShelfButton.qml` | CORRECT | visible only while the shelf has items or its popup is open, so an empty shelf leaves no residue in the bar | 6 |
 | `quickshell/bar/modules/desktop/ShelfView.qml` | CORRECT | one body shared by the drawer and the popup, so the two entry points cannot drift apart | 6 |
@@ -1259,7 +1276,7 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/bar/modules/settings/HealthPanel.qml` | CORRECT | drives `mujo sentinel`/`mujo clean`; the destructive cleanups are presented with what they would reclaim before running | 2, 6 |
 | `quickshell/bar/modules/settings/GeneralPanel.qml` | CORRECT | the NixOS preference surface; each control writes through `mujo system-pref`, so nothing here edits a `.nix` file directly | 6 |
 | `quickshell/bar/modules/settings/DesktopPanel.qml` | CORRECT | configures widgets, cava and the shelf through the same store keys those components read | 6 |
-| `quickshell/bar/modules/settings/WallhavenDetailModal.qml` | CHANGED | `sourceSize` capped at the modal's own 960×680 maximum; fit mode scales into that box anyway, so a 5120×2880 preview was decoding ~59 MB to paint a pane that cannot exceed it | 3, 4, 6 |
+| `quickshell/bar/modules/settings/WallhavenDetailModal.qml` | DELETED | deleted; replaced by skwd-wall-v2 | 6 |
 | `nixos/apps/_ai-mcp.nix` | CORRECT | `_`-prefixed so `importTree` skips it; it is a plain function returning an attrset, and three agent modules render it into their own config shapes | 6 |
 | `nixos/apps/claude-code.nix` | CORRECT | persists `~/.claude` *and* `~/.claude.json` separately, because the latter is a file at the home root and a directory entry would not cover it | 6 |
 | `nixos/apps/antigravity-cli.nix` | CORRECT | writes the MCP config from `_ai-mcp.nix`, so the agent list is declared once | 6 |
@@ -1345,7 +1362,7 @@ property checked), `DELETED` (what absorbed it).
 | `quickshell/keyring/mujo-keyring.py` | CORRECT | secretstorage over D-Bus — the native store, not a custom one — and a secret is emitted only by `get`, never by `list` | 2 |
 | `quickshell/keyring/mujo-keyring-prompter.py` | CORRECT | reuses `Gcr.SecretExchange` rather than reimplementing the Diffie-Hellman exchange, so the password never crosses D-Bus in cleartext | 2 |
 | `quickshell/unlock/unlock.c` | CORRECT | deliberately not setuid: `pam_unix` delegates the shadow read to `unix_chkpwd`, so this runs with no privilege of its own | 2 |
-| `quickshell/cursor-tracker/cursor-tracker.c` | CORRECT | opens `/dev/input` read-only and relies on group membership for access rather than any elevation; re-scans on hotplug rather than holding stale descriptors | 2 |
+| `quickshell/cursor-tracker/cursor-tracker.c` | DELETED | deleted; obsolete following wallpaper engine purge | 2 |
 | `quickshell/bar/test-scroll.qml` | CHANGED | new: asserts the shared wheel maths, and that `Scroll.js`'s repeated `Flickable` enum still matches Qt's — which is what makes repeating it safe | 3 |
 | `quickshell/bar/test-launcher-search.qml` | CHANGED | new: 22 assertions over the ranking bands; writing it is what surfaced that the favourite bonus can lift a match one band | 3 |
 
