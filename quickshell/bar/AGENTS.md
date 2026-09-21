@@ -13,7 +13,7 @@ The mujō desktop for Niri/Wayland: floating grouped top bar, notifications, par
 
 ## CONFIG & STATE
 
-- **Config** — `~/.config/qsshell/*.json` and `~/.config/quickshell/*.json`. Key files: `settings.json` (reactive store owned by `services/SettingsBus.qml`), `theme.json` (palette, hot-reloaded), `wallpaper.json`.
+- **Config** — `~/.config/qsshell/*.json` and `~/.config/quickshell/*.json`. Key files: `settings.json` (reactive store owned by `services/SettingsBus.qml`), `theme.json` (palette, hot-reloaded).
 - **Ephemeral state** — `~/.local/state/qsshell/*.json` (shelf, notifications, backups, desktop icon grid slots).
 - **Desktop items** — `~/Desktop` is the source of truth for what exists; `desktop-icons.json` holds only grid slots, never anything the user would miss. `mujo desktop list|mkdir|new-file|rename|trash|open|info|path|into|copy|cut|paste|import|terminal|pos|pos-batch|forget` owns every read and write, takes an flock, and deletes via trash rather than `rm`. Anything it spawns that outlives the call (`wl-copy`, a terminal, `gio open`) must be given `9>&-` or it inherits the flock and wedges the next command. Cut/copy/paste go through the system clipboard in `x-special/gnome-copied-files`, so they interoperate with GTK file managers.
 - **Desktop geometry** — the icon/widget surface is inset by `Theme.desktopInset` (+ the bar's reserved band on the bar's edge), which mirrors niri's `layout.gaps + layout.struts` in `modules/wrappers/niri.nix`. That is what keeps widgets from showing in the gap niri leaves around an open window; the wallpaper surface is separate and still edge to edge.
@@ -53,7 +53,6 @@ qs -p ./test-settings-ui.qml      # settings row binding & routing
 qs -p ./test-security-ui.qml      # SecurityService binding & the trust tab
 qs -p ./test-greeter.qml          # boot greeter: unlock/setup mode + submit guards
 qs -p ./test-desktop.qml          # icon placement vs. a widget, against the real ~/Desktop
-qs -p ./test-wallpaper-panel.qml  # Wallpapers page components & TagQuery parsing
 qs -p ./test-scroll.qml           # shared wheel scrolling, and that Flickable's enum still matches
 qs -p ./test-vm-service.qml       # VmService progress parsing and log cap
 qs -p ./test-reorder-list.qml     # MujoReorderList drag, drop, and button reordering

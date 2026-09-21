@@ -29,10 +29,9 @@ ShellRoot {
         SettingsPage { id: page; title: "Probe"; brand: "system" }
 
         // The five real category pages, so the search index can be checked
-        // against the cards the app actually ships. Held in a Loader for the
-        // same reason as test-wallpaper-panel: several groups keep watched
-        // FileViews and Processes alive, and the engine will not exit while
-        // they are.
+        // against the cards the app actually ships. Held in a Loader because
+        // several groups keep watched FileViews and Processes alive, and the
+        // engine will not exit while they are.
         Loader {
             id: pagesLoader
             width: 900
@@ -69,14 +68,12 @@ ShellRoot {
                 },
                 {
                     key: "appearance", label: "Appearance", icon: "palette", brand: "appearance",
-                    subtitle: "Theme presets, accent colors, wallpaper catalog, live engines & motion dynamics",
+                    subtitle: "Theme presets, accent colors, and motion dynamics",
                     subs: [
-                        { id: "themes",     label: "Themes & Colors",   icon: "palette" },
-                        { id: "wallpapers", label: "Wallpapers",        icon: "photo_library" },
-                        { id: "effects",    label: "Wallpaper Effects", icon: "tune" },
-                        { id: "motion",     label: "Motion Dynamics",   icon: "animation" }
+                        { id: "themes", label: "Themes & Colors", icon: "palette" },
+                        { id: "motion", label: "Motion Dynamics", icon: "animation" }
                     ],
-                    keys: ["appearance", "theme", "colors", "accent", "transparency", "motion", "animations", "wallpapers", "wallpaper", "wallhaven", "wallpaperengine", "effects", "parallax"]
+                    keys: ["appearance", "theme", "colors", "accent", "transparency", "motion", "animations"]
                 },
                 {
                     key: "workspace", label: "Workspace", icon: "dock_to_bottom", brand: "desktop",
@@ -154,14 +151,6 @@ ShellRoot {
             check("route alias motion -> appearance", layout.current === "appearance")
             layout.route("accent")
             check("route alias accent -> appearance", layout.current === "appearance")
-            layout.route("wallpapers")
-            check("route alias wallpapers -> appearance", layout.current === "appearance")
-            layout.route("wallhaven")
-            check("route alias wallhaven -> appearance", layout.current === "appearance")
-            layout.route("wallpaperengine")
-            check("route alias wallpaperengine -> appearance", layout.current === "appearance")
-            layout.route("effects")
-            check("route alias effects -> appearance", layout.current === "appearance")
 
             layout.route("workspace")
             check("route to workspace", layout.current === "workspace")
@@ -224,9 +213,6 @@ ShellRoot {
             check("pAppearance revealCard sub-tab themes", pages["appearance"].revealCard("themes"))
             check("pAppearance revealCard card Appearance Mode", pages["appearance"].revealCard("Appearance Mode"))
             check("pAppearance revealCard card Automated Day & Night Schedule", pages["appearance"].revealCard("Automated Day & Night Schedule"))
-            check("pAppearance revealCard sub-tab wallpapers", pages["appearance"].revealCard("wallpapers"))
-            check("pAppearance revealCard sub-tab wallhaven", pages["appearance"].revealCard("wallhaven"))
-            check("pAppearance revealCard sub-tab effects", pages["appearance"].revealCard("effects"))
             check("pAppearance revealCard sub-tab motion", pages["appearance"].revealCard("motion"))
 
             check("pWorkspace revealCard sub-tab bar", pages["workspace"].revealCard("bar"))
