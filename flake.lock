@@ -393,6 +393,22 @@
         "type": "github"
       }
     },
+    "nixpkgs_3": {
+      "locked": {
+        "lastModified": 1787736819,
+        "narHash": "sha256-cV5xEJJK3BvhU8rEd4mC9UsmDi5qscv/kzGPhBRC5WA=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "9fbb54b33e91ee4ca368e35a78e0613c720600b3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "pre-commit": {
       "inputs": {
         "flake-compat": "flake-compat",
@@ -462,6 +478,25 @@
         "url": "https://git.outfoxxed.me/outfoxxed/quickshell"
       }
     },
+    "release": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_3"
+      },
+      "locked": {
+        "lastModified": 1789880854,
+        "narHash": "sha256-xcNL0ot5AZVxAFT7dAykgiqanHJ8Fq32byDrmRwSakM=",
+        "owner": "liixini",
+        "repo": "skwd-wall",
+        "rev": "57b79f9ab8514b518fe0134a4e4a6a574192b23d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "liixini",
+        "ref": "nix",
+        "repo": "skwd-wall",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "disko": "disko",
@@ -479,6 +514,7 @@
         "qml-niri": "qml-niri",
         "quickshell": "quickshell",
         "secretspec": "secretspec",
+        "skwd-wall": "skwd-wall",
         "thyx": "thyx",
         "unstable": "unstable",
         "wrapper-modules": "wrapper-modules"
@@ -540,6 +576,24 @@
         "owner": "cachix",
         "ref": "v0.18.0",
         "repo": "secretspec",
+        "type": "github"
+      }
+    },
+    "skwd-wall": {
+      "inputs": {
+        "release": "release"
+      },
+      "locked": {
+        "lastModified": 1789910044,
+        "narHash": "sha256-E49jMlmcMsAbKX20kuIh2oMuaXzWtujRLR9jatreNWQ=",
+        "owner": "liixini",
+        "repo": "skwd-wall",
+        "rev": "3f8141ccace0b531dddea0e7d5cdc7f2176fccdc",
+        "type": "github"
+      },
+      "original": {
+        "owner": "liixini",
+        "repo": "skwd-wall",
         "type": "github"
       }
     },

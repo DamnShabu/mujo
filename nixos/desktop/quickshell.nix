@@ -71,7 +71,7 @@
     environment.sessionVariables.QML2_IMPORT_PATH = lib.mkForce qmlPath;
     environment.sessionVariables.QT_PLUGIN_PATH = lib.mkForce qtPluginPath;
 
-    environment.systemPackages = [qs.mujo qs.mujo-keyring qs.mujo-wallpaper-engine pkgs.linux-wallpaperengine qs.mujo-screenshot];
+    environment.systemPackages = [qs.mujo qs.mujo-keyring qs.mujo-screenshot];
 
     # PAM service the lock-screen helper (qs.unlock) authenticates against. A
     # bare service gets NixOS's default unix auth (pam_unix → setuid unix_chkpwd),
@@ -118,7 +118,7 @@
         # /run/wrappers before /run/current-system/sw: the latter's pkexec is the
         # plain store binary, and only the wrapper is setuid, so anything the UI
         # escalates (trust graduate, rebuild, GC) fails without it.
-        path = with pkgs; ["/run/wrappers"] ++ [bash coreutils findutils gnugrep gnused jq curl sqlite libsecret wl-clipboard cliphist xdg-utils systemd swayidle brightnessctl cava quickshell qs.cursor-tracker qs.unlock qs.mujo-wallpaper-engine linux-wallpaperengine qs.mujo-screenshot] ++ ["/run/current-system/sw"];
+        path = with pkgs; ["/run/wrappers"] ++ [bash coreutils findutils gnugrep gnused jq curl sqlite libsecret wl-clipboard cliphist xdg-utils systemd swayidle brightnessctl cava quickshell qs.unlock qs.mujo-screenshot] ++ ["/run/current-system/sw"];
         environment = {
           QS_ICON_THEME = "Colloid-Dark";
           XDG_DATA_DIRS = appDataDirs;

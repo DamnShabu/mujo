@@ -92,6 +92,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-parts.follows = "flake-parts";
     };
+
+    skwd-wall = {
+      url = "github:liixini/skwd-wall";
+    };
   };
 
   # Import flake-parts modules from specific directories for clarity and safety
