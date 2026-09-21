@@ -10,10 +10,6 @@ singleton Lock Lock.qml
 singleton Cava Cava.qml
 singleton CavaService Cava.qml
 singleton Shelf Shelf.qml
-singleton Wallhaven Wallhaven.qml
-singleton WallpaperEngine WallpaperEngine.qml
-singleton WallpaperDownloads WallpaperDownloads.qml
-WallpaperDownloadWorker WallpaperDownloadWorker.qml
 CrashWatcher CrashWatcher.qml
 IdleService IdleService.qml
 singleton DesktopGrid DesktopGrid.qml
