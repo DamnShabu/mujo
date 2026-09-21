@@ -57,15 +57,13 @@ ShellRoot {
                 },
                 {
                     key: "appearance", label: "Appearance", icon: "palette", brand: "appearance",
-                    subtitle: "Theme presets, accent colors, wallpaper catalog, live engines & motion dynamics",
+                    subtitle: "Theme presets, accent colors, and motion dynamics",
                     page: appearanceComp,
                     subs: [
-                        { id: "themes",     label: "Themes & Colors",   icon: "palette" },
-                        { id: "wallpapers", label: "Wallpapers",        icon: "photo_library" },
-                        { id: "effects",    label: "Wallpaper Effects", icon: "tune" },
-                        { id: "motion",     label: "Motion Dynamics",   icon: "animation" }
+                        { id: "themes", label: "Themes & Colors", icon: "palette" },
+                        { id: "motion", label: "Motion Dynamics", icon: "animation" }
                     ],
-                    keys: ["appearance", "theme", "colors", "accent", "transparency", "motion", "animations", "wallpapers", "wallpaper", "wallhaven", "wallpaperengine", "effects", "parallax"]
+                    keys: ["appearance", "theme", "colors", "accent", "transparency", "motion", "animations"]
                 },
                 {
                     key: "workspace", label: "Workspace", icon: "dock_to_bottom", brand: "desktop",

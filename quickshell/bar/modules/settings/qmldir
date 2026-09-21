@@ -1,16 +1,7 @@
-WallpaperBrowseGroup WallpaperBrowseGroup.qml
-WallpaperEffectsGroup WallpaperEffectsGroup.qml
-WallhavenControls WallhavenControls.qml
-WallpaperEngineControls WallpaperEngineControls.qml
-WallpaperLibraryGrid WallpaperLibraryGrid.qml
-WallhavenGrid WallhavenGrid.qml
-WallpaperEngineGrid WallpaperEngineGrid.qml
 ApplicationsIntegrationsTab ApplicationsIntegrationsTab.qml
 ApplicationsTrustTab ApplicationsTrustTab.qml
 ApplicationsFlatpaksTab ApplicationsFlatpaksTab.qml
 ApplicationsLauncherTab ApplicationsLauncherTab.qml
-WallhavenDetailModal WallhavenDetailModal.qml
-WallpaperEngineDetailModal WallpaperEngineDetailModal.qml
 SettingsLayout SettingsLayout.qml
 SettingsPage SettingsPage.qml
 SettingRow SettingRow.qml
