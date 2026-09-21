@@ -162,11 +162,6 @@ ShellRoot {
     // mujo-keyring-prompter helper over a unix socket).
     KeyringPrompt {}
 
-    // Per-screen wallpaper (image / video) with optional cursor-tracking
-    // zoom/pan, plus blurred backdrop surfaces for niri's overview.
-    // Config: ~/.config/quickshell/wallpaper.json  (managed by `mujo wallpaper`).
-    Wallpaper {}
-
     // Drag-in staging shelf (WP-25): per-screen always-on-top edge drop surface;
     // the shared Shelf model also feeds the bar button/popup. State spills to
     // ~/.local/state/qsshell/shelf.json.
