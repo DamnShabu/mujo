@@ -859,10 +859,7 @@ Variants {
                 widgetSub.push({ icon: "restart_alt", label: "Restore positions", action: "confirmReset" })
             }
             items.push({ icon: "widgets", label: "Widgets", sub: widgetSub })
-            items.push({ icon: "wallpaper", label: "Wallpaper", sub: [
-                { icon: "wallpaper", label: "Change wallpaper", cmd: ["mujo", "settings", "wallpaper"] },
-                { icon: "shuffle", label: "Random wallpaper", cmd: ["mujo", "wallpaper", "random"] }
-            ] })
+            items.push({ icon: "wallpaper", label: "Wallpaper", cmd: ["skwd-wall-v2"] })
             items.push({ divider: true })
             items.push({ icon: "palette", label: "Appearance", cmd: ["mujo", "settings", "appearance"] })
             items.push({ icon: "desktop_windows", label: "Display settings", cmd: ["mujo", "settings", "display"] })
