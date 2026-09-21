@@ -87,29 +87,6 @@ in {
       $out/bin/mujo-keyring --add-flags "$out/libexec/mujo-keyring.py"
   '';
 
-  # Wallpaper Engine backend helper for Steam Workshop search, details,
-  # local project scanning, and process management.
-  mujo-wallpaper-engine = pkgs.runCommand "mujo-wallpaper-engine" {nativeBuildInputs = [pkgs.makeWrapper];} ''
-    install -Dm755 ${./wallpaper-engine/mujo-wallpaper-engine.py} $out/libexec/mujo-wallpaper-engine.py
-    makeWrapper ${pkgs.python3}/bin/python3 \
-      $out/bin/mujo-wallpaper-engine --add-flags "$out/libexec/mujo-wallpaper-engine.py"
-  '';
-
-  # Small C helper that reads raw mouse input events from /dev/input and
-  # outputs normalised cursor positions as JSON.  Used by Wallpaper.qml's
-  # zoom/pan effect when effects.motion is enabled.
-  cursor-tracker = pkgs.stdenv.mkDerivation {
-    pname = "cursor-tracker";
-    version = "0.1.0";
-    src = ./cursor-tracker;
-    buildPhase = ''
-      $CC -O2 -o cursor-tracker cursor-tracker.c
-    '';
-    installPhase = ''
-      mkdir -p $out/bin
-      cp cursor-tracker $out/bin/
-    '';
-  };
 
   # PAM auth helper for the lock screen (WP-14). Reads a password on stdin,
   # authenticates the current user via the `qsshell-lock` PAM service, exits 0/1.
