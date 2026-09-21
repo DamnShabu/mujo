@@ -54,6 +54,7 @@
 
       self.nixosModules.notifications
       self.nixosModules.quickshell
+      self.nixosModules.skwd-wall
       self.nixosModules.keyring-prompter
       self.nixosModules.vicinae
 
