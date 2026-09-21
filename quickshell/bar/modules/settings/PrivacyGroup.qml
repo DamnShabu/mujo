@@ -27,7 +27,7 @@ ColumnLayout {
         badgeColor: root.recentCount > 0 ? Theme.accent : Theme.textDim
 
         actions: DialogButton {
-            text: "Clear Recent Files"
+            text: "Clear recent files"
             enabled: root.recentCount > 0
             onClicked: clearProc.running = true
         }
@@ -64,30 +64,6 @@ ColumnLayout {
             color: root.clearFailed ? Theme.warning : Theme.success
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall
-        }
-    }
-
-    // ── Session lock ──────────────────────────────────────────────────────────
-    MujoCard {
-        title: "Session Lock"
-        iconName: "lock"
-
-        SettingRow {
-            path: "security.lockOnSuspend"
-            def: true
-            kind: "toggle"
-            iconName: "lock_clock"
-            title: "Lock Before Suspend"
-            description: "Lock the session in swayidle's before-sleep hook, so the machine never wakes unlocked."
-        }
-
-        Text {
-            Layout.fillWidth: true
-            text: "Idle timeouts that dim, blank or lock the screen live in Hardware → Idle & power."
-            color: Theme.textSecondary
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSmall
-            wrapMode: Text.WordWrap
         }
     }
 

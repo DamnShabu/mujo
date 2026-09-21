@@ -22,13 +22,13 @@ ColumnLayout {
     property var defaultsMap: ({})
     property int clipCount: 0
     property bool clipActive: true
-    property string powerProfile: "balanced"
     property string clipClearMessage: ""
 
     readonly property var defaultAppDefs: [
         { key: "browser",     name: "Web Browser",       icon: "public",
-          defaultId: "app.zen_browser.zen.desktop",
+          defaultId: "helium.desktop",
           options: [
+              { id: "helium.desktop",              name: "Helium Browser" },
               { id: "app.zen_browser.zen.desktop", name: "Zen Browser" },
               { id: "com.brave.Browser.desktop",   name: "Brave Browser" }
           ] },
@@ -115,22 +115,10 @@ ColumnLayout {
             }
         }
     }
-    Process {
-        id: powerProc
-        command: ["mujo", "power-profile", "get"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var p = this.text.trim()
-                if (p === "performance" || p === "balanced" || p === "power-saver") root.powerProfile = p
-            }
-        }
-    }
-
     function refreshAll() {
         loadPrefsProc.running = true
         defaultsProc.running = true
         clipProc.running = true
-        powerProc.running = true
     }
     Component.onCompleted: root.refreshAll()
 
@@ -219,25 +207,6 @@ ColumnLayout {
             }
 
             MujoSettingRow {
-                iconName: "bolt"
-                title: "Hardware Power Profile"
-                description: "CPU energy performance scaling governor."
-
-                MujoSegmented {
-                    model: [
-                        { id: "performance", label: "Performance", icon: "speed" },
-                        { id: "balanced",    label: "Balanced",    icon: "balance" },
-                        { id: "power-saver", label: "Power Saver", icon: "eco" }
-                    ]
-                    current: root.powerProfile
-                    onSelected: function(id) {
-                        root.powerProfile = id
-                        Quickshell.execDetached(["mujo", "power-profile", "set", id])
-                    }
-                }
-            }
-
-            MujoSettingRow {
                 iconName: "auto_fix_high"
                 title: "Auto-Optimise Nix Store"
                 description: "Automatically deduplicate store files via hardlinks on system build."
@@ -268,11 +237,11 @@ ColumnLayout {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 1
-                    Text { text: "Wipe Clipboard History"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
+                    Text { text: "Wipe clipboard"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
                     Text { text: root.clipClearMessage || "Purge all recorded text and image clips from database."; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
                 }
                 DialogButton {
-                    text: "Clear All History"
+                    text: "Clear history"
                     onClicked: {
                         Quickshell.execDetached(["mujo", "clipboard", "clear"])
                         root.clipCount = 0

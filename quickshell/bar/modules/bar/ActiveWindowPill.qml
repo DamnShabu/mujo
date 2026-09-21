@@ -18,6 +18,16 @@ Item {
     readonly property int maxTitleWidth: SettingsBus.get("bar.activeWindow.maxWidth", 190)
     readonly property string pillStyle: SettingsBus.get("bar.activeWindow.style", "pill")
 
+    // Width of the whole bar, handed down by BarSlot.
+    property int barWidth: 0
+    // The stored maxWidth is a ceiling, not a promise. 190px of a 3440px
+    // ultrawide is a stamp; 190px of a 1280px panel is a fifth of the bar and
+    // shoves the clock off centre. Cap it at a fraction of the real bar width so
+    // one setting behaves on every screen this config drives.
+    readonly property int titleCap: root.barWidth > 0
+        ? Math.max(72, Math.min(root.maxTitleWidth, Math.round(root.barWidth * 0.2)))
+        : root.maxTitleWidth
+
     // niri.focusedWindow is session-global, so every bar used to mirror the same
     // title. Gate it on our own output: hasWindow drives visible, implicitWidth and
     // the icon, so one condition hides the lot off-focus.
@@ -126,7 +136,7 @@ Item {
     Rectangle {
         id: pillRect
         anchors.verticalCenter: parent.verticalCenter
-        width: contentRow.implicitWidth + 18
+        width: contentRow.implicitWidth + Theme.barItemPadding * 2
         height: Theme.workspacePillSize
         radius: Theme.workspacePillRadius
         color: hh.hovered ? Theme.surfaceHover : Theme.withAlpha(Theme.surfaceActive, 0.35)
@@ -170,7 +180,7 @@ Item {
                 font.pixelSize: Theme.fontSizeSmall
                 font.bold: root.pillStyle === "badge"
                 elide: Text.ElideRight
-                Layout.maximumWidth: root.maxTitleWidth
+                Layout.maximumWidth: root.titleCap
                 Layout.alignment: Qt.AlignVCenter
 
                 Behavior on color { ColorAnimation { duration: Anim.d(Anim.fast) } }

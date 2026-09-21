@@ -2,6 +2,7 @@
   pkgs,
   self,
   lib,
+  config,
   ...
 }: {
   hardware.cpu.intel.updateMicrocode = true;
@@ -9,7 +10,7 @@
   services = {
     flatpak.enable = true;
     udisks2.enable = true;
-    printing.enable = true;
+    printing.enable = false;
     upower.enable = true;
     power-profiles-daemon.enable = true;
   };
@@ -100,6 +101,21 @@
     ] (_: {
       overrideStrategy = "asDropin";
       unitConfig.ConditionUser = "!sddm";
+      # The systemd user manager hands its units a PATH of just coreutils,
+      # findutils, grep, sed and systemd. GLib refuses to build a GAppInfo for
+      # any desktop entry whose Exec/TryExec program is not resolvable on PATH,
+      # so without the system and per-user profiles here the portal sees almost
+      # no applications at all: every entry with a bare `Exec=nautilus` or
+      # `Exec=flatpak run ...` disappears and only the handful with an absolute
+      # /nix/store Exec survive. Flatpaks then get an empty "Open With" dialog
+      # ("No Apps Available") for any file or folder they hand to OpenURI, and
+      # http(s) silently lands on whichever installed app happens to have an
+      # absolute Exec rather than the default in xdg.mime.defaultApplications.
+      environment.PATH = lib.mkForce (lib.concatStringsSep ":" [
+        "/run/wrappers/bin"
+        "/etc/profiles/per-user/${config.preferences.user.name}/bin"
+        "/run/current-system/sw/bin"
+      ]);
     });
 
   programs.niri = {

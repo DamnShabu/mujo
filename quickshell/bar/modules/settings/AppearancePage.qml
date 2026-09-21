@@ -6,28 +6,64 @@ import "../../theme"
 import "../../components"
 import "../../services"
 
-// Appearance & Personalization — Themes & Colors, Wallpaper Catalog,
-// Wallpaper Effects, and Motion Dynamics.
-Item {
+// Appearance — how the desktop looks: palette, wallpaper, and how much it
+// moves.
+SettingsPage {
     id: root
 
-    property string brand: "appearance"
-    property string title: "Appearance"
-    property string subtitle: "Theme presets, accent colors, wallpaper catalog, live engines & motion dynamics."
+    brand: "appearance"
+    title: "Appearance"
+    subtitle: "Theme presets, accent colors, wallpaper catalog, live engines and motion dynamics."
+    tab: "themes"
 
-    property string tab: "themes"   // themes | wallpapers | effects | motion
-    readonly property var tabIds: ["themes", "wallpapers", "effects", "motion", "library", "wallhaven", "wallpaperengine"]
-
-    // Wallpaper state
+    // Wallpaper state, read once here and handed to the browse section so the
+    // library, Wallhaven and Wallpaper Engine all agree on what is set.
     property var localList: []
     property string currentImage: ""
     property string letterbox: Theme.active.bg
     property bool motionOn: false
+    // Which of the three catalogs the Wallpapers section is showing.
+    property string wpSource: "library"
+
 
     function runWp(args) { Quickshell.execDetached(["mujo", "wallpaper"].concat(args)) }
     function refreshLocal() { listProc.running = true }
 
     Component.onCompleted: root.refreshLocal()
+
+    sections: [
+        { id: "themes", label: "Themes & Colors", component: themesSection,
+          description: "Pick a palette, set an accent, and tune how solid surfaces are." },
+        { id: "wallpapers", label: "Wallpapers", component: wallpapersSection, fill: true,
+          description: "Your local library, plus the Wallhaven and Wallpaper Engine catalogs." },
+        { id: "effects", label: "Wallpaper Effects", component: effectsSection,
+          description: "Parallax, motion, and how much work the wallpaper is allowed to do." },
+        { id: "motion", label: "Motion Dynamics", component: motionSection,
+          description: "How fast the desktop animates, domain by domain, down to not at all." }
+    ]
+
+    cardMap: ({
+        "Appearance Mode": "themes",
+        "Automated Day & Night Schedule": "themes",
+        "Theme Presets": "themes",
+        "Accent Color & Surface Opacity": "themes",
+        "Wallpaper Engine Performance": "effects",
+        "Parallax & Background": "effects",
+        "Motion Intensity Profile": "motion",
+        "Interactive Motion Playground": "motion",
+        "Granular Motion Domains": "motion",
+        "Accessibility & Performance": "motion"
+    })
+
+    // The wallpaper section has three browsers of its own, so a deep link names
+    // one of them rather than a card.
+    aliases: ({ "library": "wallpapers", "wallhaven": "wallpapers", "wallpaperengine": "wallpapers" })
+    function revealCard(name) {
+        var inner = (name === "library" || name === "wallhaven" || name === "wallpaperengine")
+        var ok = root.revealSection(name)
+        if (ok && inner) root.wpSource = name
+        return ok
+    }
 
     FileView {
         path: (Quickshell.env("HOME") || "/tmp") + "/.config/quickshell/wallpaper.json"
@@ -62,142 +98,47 @@ Item {
         function onDownloadFinished(url, destPath) { root.refreshLocal() }
     }
 
-    readonly property var cardTabMap: ({
-        "Theme Presets": "themes",
-        "Accent Color & Surface Opacity": "themes",
-        "Wallpaper Engine Performance": "effects",
-        "Parallax & Background": "effects",
-        "Motion Intensity Profile": "motion",
-        "Interactive Motion Playground": "motion",
-        "Granular Motion Domains": "motion",
-        "Accessibility & Performance": "motion"
-    })
-
-    function revealCard(name) {
-        if (name === "library" || name === "wallhaven" || name === "wallpaperengine" || name === "wallpapers") {
-            root.tab = "wallpapers"
-            if (browseGroup && (name === "library" || name === "wallhaven" || name === "wallpaperengine")) {
-                browseGroup.tab = name
+    Component { id: themesSection; ColumnLayout { spacing: 14; ThemeGroup { Layout.fillWidth: true } } }
+    Component { id: motionSection; ColumnLayout { spacing: 14; MotionGroup { Layout.fillWidth: true } } }
+    Component {
+        id: effectsSection
+        ColumnLayout {
+            spacing: 14
+            WallpaperEffectsGroup {
+                Layout.fillWidth: true
+                motionOn: root.motionOn
+                letterbox: root.letterbox
+                onWpRun: function (args) { root.runWp(args) }
             }
-            return true
         }
-        if (root.tabIds.indexOf(name) >= 0) {
-            root.tab = name
-            return true
-        }
-        var targetTab = root.cardTabMap[name]
-        if (targetTab) {
-            root.tab = targetTab
-            var flick = _getActiveFlickable()
-            if (flick) _scrollFlickToCard(flick, name)
-            return true
-        }
-        return false
     }
+    Component {
+        id: wallpapersSection
+        ColumnLayout {
+            spacing: 14
 
-    function _getActiveFlickable() {
-        if (root.tab === "themes") return flickThemes
-        if (root.tab === "effects") return flickEffects
-        if (root.tab === "motion") return flickMotion
-        return null
-    }
-
-    function _scrollFlickToCard(flick, cardTitle) {
-        var card = _findCard(flick.contentItem, cardTitle)
-        if (!card) return
-        var maxY = Math.max(0, flick.contentHeight - flick.height)
-        var p = card.mapToItem(flick.contentItem, 0, 0)
-        flick.contentY = Math.max(0, Math.min(p.y, maxY))
-    }
-
-    function _findCard(node, cardTitle) {
-        if (!node) return null
-        var kids = node.children
-        for (var i = 0; i < kids.length; i++) {
-            var c = kids[i]
-            if (c.collapsible !== undefined && c.title === cardTitle) return c
-            var hit = _findCard(c, cardTitle)
-            if (hit) return hit
-        }
-        return null
-    }
-
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 24
-        spacing: 14
-
-        MujoSegmented {
-            Layout.alignment: Qt.AlignLeft
-            model: [
-                { id: "themes",     label: "Themes & Colors",   icon: "palette" },
-                { id: "wallpapers", label: "Wallpapers",        icon: "photo_library" },
-                { id: "effects",    label: "Wallpaper Effects", icon: "tune" },
-                { id: "motion",     label: "Motion Dynamics",   icon: "animation" }
-            ]
-            current: root.tab
-            onSelected: function(id) { root.tab = id }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-
-            MujoFlickable {
-                id: flickThemes
-                anchors.fill: parent
-                visible: root.tab === "themes"
-                contentHeight: colThemes.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colThemes
-                    width: parent.width
-                    spacing: 14
-                    ThemeGroup { Layout.fillWidth: true }
-                }
+            // Three catalogs, one control. They had none: the page pinned the
+            // browser to the local library and only an omni-search hit could
+            // reach Wallhaven or Wallpaper Engine.
+            MujoSegmented {
+                Layout.alignment: Qt.AlignLeft
+                a11yName: "Wallpaper source"
+                model: [
+                    { id: "library", label: "Library" },
+                    { id: "wallhaven", label: "Wallhaven" },
+                    { id: "wallpaperengine", label: "Wallpaper Engine" }
+                ]
+                current: root.wpSource
+                onSelected: function (id) { root.wpSource = id }
             }
 
             WallpaperBrowseGroup {
-                id: browseGroup
-                anchors.fill: parent
-                visible: root.tab === "wallpapers"
-                tab: "library"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                tab: root.wpSource
                 localList: root.localList
                 currentImage: root.currentImage
-                onWpRun: function(args) { root.runWp(args) }
-            }
-
-            MujoFlickable {
-                id: flickEffects
-                anchors.fill: parent
-                visible: root.tab === "effects"
-                contentHeight: colEffects.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colEffects
-                    width: parent.width
-                    spacing: 14
-                    WallpaperEffectsGroup {
-                        Layout.fillWidth: true
-                        motionOn: root.motionOn
-                        letterbox: root.letterbox
-                        onWpRun: function(args) { root.runWp(args) }
-                    }
-                }
-            }
-
-            MujoFlickable {
-                id: flickMotion
-                anchors.fill: parent
-                visible: root.tab === "motion"
-                contentHeight: colMotion.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colMotion
-                    width: parent.width
-                    spacing: 14
-                    MotionGroup { Layout.fillWidth: true }
-                }
+                onWpRun: function (args) { root.runWp(args) }
             }
         }
     }

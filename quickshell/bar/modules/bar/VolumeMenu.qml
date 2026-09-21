@@ -71,8 +71,8 @@ Item {
 
     Rectangle {
         id: trigger
-        implicitHeight: Theme.barHeight - 6
-        implicitWidth: root.showPercent ? (triggerRow.implicitWidth + 14) : 28
+        implicitHeight: Theme.barItemHeight
+        implicitWidth: root.showPercent ? (triggerRow.implicitWidth + Theme.barItemPadding * 2) : Theme.barItemSquare
         radius: Theme.radiusSm
         color: root.menuOpen ? Theme.accentDim : (trigHh.hovered ? Theme.surfaceHover : "transparent")
         border.color: root.menuOpen ? Theme.accent : (trigHh.hovered ? Theme.borderStrong : "transparent")

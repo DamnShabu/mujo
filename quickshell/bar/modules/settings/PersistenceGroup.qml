@@ -103,7 +103,7 @@ ColumnLayout {
                     onAccepted: root.addPersist()
                 }
                 DialogButton {
-                    text: "Add Path"
+                    text: "Add path"
                     primary: true
                     enabled: root.addPath.trim() !== ""
                     onClicked: root.addPersist()
@@ -128,98 +128,67 @@ ColumnLayout {
         badgeText: root.managedRows.length + " MANAGED"
         badgeColor: Theme.accent
 
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 6
+        Repeater {
+            model: root.managedRows
 
-            Repeater {
-                model: root.managedRows
-                delegate: Rectangle {
-                    required property var modelData
+            delegate: ListRow {
+                required property var modelData
+
+                StatusTag { text: modelData.kind; tone: "accent" }
+
+                Text {
                     Layout.fillWidth: true
-                    implicitHeight: 40
-                    radius: Theme.radiusSm
-                    color: Theme.surface
-                    border.color: Theme.border
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 6
-                        spacing: 8
-                        Rectangle {
-                            implicitWidth: kindL.implicitWidth + 12; implicitHeight: 18
-                            radius: Theme.radiusSm
-                            color: Theme.accentDim
-                            Text { id: kindL; anchors.centerIn: parent; text: modelData.kind; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel }
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: modelData.path
-                            color: Theme.text
-                            font.family: Theme.fontMono
-                            font.pixelSize: Theme.fontSizeSmall
-                            elide: Text.ElideMiddle
-                        }
-                        IconButton { iconName: "delete"; onClicked: root.removePersist(modelData.kind, modelData.path) }
-                    }
+                    text: modelData.path
+                    color: Theme.text
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
+                    elide: Text.ElideMiddle
+                }
+
+                IconButton {
+                    iconName: "delete"
+                    onClicked: root.removePersist(modelData.kind, modelData.path)
                 }
             }
+        }
 
-            Text {
-                visible: root.managedRows.length === 0
-                text: "Nothing added here yet. Add a directory above."
-                color: Theme.textDim
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSmall
-            }
+        Text {
+            visible: root.managedRows.length === 0
+            text: "Nothing added yet. Name a directory above and it survives the next boot."
+            color: Theme.textSecondary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+            wrapMode: Text.WordWrap
+            Layout.fillWidth: true
         }
     }
 
-    // ── Currently Persisted Paths Card ────────────────────────────────────────
+    // What the running system actually has bound, as opposed to what is
+    // declared above — the two drift until the next rebuild.
     MujoCard {
         title: "Currently Active Bind Mounts"
-        iconName: "folder_shared"
         badgeText: root.currentRows.length + " ACTIVE"
         badgeColor: Theme.success
 
-        ColumnLayout {
+        Repeater {
+            model: root.currentRows
+
+            delegate: InfoRow {
+                required property var modelData
+                label: modelData.path
+                iconName: modelData.kind === "user" ? "person" : "dns"
+                iconColor: Theme.textDim
+                value: modelData.kind
+            }
+        }
+
+        Text {
+            visible: root.currentRows.length === 0
+            text: "Reading persisted mounts…"
+            color: Theme.textSecondary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
             Layout.fillWidth: true
-            spacing: 6
-
-            Repeater {
-                model: root.currentRows
-                delegate: Rectangle {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    implicitHeight: 36
-                    radius: Theme.radiusSm
-                    color: Theme.bg
-                    border.color: Theme.border
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 10
-                        spacing: 8
-                        MaterialIcon { iconName: modelData.kind === "user" ? "person" : "dns"; pixelSize: 15; color: Theme.textDim }
-                        Text {
-                            Layout.fillWidth: true
-                            text: modelData.path
-                            color: Theme.textSecondary
-                            font.family: Theme.fontMono
-                            font.pixelSize: Theme.fontSizeSmall
-                            elide: Text.ElideMiddle
-                        }
-                    }
-                }
-            }
-
-            Text {
-                visible: root.currentRows.length === 0
-                text: "Reading persisted mounts..."
-                color: Theme.textDim
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSmall
-            }
         }
     }
 }

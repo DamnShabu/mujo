@@ -8,7 +8,6 @@ import Niri
 import "./theme"
 import "./services"
 import "./modules/bar"
-import "./modules/launcher"
 import "./modules/notifications"
 import "./modules/desktop"
 import "./modules/system"
@@ -133,15 +132,15 @@ ShellRoot {
         target: "launcher"
 
         function toggle(): void {
-            PopupCoordinator.toggleLauncher(root.focusedScreenName())
+            Quickshell.execDetached(["vicinae", "toggle"])
         }
 
         function open(): void {
-            PopupCoordinator.openLauncher(root.focusedScreenName())
+            Quickshell.execDetached(["vicinae", "open"])
         }
 
         function close(): void {
-            PopupCoordinator.closeLauncher()
+            Quickshell.execDetached(["vicinae", "close"])
         }
     }
 
@@ -237,7 +236,6 @@ ShellRoot {
     PanelWindow {
         id: popupKeys
         readonly property bool armed: PopupCoordinator.hasActivePopup
-            && !PopupCoordinator.isLauncherOpen
 
         visible: armed
         color: "transparent"
@@ -258,13 +256,6 @@ ShellRoot {
             focus: true
             Keys.onEscapePressed: PopupCoordinator.closeAll()
         }
-    }
-
-    // App launcher overlay — one per screen, shows on the focused one. Owns its
-    // own layer-shell surface with exclusive keyboard focus (see Launcher.qml).
-    Variants {
-        model: Quickshell.screens
-        Launcher {}
     }
 
     // Bottom-center "launching…" indicator, shown on the initiating screen while
@@ -293,7 +284,7 @@ ShellRoot {
             required property var modelData
             readonly property bool isHidden: (root._hiddenMonitors || []).indexOf(modelData.name) >= 0
             visible: !isHidden
-            property bool launcherOpen: PopupCoordinator.isLauncherOpen && (PopupCoordinator.launcherScreen === "" || PopupCoordinator.launcherScreen === modelData.name)
+            property bool launcherOpen: false
             screen: modelData
             color: "transparent"
             WlrLayershell.namespace: "qs-bar"

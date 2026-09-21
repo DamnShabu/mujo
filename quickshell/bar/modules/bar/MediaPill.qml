@@ -25,14 +25,16 @@ Item {
     readonly property string trackArtist: player ? (player.trackArtist || player.artist || "") : ""
 
     readonly property bool hasMedia: player !== null && (trackTitle.length > 0 || isPlaying)
-    visible: hasMedia
-    implicitWidth: visible ? contentRow.implicitWidth + 14 : 0
+    readonly property bool barVisible: root.hasMedia
+    visible: root.barVisible
+    implicitWidth: visible ? contentRow.implicitWidth + Theme.barItemPadding * 2 : 0
     implicitHeight: Theme.barHeight
     Layout.alignment: Qt.AlignVCenter
 
     Rectangle {
-        anchors.fill: parent
-        anchors.margins: 2
+        anchors.centerIn: parent
+        width: parent.width
+        height: Theme.barItemHeight
         radius: Theme.radiusSm
         color: mediaHover.hovered ? Theme.surfaceHover : "transparent"
 

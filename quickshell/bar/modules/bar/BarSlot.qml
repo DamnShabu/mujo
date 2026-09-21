@@ -3,7 +3,6 @@ import QtQuick.Layouts
 import "../../theme"
 import "../../components"
 import "../notifications"
-import "../launcher"
 import "."
 
 Item {
@@ -18,9 +17,19 @@ Item {
     property string focusedOutput: ""
     property bool launcherOpen: false
 
+    // Hard ceiling from BarLayout: how much room this zone actually has before
+    // it would run into its neighbour. -1 means unconstrained.
+    property int maxWidth: -1
+    // Corner radius of the group. The dock style rounds harder than the rest.
+    property int clusterRadius: Theme.groupRadius
+    // Width of the whole bar, so a module can size itself against the screen
+    // rather than against a number someone typed once (see ActiveWindowPill).
+    property int barWidth: 0
+
     visible: modules && modules.length > 0
     implicitHeight: Theme.barHeight
     implicitWidth: wrapInCluster ? cluster.implicitWidth : contentRow.implicitWidth
+    width: root.maxWidth > 0 ? Math.min(implicitWidth, root.maxWidth) : implicitWidth
 
     function componentFor(id) {
         switch (id) {
@@ -54,6 +63,10 @@ Item {
         anchors.horizontalCenter: root.alignment === Qt.AlignHCenter ? parent.horizontalCenter : undefined
         spacing: root.spacing
         contentAlign: root.alignment
+        radius: root.clusterRadius
+        // Never spill past the zone. clip is already on, so an over-long cluster
+        // is trimmed at the edge instead of drawing over its neighbour.
+        width: Math.min(implicitWidth, root.width)
 
         Repeater {
             model: root.wrapInCluster ? (root.modules || []) : []
@@ -61,6 +74,15 @@ Item {
                 required property var modelData
                 Layout.alignment: Qt.AlignVCenter
                 sourceComponent: root.componentFor(modelData)
+                // A module that hides itself — no battery on this machine, no
+                // tray items, no player — must give its cell back. A Loader
+                // takes its implicit size from the item whatever the item's
+                // visibility, which is what left a 28px hole between the volume
+                // and notification icons on a desktop. Read the module's own
+                // condition, never `item.visible`: Qt reflects a hidden parent
+                // back down into the child's `visible`, so binding to it would
+                // latch the module off for good.
+                visible: item ? item.barVisible !== false : false
             }
         }
     }
@@ -76,13 +98,14 @@ Item {
                 required property var modelData
                 Layout.alignment: Qt.AlignVCenter
                 sourceComponent: root.componentFor(modelData)
+                visible: item ? item.barVisible !== false : false
             }
         }
     }
 
     Component { id: launcherC; LauncherPill { panelWindow: root.panelWindow; screenName: root.screenName; launcherOpen: root.launcherOpen } }
     Component { id: wsC; Workspaces { niri: root.niri; screenName: root.screenName } }
-    Component { id: winC; ActiveWindowPill { niri: root.niri; screenName: root.screenName; focusedOutput: root.focusedOutput } }
+    Component { id: winC; ActiveWindowPill { niri: root.niri; screenName: root.screenName; focusedOutput: root.focusedOutput; barWidth: root.barWidth } }
     Component { id: clockC; ClockPill { panelWindow: root.panelWindow; screenName: root.screenName } }
     Component { id: mediaC; MediaPill { panelWindow: root.panelWindow; screenName: root.screenName } }
     Component { id: weatherC; WeatherPill { panelWindow: root.panelWindow; screenName: root.screenName } }

@@ -102,7 +102,6 @@ ColumnLayout {
         title: "Arrangement"
         iconName: "monitor"
         isNixos: true
-        collapsible: false
 
         actions: DialogButton {
             text: "Save to NixOS"
@@ -112,13 +111,9 @@ ColumnLayout {
 
         SectionLabel { text: "Drag to arrange" }
 
-        Rectangle {
+        InsetPanel {
             Layout.fillWidth: true
             Layout.preferredHeight: 220
-            radius: Theme.radiusMd
-            color: Theme.bg
-            border.color: Theme.border
-            clip: true
 
             Item {
                 id: canvas

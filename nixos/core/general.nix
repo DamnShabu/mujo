@@ -43,7 +43,11 @@
         runAs = "root";
         commands = [
           {
-            command = "/nix/store/*-nixos-system-*/bin/nixos-rebuild";
+            command = "/nix/store/*-nixos-system-*/bin/switch-to-configuration";
+            options = ["NOPASSWD"];
+          }
+          {
+            command = "/run/current-system/sw/bin/nixos-rebuild";
             options = ["NOPASSWD"];
           }
         ];
@@ -84,6 +88,8 @@
       ".config/gtk-3.0"
       ".config/gtk-4.0"
       ".config/qt6ct"
+      ".config/autostart"
+      ".local/share/pki"
     ];
 
     system.activationScripts."create-initial-face" = {

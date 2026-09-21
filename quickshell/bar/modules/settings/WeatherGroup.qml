@@ -70,152 +70,210 @@ ColumnLayout {
     // ── 1. Current Weather Live Conditions Card ───────────────────────────────
     MujoCard {
         title: "Current Atmospheric Conditions"
-        iconName: "thermostat"
         badgeText: root.wx ? (root.wx.temp + Weather.unitSymbol()) : ""
-        badgeColor: Theme.accent
 
         actions: IconButton { iconName: "refresh"; onClicked: Weather.refresh(true) }
 
-        ColumnLayout {
+        // The reading is the hero here, the way the health score is on the
+        // System page: one big number, the conditions beside it, nothing else.
+        RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            Layout.topMargin: 2
+            spacing: 20
+            visible: root.wx !== null && Weather.error === ""
+            opacity: Weather.stale ? 0.5 : 1
+            Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.standard) } }
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 20
-                visible: root.wx !== null && Weather.error === ""
-                opacity: Weather.stale ? 0.5 : 1
-                Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.standard) } }
+            MaterialIcon {
+                iconName: root.wx ? Weather.iconFor(root.wx.code) : "cloud"
+                pixelSize: 52
+                color: Theme.accent
+                Layout.alignment: Qt.AlignVCenter
+            }
 
-                MaterialIcon { iconName: root.wx ? Weather.iconFor(root.wx.code) : "cloud"; pixelSize: 56; color: Theme.accent }
-                ColumnLayout {
-                    spacing: 0
-                    RowLayout {
-                        spacing: 4
-                        Text { text: root.wx ? root.wx.temp : "–"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: 40; font.bold: true }
-                        Text { text: Weather.unitSymbol(); color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: 18; Layout.topMargin: 4 }
-                    }
-                    Text { text: root.wx ? Weather.descFor(root.wx.code) : ""; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeTitle }
+            ColumnLayout {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 2
+
+                RowLayout {
+                    spacing: 4
+
                     Text {
-                        text: root.wx ? (root.wx.city + "  ·  feels " + root.wx.feels + Weather.unitSymbol() + "  ·  " + root.wx.humidity + "% humidity  ·  " + root.wx.wind + " " + root.wx.windUnit) : ""
-                        color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
+                        text: root.wx ? root.wx.temp : "–"
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 38
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: -1
+                    }
+
+                    Text {
+                        text: Weather.unitSymbol()
+                        color: Theme.textSecondary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 17
+                        Layout.topMargin: 5
                     }
                 }
-                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: root.wx ? Weather.descFor(root.wx.code) : ""
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeTitle
+                }
+
+                Text {
+                    text: root.wx
+                        ? root.wx.city + " · feels " + root.wx.feels + Weather.unitSymbol()
+                          + " · " + root.wx.humidity + "% humidity · " + root.wx.wind + " " + root.wx.windUnit
+                        : ""
+                    color: Theme.textSecondary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                }
             }
 
-            // Loading state
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                spacing: 12
-                visible: root.wx === null && Weather.error === ""
-                Spinner { size: 20 }
-                Text { text: "Loading atmospheric telemetry…"; color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody }
-            }
+            Item { Layout.fillWidth: true }
+        }
 
-            // Error state
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 8
-                visible: Weather.error !== "" && root.wx === null
-                Text { Layout.alignment: Qt.AlignHCenter; text: "Weather telemetry unavailable"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true }
-                Text { Layout.alignment: Qt.AlignHCenter; text: Weather.error; color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
-                DialogButton { Layout.alignment: Qt.AlignHCenter; text: "Retry Connection"; primary: true; onClicked: Weather.refresh(true) }
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 16
+            Layout.bottomMargin: 16
+            spacing: 12
+            visible: root.wx === null && Weather.error === ""
+
+            Spinner { size: 18 }
+
+            Text {
+                text: "Fetching the forecast…"
+                color: Theme.textSecondary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeBody
             }
+        }
+
+        EmptyState {
+            Layout.fillWidth: true
+            Layout.topMargin: 12
+            Layout.bottomMargin: 12
+            visible: Weather.error !== "" && root.wx === null
+            iconName: "cloud_off"
+            title: "No weather right now"
+            hint: Weather.error
+
+            DialogButton { text: "Try again"; primary: true; onClicked: Weather.refresh(true) }
         }
     }
 
-    // ── 2. 5-Day Forecast Card ────────────────────────────────────────────────
+    // ── Forecast ──────────────────────────────────────────────────────────────
     MujoCard {
         visible: root.wx !== null && root.wx.daily !== undefined
         title: "5-Day Forecast"
-        iconName: "calendar_month"
 
         RowLayout {
             Layout.fillWidth: true
+            Layout.topMargin: 2
             opacity: Weather.stale ? 0.5 : 1
             spacing: 8
 
             Repeater {
                 model: root.wx ? root.wx.daily : []
-                delegate: Rectangle {
+
+                delegate: InsetPanel {
                     required property var modelData
                     required property int index
+
                     Layout.fillWidth: true
-                    implicitHeight: 88
-                    radius: Theme.radiusMd
-                    color: Theme.bg
-                    border.color: Theme.border
+                    implicitHeight: 82
+
                     ColumnLayout {
                         anchors.centerIn: parent
-                        spacing: 4
-                        Text { Layout.alignment: Qt.AlignHCenter; text: index === 0 ? "Today" : Qt.formatDate(new Date(modelData.date), "ddd"); color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall }
-                        MaterialIcon { Layout.alignment: Qt.AlignHCenter; iconName: Weather.iconFor(modelData.code); pixelSize: 22; color: Theme.accent }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: modelData.max + "° / " + modelData.min + "°"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeSmall }
+                        spacing: 5
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: index === 0 ? "Today" : Qt.formatDate(new Date(modelData.date), "ddd")
+                            color: Theme.textSecondary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                        }
+
+                        MaterialIcon {
+                            Layout.alignment: Qt.AlignHCenter
+                            iconName: Weather.iconFor(modelData.code)
+                            pixelSize: 22
+                            color: Theme.accent
+                        }
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: modelData.max + "° / " + modelData.min + "°"
+                            color: Theme.text
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeSmall
+                        }
                     }
                 }
             }
         }
     }
 
-    // ── 3. Location & Geocoding Card ──────────────────────────────────────────
+    // ── Location ──────────────────────────────────────────────────────────────
     MujoCard {
         title: "Location & Geocoding"
-        iconName: "location_on"
         badgeText: root.wname !== "" ? root.wname.toUpperCase() : "AUTO IP"
 
-        ColumnLayout {
+        RowLayout {
             Layout.fillWidth: true
-            spacing: 10
+            Layout.topMargin: 2
+            spacing: 8
 
-            RowLayout {
+            TextField {
+                id: searchField
                 Layout.fillWidth: true
-                spacing: 8
-                TextField {
-                    id: searchField
+                a11yName: "City search"
+                placeholder: root.wname !== "" ? root.wname : "Search a city — Berlin, Tokyo, London"
+                onAccepted: root.doSearch(text)
+            }
+
+            DialogButton { text: "Search"; primary: true; onClicked: root.doSearch(searchField.text) }
+            DialogButton { text: "Use my IP"; onClicked: root.detectByIp() }
+        }
+
+        Spinner { visible: root.searching; size: 16; Layout.topMargin: 6 }
+
+        Text {
+            visible: root.searchFailed && !root.searching
+            Layout.fillWidth: true
+            Layout.topMargin: 6
+            text: "Could not reach the location service. Check the connection and search again."
+            color: Theme.textSecondary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+            wrapMode: Text.WordWrap
+        }
+
+        Repeater {
+            model: root.searchResults
+
+            delegate: ListRow {
+                required property var modelData
+                interactive: true
+                onClicked: root.pick(modelData)
+
+                MaterialIcon { iconName: "location_on"; pixelSize: 16; color: Theme.textSecondary }
+
+                Text {
                     Layout.fillWidth: true
-                    placeholder: root.wname !== "" ? root.wname : "Search a city (e.g. Berlin, Tokyo, London)…"
-                    onAccepted: root.doSearch(text)
-                }
-                DialogButton { text: "Search"; primary: true; onClicked: root.doSearch(searchField.text) }
-                DialogButton { text: "Detect by IP"; onClicked: root.detectByIp() }
-            }
-
-            Spinner { visible: root.searching; size: 16 }
-
-            Text {
-                visible: root.searchFailed && !root.searching
-                Layout.fillWidth: true
-                text: "Couldn't reach the location service. Check your connection and try again."
-                color: Theme.textDim; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; wrapMode: Text.WordWrap
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 4
-                visible: root.searchResults.length > 0
-                Repeater {
-                    model: root.searchResults
-                    delegate: Rectangle {
-                        id: resRow
-                        required property var modelData
-                        Layout.fillWidth: true
-                        implicitHeight: 38
-                        radius: Theme.radiusSm
-                        color: resHover.hovered ? Theme.surfaceHover : Theme.surface
-                        border.color: Theme.border
-                        RowLayout {
-                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
-                            MaterialIcon { iconName: "location_on"; pixelSize: 16; color: Theme.textSecondary }
-                            Text {
-                                Layout.fillWidth: true
-                                text: resRow.modelData.name + (resRow.modelData.admin1 ? ", " + resRow.modelData.admin1 : "") + (resRow.modelData.country ? " · " + resRow.modelData.country : "")
-                                color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; elide: Text.ElideRight
-                            }
-                        }
-                        HoverHandler { id: resHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: root.pick(resRow.modelData) }
-                    }
+                    text: modelData.name
+                        + (modelData.admin1 ? ", " + modelData.admin1 : "")
+                        + (modelData.country ? " · " + modelData.country : "")
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                    elide: Text.ElideRight
                 }
             }
         }

@@ -41,39 +41,47 @@ ColumnLayout {
     // Favourites Card
     MujoCard {
         title: "Favourite Apps (Pinned to Launcher)"
-        iconName: "star"
         badgeText: section.favorites.length + " PINNED"
 
         Flow {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: 7
             visible: section.favorites.length > 0
 
             Repeater {
                 model: section.favorites
+
                 delegate: Rectangle {
                     id: favChip
                     required property var modelData
-                    implicitWidth: fl.implicitWidth + 20; implicitHeight: 30
-                    radius: Theme.radiusMd
+
+                    implicitWidth: fl.implicitWidth + 18
+                    implicitHeight: 28
+                    radius: Theme.radiusSm
                     color: Theme.surface
-                    border.color: Theme.borderStrong
+                    border.width: 1
+                    border.color: Theme.border
+
                     RowLayout {
-                        id: fl; anchors.centerIn: parent; spacing: 6
-                        MaterialIcon { iconName: "star"; pixelSize: 14; color: Theme.warning }
+                        id: fl
+                        anchors.centerIn: parent
+                        spacing: 7
+
                         Text {
                             text: section.nameFor(favChip.modelData)
                             color: Theme.text
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSizeSmall
                         }
+
                         MaterialIcon {
                             iconName: "close"
                             pixelSize: 14
                             color: fh.hovered ? Theme.text : Theme.textDim
                             HoverHandler { id: fh; cursorShape: Qt.PointingHandCursor }
                             TapHandler {
-                                onTapped: SettingsBus.set("apps.favorites", section.favorites.filter(function (x) { return x !== favChip.modelData }))
+                                onTapped: SettingsBus.set("apps.favorites",
+                                    section.favorites.filter(function (x) { return x !== favChip.modelData }))
                             }
                         }
                     }
@@ -83,43 +91,47 @@ ColumnLayout {
 
         Text {
             visible: section.favorites.length === 0
-            text: "Star apps in the launcher's grid view to pin them here."
-            color: Theme.textDim
+            text: "Star an app in the launcher and it gets pinned here."
+            color: Theme.textSecondary
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall
+            wrapMode: Text.WordWrap
+            Layout.fillWidth: true
         }
     }
 
-    // Recents Card
     MujoCard {
         title: "Recent Apps History"
-        iconName: "history"
         badgeText: section.recents.length + " RECENT"
 
-        actions: [
-            DialogButton {
-                visible: section.recents.length > 0
-                text: "Clear History"
-                onClicked: SettingsBus.set("apps.recent", [])
-            }
-        ]
+        actions: DialogButton {
+            visible: section.recents.length > 0
+            text: "Clear history"
+            onClicked: SettingsBus.set("apps.recent", [])
+        }
 
         Flow {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: 7
             visible: section.recents.length > 0
 
             Repeater {
                 model: section.recents
+
                 delegate: Rectangle {
                     id: recChip
                     required property var modelData
-                    implicitWidth: rl.implicitWidth + 18; implicitHeight: 28
-                    radius: Theme.radiusMd
+
+                    implicitWidth: rl.implicitWidth + 18
+                    implicitHeight: 28
+                    radius: Theme.radiusSm
                     color: Theme.surface
+                    border.width: 1
                     border.color: Theme.border
+
                     Text {
-                        id: rl; anchors.centerIn: parent
+                        id: rl
+                        anchors.centerIn: parent
                         text: section.nameFor(recChip.modelData)
                         color: Theme.textSecondary
                         font.family: Theme.fontFamily
@@ -131,10 +143,11 @@ ColumnLayout {
 
         Text {
             visible: section.recents.length === 0
-            text: "No recently launched apps yet."
-            color: Theme.textDim
+            text: "Nothing launched yet this session."
+            color: Theme.textSecondary
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall
+            Layout.fillWidth: true
         }
     }
 }

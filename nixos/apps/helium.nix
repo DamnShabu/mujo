@@ -5,10 +5,12 @@
     ];
 
     persistence.data.directories = [
+      ".config/net.imput.helium"
       ".config/helium"
     ];
 
     persistence.cache.directories = [
+      ".cache/net.imput.helium"
       ".cache/helium"
     ];
   };

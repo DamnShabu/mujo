@@ -11,6 +11,7 @@
     # daemon needs stable UUIDs, non-empty unique names, and one
     # { country = "xx"; } entry per location.
     mullvadFragment = pkgs.writeText "mullvad-settings-fragment.json" (builtins.toJSON {
+      auto_connect = true;
       tunnel_options.dns_options = {
         state = "default";
         # Re-asserted to empty so a stale custom DNS server from the GUI is
@@ -123,21 +124,15 @@
     # Requires the impermanence module (defines persistence.*): the settings
     # dir below is only persisted across reboots when it is active.
     # services.mullvad-vpn.enable adds cfg.package to systemPackages; we set
-    # it to pkgs.mullvad-vpn below so daemon, CLI, and GUI stay in sync (that
-    # option is what puts the GUI on PATH and in the launcher).
-    # No autostart entry. The GUI is seven Electron processes holding ~285 MB
-    # for the life of the session, and none of the VPN depends on it: the
-    # daemon below owns the tunnel, the killswitch and the DNS blocking, and
-    # `mullvad` on the CLI drives all of it. services.mullvad-vpn.enable puts
-    # the package (GUI and its .desktop file included) in systemPackages, so it
-    # is still one launcher entry away when the panel is actually wanted.
-    #
-    # If you want it back at login: home is tmpfs, so mullvad's own
-    # ~/.config/autostart is wiped on reboot -- restore the system-wide entry
-    # rather than setting it in the GUI.
-    #   environment.systemPackages = [
-    #     (pkgs.makeAutostartItem { name = "mullvad-vpn"; package = pkgs.mullvad-vpn; })
-    #   ];
+    # it to pkgs.mullvad-vpn below so daemon, CLI, and GUI stay in sync.
+    # We also install an autostart desktop entry so the GUI launches on login.
+    environment.systemPackages = [
+      (pkgs.makeAutostartItem {
+        name = "mullvad-vpn";
+        package = pkgs.mullvad-vpn;
+      })
+    ];
+
     services.mullvad-vpn = {
       enable = true;
       # Default is pkgs.mullvad (CLI-only, one release behind the GUI). Pin
@@ -167,6 +162,10 @@
     # account_number), so nothing is left world-readable.
     persistence.directories = [
       {directory = "/var/lib/mullvad-vpn";}
+    ];
+
+    persistence.data.directories = [
+      ".config/Mullvad VPN"
     ];
   };
 }

@@ -22,6 +22,19 @@ QtObject {
     readonly property string tempFormatted: weather.data !== null ? (Math.round(weather.data.temp) + weather.unitSymbol()) : "--°C"
     readonly property string iconName: weather.data !== null ? weather.iconFor(weather.data.code) : "wb_cloudy"
 
+    readonly property string sunrise: (weather.data !== null && weather.data.sunrise) ? weather.data.sunrise : ""
+    readonly property string sunset: (weather.data !== null && weather.data.sunset) ? weather.data.sunset : ""
+    readonly property string sunriseTime: {
+        if (!sunrise) return ""
+        var idx = sunrise.indexOf("T")
+        return idx >= 0 ? sunrise.substring(idx + 1) : sunrise
+    }
+    readonly property string sunsetTime: {
+        if (!sunset) return ""
+        var idx = sunset.indexOf("T")
+        return idx >= 0 ? sunset.substring(idx + 1) : sunset
+    }
+
     readonly property int intervalMin: Math.max(15, Math.min(120, SettingsBus.get("weather.intervalMin", 30)))
     readonly property int intervalMs: intervalMin * 60000
     readonly property string style: SettingsBus.get("weather.style", "detailed")

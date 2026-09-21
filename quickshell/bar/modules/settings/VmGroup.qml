@@ -100,113 +100,32 @@ ColumnLayout {
         iconName: "memory"
         badgeText: VmService.inventory.kvm ? "KVM" : "SOFTWARE"
         badgeColor: VmService.inventory.kvm ? Theme.success : Theme.warning
-        collapsible: false
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 12
+        // Three facts about the host, not three cards about it. They were
+        // 74px tiles with an icon plate each — a lot of chrome to say
+        // "2 / 5 active".
+        InfoRow {
+            label: "Active machines"
+            value: String(VmService.inventory.activeCount || 0) + " of " + String(VmService.inventory.totalCount || 0)
+        }
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 74
-                radius: Theme.radiusMd
-                color: Theme.surface
-                border.color: Theme.border
+        InfoRow {
+            label: "vCPUs allocated"
+            value: String(VmService.inventory.vcpusAllocated || 0)
+        }
 
-                RowLayout {
-                    anchors.fill: parent; anchors.margins: 14; spacing: 12
-                    Rectangle {
-                        implicitWidth: 38; implicitHeight: 38; radius: Theme.radiusSm
-                        color: Theme.withAlpha(Theme.accent, 0.14)
-                        MaterialIcon { iconName: "dns"; pixelSize: 20; color: Theme.accent; anchors.centerIn: parent }
-                    }
-                    // fillWidth + elide: the cards are equal width, so the
-                    // longest subtitle used to push its text into the card
-                    // border instead of truncating inside it.
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        Text {
-                            text: String(VmService.inventory.activeCount || 0) + " / " + String(VmService.inventory.totalCount || 0) + " Active VMs"
-                            color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true
-                            elide: Text.ElideRight; Layout.fillWidth: true
-                        }
-                        Text {
-                            text: "Virtual machines configured in ~/VMs"
-                            color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                            elide: Text.ElideRight; Layout.fillWidth: true
-                        }
-                    }
-                }
-            }
+        InfoRow {
+            label: "Virtualization"
+            mono: false
+            iconName: VmService.inventory.kvm ? "bolt" : "warning"
+            iconColor: VmService.inventory.kvm ? Theme.success : Theme.warning
+            value: VmService.inventory.kvm ? "Host KVM, hardware accelerated" : "Software fallback"
+        }
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 74
-                radius: Theme.radiusMd
-                color: Theme.surface
-                border.color: Theme.border
-
-                RowLayout {
-                    anchors.fill: parent; anchors.margins: 14; spacing: 12
-                    Rectangle {
-                        implicitWidth: 38; implicitHeight: 38; radius: Theme.radiusSm
-                        color: Theme.withAlpha(Theme.success, 0.14)
-                        MaterialIcon { iconName: "bolt"; pixelSize: 20; color: Theme.success; anchors.centerIn: parent }
-                    }
-                    // fillWidth + elide: the cards are equal width, so the
-                    // longest subtitle used to push its text into the card
-                    // border instead of truncating inside it.
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        Text {
-                            text: String(VmService.inventory.vcpusAllocated || 0) + " vCPUs Allocated"
-                            color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true
-                            elide: Text.ElideRight; Layout.fillWidth: true
-                        }
-                        Text {
-                            text: VmService.inventory.kvm ? "Host Linux KVM direct virtualization active" : "Software virtualization fallback"
-                            color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                            elide: Text.ElideRight; Layout.fillWidth: true
-                        }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 74
-                radius: Theme.radiusMd
-                color: Theme.surface
-                border.color: Theme.border
-
-                RowLayout {
-                    anchors.fill: parent; anchors.margins: 14; spacing: 12
-                    Rectangle {
-                        implicitWidth: 38; implicitHeight: 38; radius: Theme.radiusSm
-                        color: Theme.withAlpha(Theme.accent, 0.14)
-                        MaterialIcon { iconName: "desktop_windows"; pixelSize: 20; color: Theme.accent; anchors.centerIn: parent }
-                    }
-                    // fillWidth + elide: the cards are equal width, so the
-                    // longest subtitle used to push its text into the card
-                    // border instead of truncating inside it.
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        Text {
-                            text: "SPICE Visual Server"
-                            color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true
-                            elide: Text.ElideRight; Layout.fillWidth: true
-                        }
-                        Text {
-                            text: "Auto-resize, shared clipboard & audio stream"
-                            color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                            elide: Text.ElideRight; Layout.fillWidth: true
-                        }
-                    }
-                }
-            }
+        InfoRow {
+            label: "Display"
+            mono: false
+            value: "SPICE — auto-resize, shared clipboard and audio"
         }
 
     }
@@ -215,7 +134,6 @@ ColumnLayout {
         title: "Virtual Machines"
         iconName: "dns"
         badgeText: String(VmService.inventory.activeCount || 0) + " / " + String(VmService.inventory.totalCount || 0) + " ACTIVE"
-        collapsible: false
 
         actions: DialogButton {
             text: "Refresh"
@@ -237,13 +155,10 @@ ColumnLayout {
             onSelected: function (id) { root.activeTab = id }
         }
 
-        Rectangle {
+        InsetPanel {
             Layout.fillWidth: true
-            implicitHeight: opCol.implicitHeight + 24
-            radius: Theme.radiusMd
-            color: Theme.surface
-            border.color: VmService.failed ? Theme.error : (VmService.running ? Theme.accent : Theme.border)
-            border.width: VmService.running || VmService.failed ? 1.5 : 1
+            implicitHeight: opCol.implicitHeight + 28
+            accentBorder: VmService.failed ? Theme.error : (VmService.running ? Theme.accent : Theme.border)
             visible: VmService.running || VmService.failed || (VmService.logLines.length > 0 && VmService.opProgress === 100)
 
             ColumnLayout {
@@ -257,22 +172,14 @@ ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 10
 
-                    // Spinner / Status Icon
-                    Rectangle {
-                        implicitWidth: 32; implicitHeight: 32; radius: Theme.radiusSm
-                        color: VmService.failed ? Theme.withAlpha(Theme.error, 0.16) : (VmService.running ? Theme.withAlpha(Theme.accent, 0.16) : Theme.withAlpha(Theme.success, 0.16))
-                        Spinner {
-                            visible: VmService.running
-                            size: 14
-                            anchors.centerIn: parent
-                        }
-                        MaterialIcon {
-                            visible: !VmService.running
-                            iconName: VmService.failed ? "error" : "check_circle"
-                            pixelSize: 16
-                            color: VmService.failed ? Theme.error : Theme.success
-                            anchors.centerIn: parent
-                        }
+                    Spinner { visible: VmService.running; size: 14; Layout.alignment: Qt.AlignVCenter }
+
+                    MaterialIcon {
+                        visible: !VmService.running
+                        iconName: VmService.failed ? "error" : "check_circle"
+                        pixelSize: 17
+                        color: VmService.failed ? Theme.error : Theme.success
+                        Layout.alignment: Qt.AlignVCenter
                     }
 
                     // Title & Status details
@@ -321,7 +228,7 @@ ColumnLayout {
 
                     // Toggle logs button
                     DialogButton {
-                        text: root.showLogs ? "Hide Logs" : "Show Logs"
+                        text: root.showLogs ? "Hide log" : "Show log"
                         onClicked: root.showLogs = !root.showLogs
                     }
 
@@ -382,14 +289,10 @@ ColumnLayout {
                 }
 
                 // Live Log Terminal Stream (Expandable)
-                Rectangle {
+                InsetPanel {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 140
+                    Layout.preferredHeight: 150
                     visible: root.showLogs || VmService.failed
-                    radius: Theme.radiusSm
-                    color: Theme.bg
-                    border.color: Theme.border
-                    clip: true
 
                     ListView {
                         id: logList
@@ -418,198 +321,122 @@ ColumnLayout {
             spacing: 12
             visible: root.activeTab === "vms"
 
-            RowLayout {
-                Layout.fillWidth: true
-                SectionLabel { text: "Active & Configured Virtual Machines"; Layout.fillWidth: true }
-                DialogButton {
-                    text: "Refresh"
-                    iconName: "refresh"
-                    enabled: !VmService.running
-                    onClicked: VmService.refresh()
-                }
-            }
 
-            // Empty State
-            Rectangle {
+            EmptyState {
                 Layout.fillWidth: true
-                implicitHeight: 140
-                radius: Theme.radiusMd
-                color: Theme.surface
-                border.color: Theme.border
+                Layout.topMargin: 24
+                Layout.bottomMargin: 24
                 visible: !VmService.inventory.vms || VmService.inventory.vms.length === 0
+                iconName: "dns"
+                title: "No virtual machines yet"
+                hint: "Machines live in ~/VMs. Deploy one from the catalog, or point at an ISO you already have."
 
-                ColumnLayout {
-                    anchors.centerIn: parent
-                    spacing: 8
-                    Text {
-                        text: "No virtual machines found in ~/VMs"
-                        color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-                    DialogButton {
-                        text: "Deploy Windows, Ubuntu, or Fedora"
-                        iconName: "add"
-                        Layout.alignment: Qt.AlignHCenter
-                        onClicked: root.activeTab = "catalog"
-                    }
+                DialogButton {
+                    text: "Browse the catalog"
+                    iconName: "add"
+                    primary: true
+                    onClicked: root.activeTab = "catalog"
                 }
             }
 
-            // VM Cards Repeater
             Repeater {
                 model: VmService.inventory.vms || []
-                delegate: Rectangle {
+
+                delegate: ListRow {
                     required property var modelData
-                    Layout.fillWidth: true
-                    implicitHeight: 88
 
                     readonly property bool isOpTarget: VmService.running && VmService.opTitle.indexOf(modelData.name) !== -1
                     readonly property bool isStarting: isOpTarget || (modelData.isSandbox && modelData.status === "running" && !modelData.displayReady)
                     readonly property bool isReady: modelData.status === "running" && (!modelData.isSandbox || modelData.displayReady)
+                    readonly property color tone: isReady ? Theme.success : (isStarting ? Theme.warning : Theme.textDim)
 
-                    radius: Theme.radiusMd
-                    color: isReady ? Theme.withAlpha(Theme.success, 0.08)
-                         : isStarting ? Theme.withAlpha(Theme.warning, 0.08)
-                         : Theme.surface
-                    border.color: isReady ? Theme.success
-                                : isStarting ? Theme.warning
-                                : Theme.border
-                    border.width: (isReady || isStarting) ? 1.5 : 1
+                    implicitHeight: 62
+                    border.color: isReady ? Theme.withAlpha(Theme.success, 0.5)
+                                : (isStarting ? Theme.withAlpha(Theme.warning, 0.5) : Theme.border)
 
-                    RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 16; spacing: 14
+                    // The OS mark, unplated. A 46px tinted tile around a glyph
+                    // is a lot of furniture for a row that already has a
+                    // status tag saying the same thing in words.
+                    MaterialIcon {
+                        iconName: root.osIconName(modelData.category, modelData.icon)
+                        pixelSize: 22
+                        color: isReady || isStarting ? tone : root.osIconColor(modelData.category, modelData.icon)
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.rightMargin: 2
+                    }
 
-                        // OS Avatar Badge
-                        Rectangle {
-                            implicitWidth: 46; implicitHeight: 46; radius: Theme.radiusSm
-                            color: isReady ? Theme.withAlpha(Theme.success, 0.2)
-                                 : isStarting ? Theme.withAlpha(Theme.warning, 0.2)
-                                 : Theme.withAlpha(root.osIconColor(modelData.category, modelData.icon), 0.15)
-                            border.color: isReady ? Theme.success
-                                        : isStarting ? Theme.warning
-                                        : Theme.withAlpha(root.osIconColor(modelData.category, modelData.icon), 0.3)
-                            border.width: 1
-                            MaterialIcon {
-                                iconName: root.osIconName(modelData.category, modelData.icon)
-                                pixelSize: 24
-                                color: isReady ? Theme.success
-                                     : isStarting ? Theme.warning
-                                     : root.osIconColor(modelData.category, modelData.icon)
-                                anchors.centerIn: parent
-                            }
-                        }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 3
 
-                        // VM Info
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 3
-
-                            RowLayout {
-                                spacing: 8
-                                Text {
-                                    text: modelData.name
-                                    color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true
-                                }
-                                Rectangle {
-                                    implicitWidth: stText.implicitWidth + 12; implicitHeight: 20; radius: Theme.radiusSm
-                                    color: isReady ? Theme.withAlpha(Theme.success, 0.2)
-                                         : isStarting ? Theme.withAlpha(Theme.warning, 0.2)
-                                         : Theme.withAlpha(Theme.textDim, 0.14)
-                                    border.color: isReady ? Theme.success
-                                                : isStarting ? Theme.warning
-                                                : Theme.border
-                                    Text {
-                                        id: stText
-                                        anchors.centerIn: parent
-                                        text: isStarting ? "INITIALIZING..."
-                                            : modelData.status.toUpperCase()
-                                        color: isReady ? Theme.success
-                                             : isStarting ? Theme.warning
-                                             : Theme.textDim
-                                        font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel; font.bold: true
-                                    }
-                                }
-                                Rectangle {
-                                    visible: modelData.isSandbox === true
-                                    implicitWidth: sbTag.implicitWidth + 12; implicitHeight: 20; radius: Theme.radiusSm
-                                    color: Theme.withAlpha(Theme.accent, 0.15)
-                                    border.color: Theme.accent
-                                    Text {
-                                        id: sbTag
-                                        anchors.centerIn: parent
-                                        text: "SANDBOX"
-                                        color: Theme.accent
-                                        font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel; font.bold: true
-                                    }
-                                }
-                            }
-
-                            RowLayout {
-                                spacing: 12
-                                Text {
-                                    text: isStarting ? "Booting guest OS and starting Wayland display server..."
-                                        : modelData.isSandbox ? "Cores: 8 vCPUs · RAM: 4G · Disk: Ephemeral tmpfs (9p live mount)"
-                                        : "Cores: " + modelData.cores + " vCPUs · RAM: " + modelData.ram + " · Disk: " + modelData.diskSize
-                                    color: isStarting ? Theme.warning : Theme.textSecondary
-                                    font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel
-                                }
-                                Text {
-                                    visible: isReady && !modelData.isSandbox
-                                    text: "· SPICE Port: " + modelData.spicePort
-                                    color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel
-                                }
-                                Text {
-                                    visible: isReady && modelData.isSandbox
-                                    text: "· Display Stream Active (Port 5920)"
-                                    color: Theme.success; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel
-                                }
-                            }
-                        }
-
-                        // Explicit spacer so the action group lands on the
-                        // card's right edge. Relying on the info column's
-                        // fillWidth alone left the buttons ~75px short of it.
-                        Item { Layout.fillWidth: true }
-
-                        // Quick Actions
                         RowLayout {
-                            Layout.fillWidth: false
-                            Layout.alignment: Qt.AlignVCenter
-                            spacing: 8
+                            spacing: 7
 
-                            // Action Buttons
-                            DialogButton {
-                                text: isStarting ? "Initializing..."
-                                    : (modelData.isSandbox ? (isReady ? "Observe Workspace" : "Start Sandbox")
-                                    : (isReady ? "Display" : "Start VM"))
-                                iconName: isStarting ? "hourglass_top"
-                                        : (isReady ? "desktop_windows" : "play_arrow")
-                                primary: isReady || !isStarting
-                                enabled: !VmService.running && !isStarting
-                                onClicked: {
-                                    if (isReady) {
-                                        VmService.display(modelData.name)
-                                    } else {
-                                        VmService.start(modelData.name, false)
-                                    }
-                                }
+                            Text {
+                                text: modelData.name
+                                color: Theme.text
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fontSizeBody
+                                font.weight: Font.DemiBold
                             }
 
-                            DialogButton {
-                                visible: modelData.status === "running"
-                                text: "Stop"
-                                iconName: "stop"
-                                enabled: !VmService.running
-                                onClicked: VmService.stop(modelData.name, false)
+                            StatusTag {
+                                text: isStarting ? "STARTING" : modelData.status.toUpperCase()
+                                toneColor: tone
                             }
 
-                            DialogButton {
-                                text: modelData.isSandbox ? "Reset" : "Delete"
-                                iconName: modelData.isSandbox ? "restart_alt" : "delete"
-                                enabled: !VmService.running
-                                onClicked: VmService.remove(modelData.name)
+                            StatusTag {
+                                visible: modelData.isSandbox === true
+                                text: "SANDBOX"
+                                tone: "accent"
                             }
                         }
+
+                        Text {
+                            text: {
+                                if (isStarting) return "Booting the guest and starting its display server"
+                                var spec = modelData.isSandbox
+                                    ? "8 vCPUs · 4G · ephemeral tmpfs"
+                                    : modelData.cores + " vCPUs · " + modelData.ram + " · " + modelData.diskSize
+                                if (isReady && !modelData.isSandbox) spec += " · SPICE :" + modelData.spicePort
+                                else if (isReady) spec += " · display on :5920"
+                                return spec
+                            }
+                            color: isStarting ? Theme.warning : Theme.textSecondary
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fontSizeLabel
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    DialogButton {
+                        text: isStarting ? "Starting"
+                            : (modelData.isSandbox ? (isReady ? "Observe" : "Start sandbox")
+                            : (isReady ? "Display" : "Start"))
+                        iconName: isStarting ? "hourglass_top" : (isReady ? "desktop_windows" : "play_arrow")
+                        primary: isReady || !isStarting
+                        enabled: !VmService.running && !isStarting
+                        onClicked: {
+                            if (isReady) VmService.display(modelData.name)
+                            else VmService.start(modelData.name, false)
+                        }
+                    }
+
+                    DialogButton {
+                        visible: modelData.status === "running"
+                        text: "Stop"
+                        iconName: "stop"
+                        enabled: !VmService.running
+                        onClicked: VmService.stop(modelData.name, false)
+                    }
+
+                    DialogButton {
+                        text: modelData.isSandbox ? "Reset" : "Delete"
+                        iconName: modelData.isSandbox ? "restart_alt" : "delete"
+                        danger: !modelData.isSandbox
+                        enabled: !VmService.running
+                        onClicked: VmService.remove(modelData.name)
                     }
                 }
             }
@@ -621,162 +448,170 @@ ColumnLayout {
             spacing: 14
             visible: root.activeTab === "catalog"
 
-            SectionLabel { text: "Preconfigured OS Images & Workstations" }
+            // The catalog is the same kind of list as the machines above it —
+            // pick one, act on it. It used to be a two-column grid of tiles, so
+            // the same domain had two shapes on two tabs of one card.
+            Repeater {
+                model: VmService.catalog
 
-            GridLayout {
-                Layout.fillWidth: true
-                columns: 2
-                rowSpacing: 12
-                columnSpacing: 12
+                delegate: ListRow {
+                    required property var modelData
+                    implicitHeight: 62
 
-                Repeater {
-                    model: VmService.catalog
-                    delegate: Rectangle {
-                        required property var modelData
+                    MaterialIcon {
+                        iconName: root.osIconName(modelData.category, modelData.icon)
+                        pixelSize: 22
+                        color: root.osIconColor(modelData.category, modelData.icon)
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.rightMargin: 2
+                    }
+
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        implicitHeight: 116
-                        radius: Theme.radiusMd
-                        color: Theme.surface
-                        border.color: Theme.border
+                        spacing: 3
 
-                        ColumnLayout {
-                            anchors.fill: parent; anchors.margins: 14; spacing: 8
+                        Text {
+                            text: modelData.name
+                            color: Theme.text
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeBody
+                            font.weight: Font.DemiBold
+                        }
 
-                            RowLayout {
-                                Layout.fillWidth: true; spacing: 10
-                                Rectangle {
-                                    implicitWidth: 32; implicitHeight: 32; radius: Theme.radiusSm
-                                    color: Theme.withAlpha(root.osIconColor(modelData.category, modelData.icon), 0.15)
-                                    border.color: Theme.withAlpha(root.osIconColor(modelData.category, modelData.icon), 0.3)
-                                    border.width: 1
-                                    MaterialIcon {
-                                        iconName: root.osIconName(modelData.category, modelData.icon)
-                                        pixelSize: 18
-                                        color: root.osIconColor(modelData.category, modelData.icon)
-                                        anchors.centerIn: parent
-                                    }
-                                }
-                                Text {
-                                    text: modelData.name
-                                    color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; font.bold: true
-                                    Layout.fillWidth: true
-                                }
-                                DialogButton {
-                                    text: modelData.isSandbox ? "Start" : "Deploy"
-                                    iconName: modelData.isSandbox ? "play_arrow" : "add"
-                                    primary: true
-                                    enabled: !VmService.running
-                                    onClicked: {
-                                        if (modelData.isSandbox) {
-                                            VmService.start(modelData.id, false)
-                                        } else {
-                                            root.openDeployModal(modelData)
-                                        }
-                                    }
-                                }
-                            }
+                        Text {
+                            text: modelData.desc
+                            color: Theme.textSecondary
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeSmall
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
 
-                            Text {
-                                text: modelData.desc
-                                color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                                Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                                elide: Text.ElideRight
-                                maximumLineCount: 2
-                            }
+                    Text {
+                        text: modelData.defaultCores + " vCPUs · " + modelData.defaultRamGb + "G · " + modelData.defaultDiskGb + "G"
+                        color: Theme.textDim
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fontSizeLabel
+                        Layout.alignment: Qt.AlignVCenter
+                    }
 
-                            RowLayout {
-                                spacing: 10
-                                Text {
-                                    text: "Default: " + modelData.defaultCores + " Cores · " + modelData.defaultRamGb + " GB RAM · " + modelData.defaultDiskGb + " GB Disk"
-                                    color: Theme.textDim; font.family: Theme.fontMono; font.pixelSize: Theme.fontSizeLabel
-                                }
-                            }
+                    DialogButton {
+                        text: modelData.isSandbox ? "Start" : "Deploy"
+                        iconName: modelData.isSandbox ? "play_arrow" : "add"
+                        primary: true
+                        enabled: !VmService.running
+                        onClicked: {
+                            if (modelData.isSandbox) VmService.start(modelData.id, false)
+                            else root.openDeployModal(modelData)
                         }
                     }
                 }
             }
         }
 
-
+        // ── Custom ISO ────────────────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 14
+            spacing: 0
             visible: root.activeTab === "custom"
 
-            SectionLabel { text: "Create Virtual Machine from Local ISO Image" }
-
-            Rectangle {
+            Text {
+                text: "Point at an installer image already on this machine and it becomes an accelerated virtual machine."
+                color: Theme.textSecondary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+                wrapMode: Text.WordWrap
                 Layout.fillWidth: true
-                implicitHeight: 290
-                radius: Theme.radiusMd
-                color: Theme.surface
-                border.color: Theme.border
+                Layout.bottomMargin: 8
+            }
 
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 18; spacing: 14
+            MujoSettingRow {
+                title: "Name"
+                description: "What the machine will be called in the list above."
 
-                    Text {
-                        text: "Specify an ISO installer image path on your local system to create a custom accelerated virtual machine."
-                        color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall
-                    }
+                TextField {
+                    Layout.preferredWidth: 240
+                    a11yName: "Virtual machine name"
+                    placeholder: "windows-11"
+                    text: root.customIsoName
+                    onTextChanged: root.customIsoName = text
+                }
+            }
 
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 12
-                        Text { text: "VM Name:"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 100 }
-                        Rectangle {
-                            Layout.fillWidth: true; implicitHeight: 34; radius: Theme.radiusSm; color: Theme.bg; border.color: Theme.border
-                            TextInput {
-                                anchors.fill: parent; anchors.margins: 8
-                                text: root.customIsoName
-                                color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody
-                                onTextChanged: root.customIsoName = text
-                            }
-                        }
-                    }
+            MujoSettingRow {
+                title: "Installer image"
+                description: "Absolute path to the .iso file."
 
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 12
-                        Text { text: "ISO File Path:"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 100 }
-                        Rectangle {
-                            Layout.fillWidth: true; implicitHeight: 34; radius: Theme.radiusSm; color: Theme.bg; border.color: Theme.border
-                            TextInput {
-                                anchors.fill: parent; anchors.margins: 8
-                                text: root.customIsoPath
-                                color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody
-                                onTextChanged: root.customIsoPath = text
-                            }
-                        }
-                    }
+                TextField {
+                    Layout.preferredWidth: 320
+                    a11yName: "ISO file path"
+                    placeholder: "~/Downloads/installer.iso"
+                    text: root.customIsoPath
+                    onTextChanged: root.customIsoPath = text
+                }
+            }
 
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 20
-                        Text { text: "CPU Cores: " + root.customIsoCores; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; Layout.preferredWidth: 100 }
-                        Slider {
-                            Layout.fillWidth: true; from: 2; to: 16; value: root.customIsoCores
-                            onMoved: v => root.customIsoCores = Math.round(v / 2) * 2
-                        }
-                    }
+            MujoSettingRow {
+                title: "CPU cores"
+                description: "How many virtual cores the guest gets."
 
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 20
-                        Text { text: "RAM: " + root.customIsoRamGb + " GB"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; Layout.preferredWidth: 100 }
-                        Slider {
-                            Layout.fillWidth: true; from: 2; to: 32; value: root.customIsoRamGb
-                            onMoved: v => root.customIsoRamGb = Math.round(v / 2) * 2
-                        }
-                    }
+                Slider {
+                    Layout.preferredWidth: 190
+                    a11yName: "CPU cores"
+                    from: 2
+                    to: 16
+                    value: root.customIsoCores
+                    valueText: root.customIsoCores + " cores"
+                    onMoved: v => root.customIsoCores = Math.round(v / 2) * 2
+                }
 
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 12
-                        Item { Layout.fillWidth: true }
-                        DialogButton {
-                            text: "Create VM Configuration"
-                            primary: true
-                            enabled: root.customIsoPath.length > 0 && root.customIsoName.length > 0 && !VmService.running
-                            onClicked: root.executeDeployIso()
-                        }
-                    }
+                Text {
+                    text: root.customIsoCores
+                    color: Theme.textSecondary
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
+                    horizontalAlignment: Text.AlignRight
+                    Layout.preferredWidth: 46
+                }
+            }
+
+            MujoSettingRow {
+                title: "Memory"
+                description: "How much RAM the guest gets."
+
+                Slider {
+                    Layout.preferredWidth: 190
+                    a11yName: "Memory"
+                    from: 2
+                    to: 32
+                    value: root.customIsoRamGb
+                    valueText: root.customIsoRamGb + " GB"
+                    onMoved: v => root.customIsoRamGb = Math.round(v / 2) * 2
+                }
+
+                Text {
+                    text: root.customIsoRamGb + "G"
+                    color: Theme.textSecondary
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSizeSmall
+                    horizontalAlignment: Text.AlignRight
+                    Layout.preferredWidth: 46
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 10
+                spacing: 12
+
+                Item { Layout.fillWidth: true }
+
+                DialogButton {
+                    text: "Create machine"
+                    primary: true
+                    enabled: root.customIsoPath.length > 0 && root.customIsoName.length > 0 && !VmService.running
+                    onClicked: root.executeDeployIso()
                 }
             }
         }
@@ -787,63 +622,99 @@ ColumnLayout {
         title: "Provision " + (root.targetPreset ? root.targetPreset.name : "virtual machine")
         iconName: "add_box"
         visible: root.showCreateModal
-        collapsible: false
 
         actions: DialogButton {
             text: "Cancel"
             onClicked: root.showCreateModal = false
         }
 
-        RowLayout {
-            Layout.fillWidth: true; spacing: 12
-            Text { text: "VM Name:"; color: Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody; Layout.preferredWidth: 90 }
-            Rectangle {
-                Layout.fillWidth: true; implicitHeight: 34; radius: Theme.radiusSm; color: Theme.bg; border.color: Theme.border
-                TextInput {
-                    anchors.fill: parent; anchors.margins: 8
-                    text: root.createName
-                    color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeBody
-                    onTextChanged: root.createName = text
-                }
+        MujoSettingRow {
+            title: "Name"
+            description: "What the machine will be called in the list."
+
+            TextField {
+                Layout.preferredWidth: 240
+                a11yName: "Virtual machine name"
+                text: root.createName
+                onTextChanged: root.createName = text
             }
         }
 
-        RowLayout {
-            Layout.fillWidth: true; spacing: 16
-            Text { text: "Cores: " + root.createCores; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; Layout.preferredWidth: 90 }
+        MujoSettingRow {
+            title: "CPU cores"
+
             Slider {
-                Layout.fillWidth: true; from: 2; to: 16; value: root.createCores
+                Layout.preferredWidth: 190
+                a11yName: "CPU cores"
+                from: 2
+                to: 16
+                value: root.createCores
                 onMoved: v => root.createCores = Math.round(v / 2) * 2
             }
+
+            Text {
+                text: root.createCores
+                color: Theme.textSecondary
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
+                horizontalAlignment: Text.AlignRight
+                Layout.preferredWidth: 46
+            }
         }
 
-        RowLayout {
-            Layout.fillWidth: true; spacing: 16
-            Text { text: "RAM: " + root.createRamGb + " GB"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; Layout.preferredWidth: 90 }
+        MujoSettingRow {
+            title: "Memory"
+
             Slider {
-                Layout.fillWidth: true; from: 2; to: 32; value: root.createRamGb
+                Layout.preferredWidth: 190
+                a11yName: "Memory"
+                from: 2
+                to: 32
+                value: root.createRamGb
                 onMoved: v => root.createRamGb = Math.round(v / 2) * 2
             }
+
+            Text {
+                text: root.createRamGb + "G"
+                color: Theme.textSecondary
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
+                horizontalAlignment: Text.AlignRight
+                Layout.preferredWidth: 46
+            }
         }
 
-        RowLayout {
-            Layout.fillWidth: true; spacing: 16
-            Text { text: "Disk: " + root.createDiskGb + " GB"; color: Theme.text; font.family: Theme.fontFamily; font.pixelSize: Theme.fontSizeSmall; Layout.preferredWidth: 90 }
+        MujoSettingRow {
+            title: "Disk"
+
             Slider {
-                Layout.fillWidth: true; from: 10; to: 120; value: root.createDiskGb
+                Layout.preferredWidth: 190
+                a11yName: "Disk size"
+                from: 10
+                to: 120
+                value: root.createDiskGb
                 onMoved: v => root.createDiskGb = Math.round(v / 5) * 5
             }
+
+            Text {
+                text: root.createDiskGb + "G"
+                color: Theme.textSecondary
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSizeSmall
+                horizontalAlignment: Text.AlignRight
+                Layout.preferredWidth: 46
+            }
         }
 
         RowLayout {
-            Layout.fillWidth: true; spacing: 12; Layout.topMargin: 6
-            DialogButton {
-                text: "Cancel"
-                onClicked: root.showCreateModal = false
-            }
+            Layout.fillWidth: true
+            Layout.topMargin: 10
+            spacing: 12
+
             Item { Layout.fillWidth: true }
+
             DialogButton {
-                text: "Deploy & Prepare VM"
+                text: "Deploy"
                 primary: true
                 onClicked: root.executeDeploy()
             }

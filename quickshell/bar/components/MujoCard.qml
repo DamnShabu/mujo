@@ -2,10 +2,8 @@ import QtQuick
 import QtQuick.Layouts
 import "../theme"
 
-// MujoCard: Standardized, atmospheric settings category container.
-// Provides a clean titled surface with optional icon, badges, smooth accordion body,
-// and action controls. Respects Theme tokens and reduced-motion preferences.
-Rectangle {
+// A modern elevated card section in the settings UI.
+Item {
     id: root
 
     property string title: ""
@@ -13,56 +11,47 @@ Rectangle {
     property string badgeText: ""
     property color badgeColor: Theme.accent
     property bool isNixos: false
-    property bool collapsible: true
+    property bool collapsible: false
     property bool expanded: true
-    property bool hideable: false
-    signal hideRequested()
 
-    default property alias content: innerCol.children
+    default property alias content: bodyCol.children
     property alias actions: headerActions.children
 
-    // Cards are the page's section headings; naming the group lets a screen
-    // reader announce which section the focused control belongs to.
     Accessible.role: Accessible.Grouping
     Accessible.name: root.title
 
     Layout.fillWidth: true
-    implicitHeight: layoutCol.implicitHeight + 28
-    radius: Theme.radiusLg
-    color: Theme.surface
-    border.color: cardHh.hovered ? Theme.borderStrong : Theme.border
-    Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
-    clip: true
+    implicitHeight: cardBg.implicitHeight
 
-    // Specular top highlight line
     Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        height: 1
-        color: Theme.withAlpha("#ffffff", 0.04)
-    }
+        id: cardBg
+        anchors.fill: parent
+        implicitHeight: innerCol.implicitHeight + 28
+        radius: Theme.radiusMd
+        color: Theme.surface
+        border.width: 1
+        border.color: cardHh.hovered ? Theme.borderStrong : Theme.border
 
-    HoverHandler { id: cardHh }
+        Behavior on border.color { ColorAnimation { duration: Anim.d(Anim.fast) } }
 
-    ColumnLayout {
-        id: layoutCol
-        anchors {
-            left: parent.left
-            right: parent.right
-            top: parent.top
-            margins: 14
-        }
-        spacing: 12
+        HoverHandler { id: cardHh }
 
-        // ── Card Header ───────────────────────────────────────────────────────
-        Item {
-            Layout.fillWidth: true
-            implicitHeight: 26
+        ColumnLayout {
+            id: innerCol
+            anchors {
+                left: parent.left
+                right: parent.right
+                top: parent.top
+                margins: 14
+            }
+            spacing: 0
 
             RowLayout {
-                anchors.fill: parent
-                spacing: 9
+                id: headerRow
+                Layout.fillWidth: true
+                Layout.preferredHeight: 28
+                spacing: 8
+                visible: root.title !== "" || root.iconName !== "" || root.badgeText !== "" || root.isNixos
 
                 MaterialIcon {
                     visible: root.iconName !== ""
@@ -76,51 +65,17 @@ Rectangle {
                     text: root.title
                     color: Theme.text
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeBody + 1
-                    font.bold: true
+                    font.pixelSize: Theme.fontSizeTitle
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
                     Layout.alignment: Qt.AlignVCenter
                 }
 
-                // NixOS badge
-                Rectangle {
-                    visible: root.isNixos
-                    implicitWidth: nbTxt.implicitWidth + 10
-                    implicitHeight: 16
-                    radius: Theme.radiusSm
-                    color: Theme.withAlpha(Theme.accent, 0.14)
-                    border.color: Theme.accent
+                StatusTag {
+                    visible: root.isNixos || root.badgeText !== ""
+                    text: root.isNixos ? "NIXOS" : root.badgeText
+                    toneColor: root.isNixos ? Theme.accent : root.badgeColor
                     Layout.alignment: Qt.AlignVCenter
-
-                    Text {
-                        id: nbTxt
-                        anchors.centerIn: parent
-                        text: "NIXOS"
-                        color: Theme.accent
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fontSizeLabel
-                        font.bold: true
-                    }
-                }
-
-                // Generic badge
-                Rectangle {
-                    visible: root.badgeText !== "" && !root.isNixos
-                    implicitWidth: cbTxt.implicitWidth + 10
-                    implicitHeight: 16
-                    radius: Theme.radiusSm
-                    color: Theme.withAlpha(root.badgeColor, 0.14)
-                    border.color: root.badgeColor
-                    Layout.alignment: Qt.AlignVCenter
-
-                    Text {
-                        id: cbTxt
-                        anchors.centerIn: parent
-                        text: root.badgeText
-                        color: root.badgeColor
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fontSizeLabel
-                        font.bold: true
-                    }
                 }
 
                 Item { Layout.fillWidth: true }
@@ -131,55 +86,39 @@ Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                 }
 
-                // Hide button
-                MaterialIcon {
-                    visible: root.hideable && cardHh.hovered
-                    iconName: "visibility_off"
-                    pixelSize: 16
-                    color: hideHh.hovered ? Theme.text : Theme.textDim
-                    Layout.alignment: Qt.AlignVCenter
-                    HoverHandler { id: hideHh; cursorShape: Qt.PointingHandCursor }
-                    // Exclusive grab: without it the header's collapse tap
-                    // below fires for this icon too.
-                    TapHandler { gesturePolicy: TapHandler.ReleaseWithinBounds; onTapped: root.hideRequested() }
-                }
-
-                // Collapse chevron
                 MaterialIcon {
                     visible: root.collapsible
-                    iconName: root.expanded ? "expand_less" : "expand_more"
+                    iconName: "expand_more"
                     pixelSize: 18
-                    color: chevHh.hovered ? Theme.text : Theme.textSecondary
+                    color: chevHh.hovered ? Theme.text : Theme.textDim
+                    rotation: root.expanded ? 180 : 0
                     Layout.alignment: Qt.AlignVCenter
+                    Behavior on rotation {
+                        NumberAnimation { duration: Anim.d(Anim.fast); easing.type: Anim.easeStandard }
+                    }
                     HoverHandler { id: chevHh; cursorShape: Qt.PointingHandCursor }
-                    // Exclusive grab: the header tap below toggled `expanded`
-                    // a second time, so the chevron appeared to do nothing.
-                    TapHandler { gesturePolicy: TapHandler.ReleaseWithinBounds; onTapped: root.expanded = !root.expanded }
+                    TapHandler {
+                        gesturePolicy: TapHandler.ReleaseWithinBounds
+                        onTapped: root.expanded = !root.expanded
+                    }
                 }
             }
 
-            TapHandler {
-                enabled: root.collapsible
-                onTapped: root.expanded = !root.expanded
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.topMargin: 10
+                Layout.bottomMargin: 10
+                implicitHeight: 1
+                color: Theme.border
+                visible: headerRow.visible && root.expanded
             }
-        }
 
-        // Header divider
-        Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: Theme.border
-            visible: root.expanded && innerCol.children.length > 0
-        }
-
-        // ── Card Body (Collapsible) ───────────────────────────────────────────
-        ColumnLayout {
-            id: innerCol
-            Layout.fillWidth: true
-            opacity: root.expanded ? 1.0 : 0.0
-            visible: opacity > 0
-            spacing: 10
-            Behavior on opacity { NumberAnimation { duration: Anim.d(Anim.enter); easing.type: Anim.easeStandard } }
+            ColumnLayout {
+                id: bodyCol
+                Layout.fillWidth: true
+                spacing: 6
+                visible: root.expanded
+            }
         }
     }
 }

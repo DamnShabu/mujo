@@ -122,6 +122,11 @@ Item {
                                    : modelData === "weather" ? weatherComp
                                    : modelData === "cava-mini" ? cavaComp
                                    : null
+                    // Same rule as BarSlot: a module that hides itself gives its
+                    // cell back, so the notch shrinks to what it is showing
+                    // instead of centring the clock in a pill sized for a
+                    // player and a forecast that are not there.
+                    visible: item ? item.barVisible !== false : false
                 }
             }
         }
@@ -191,7 +196,8 @@ Item {
         id: mediaComp
         RowLayout {
             spacing: 8
-            visible: island.player !== null
+            readonly property bool barVisible: island.player !== null
+            visible: barVisible
             Layout.alignment: Qt.AlignVCenter
 
             Rectangle {
@@ -270,7 +276,8 @@ Item {
         id: weatherComp
         RowLayout {
             spacing: 6
-            visible: Weather.data !== null
+            readonly property bool barVisible: Weather.data !== null
+            visible: barVisible
             Layout.alignment: Qt.AlignVCenter
 
             MaterialIcon {
@@ -322,7 +329,13 @@ Item {
         id: cavaComp
         Canvas {
             id: mini
-            implicitWidth: 56; implicitHeight: Theme.barHeight - 16
+            // The visualiser had no visibility condition at all, so with cava
+            // idle the notch still reserved 56px for it and centred the clock
+            // inside a capsule sized for a waveform nobody was playing.
+            readonly property bool barVisible: Cava.running
+            visible: barVisible
+            implicitWidth: Theme.barItemHeight * 2
+            implicitHeight: Theme.barItemHeight - 6
             Layout.alignment: Qt.AlignVCenter
             Connections { target: Cava; function onLevelsChanged() { mini.requestPaint() } }
             onPaint: {

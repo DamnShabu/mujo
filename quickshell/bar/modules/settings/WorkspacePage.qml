@@ -3,19 +3,34 @@ import QtQuick.Layouts
 import "../../theme"
 import "../../components"
 
-// Workspace & Desktop Chrome — Desktop Bar, Dynamic Island,
-// Overlay Widgets, and Edge Staging Shelf.
-Item {
+// Workspace — the desktop chrome: the bar, the notch, the overlay widgets,
+// notifications, live weather telemetry and the staging shelf.
+SettingsPage {
     id: root
 
-    property string brand: "desktop"
-    property string title: "Workspace"
-    property string subtitle: "Desktop bar layout, dynamic island notch, overlay widgets & staging shelf."
+    brand: "desktop"
+    title: "Workspace"
+    subtitle: "Desktop bar layout, dynamic island notch, overlay widgets, notifications, weather and staging shelf."
+    tab: "bar"
 
-    property string tab: "bar"   // bar | island | widgets | shelf
-    readonly property var tabIds: ["bar", "island", "widgets", "shelf"]
+    sections: [
+        { id: "bar", label: "Desktop Bar", component: barSection,
+          description: "Where the bar sits, how big it is, and which modules fill its three zones." },
+        { id: "island", label: "Dynamic Island", component: islandSection,
+          description: "The notch at the top of the screen, and what makes it expand." },
+        { id: "widgets", label: "Overlay Widgets", component: widgetsSection,
+          description: "Clocks, meters and panels that live on the desktop behind your windows." },
+        { id: "notifications", label: "Notifications & DND", component: notificationsSection,
+          description: "Toast banners, Do Not Disturb, sound alerts, placement and per-app rules." },
+        { id: "weather", label: "Weather", component: weatherSection,
+          description: "Live atmospheric telemetry, 5-day forecast, location search and display units." },
+        { id: "shelf", label: "Shelf", component: shelfSection,
+          description: "The screen-edge drop zone for staging files between windows." }
+    ]
 
-    readonly property var cardTabMap: ({
+    aliases: ({ "dnd": "notifications" })
+
+    cardMap: ({
         "Desktop Bar Layout & Geometry": "bar",
         "3-Zone Slot Canvas Builder": "bar",
         "Right Cluster Modules & Order": "bar",
@@ -26,128 +41,22 @@ Item {
         "Desktop Overlay Widgets": "widgets",
         "Global Widget Styles & Glassmorphism": "widgets",
         "Widget Customization & Styles": "widgets",
+        "Behavior & Do Not Disturb": "notifications",
+        "Sound Alerts & Placement": "notifications",
+        "Per-App Mute Rules": "notifications",
+        "Notification Testing Lab": "notifications",
+        "Current Atmospheric Conditions": "weather",
+        "5-Day Forecast": "weather",
+        "Location & Geocoding": "weather",
+        "Display Preferences & Frequency": "weather",
         "Shelf File Staging Drop Zone": "shelf"
     })
 
-    function revealCard(name) {
-        if (root.tabIds.indexOf(name) >= 0) {
-            root.tab = name
-            return true
-        }
-        var targetTab = root.cardTabMap[name]
-        if (targetTab) {
-            root.tab = targetTab
-            var flick = _getActiveFlickable()
-            if (flick) _scrollFlickToCard(flick, name)
-            return true
-        }
-        return false
-    }
-
-    function _getActiveFlickable() {
-        if (root.tab === "bar") return flickBar
-        if (root.tab === "island") return flickIsland
-        if (root.tab === "widgets") return flickWidgets
-        if (root.tab === "shelf") return flickShelf
-        return null
-    }
-
-    function _scrollFlickToCard(flick, cardTitle) {
-        var card = _findCard(flick.contentItem, cardTitle)
-        if (!card) return
-        var maxY = Math.max(0, flick.contentHeight - flick.height)
-        var p = card.mapToItem(flick.contentItem, 0, 0)
-        flick.contentY = Math.max(0, Math.min(p.y, maxY))
-    }
-
-    function _findCard(node, cardTitle) {
-        if (!node) return null
-        var kids = node.children
-        for (var i = 0; i < kids.length; i++) {
-            var c = kids[i]
-            if (c.collapsible !== undefined && c.title === cardTitle) return c
-            var hit = _findCard(c, cardTitle)
-            if (hit) return hit
-        }
-        return null
-    }
-
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 24
-        spacing: 14
-
-        MujoSegmented {
-            Layout.alignment: Qt.AlignLeft
-            model: [
-                { id: "bar",     label: "Desktop Bar",     icon: "dock_to_bottom" },
-                { id: "island",  label: "Dynamic Island",  icon: "notifications_active" },
-                { id: "widgets", label: "Overlay Widgets", icon: "widgets" },
-                { id: "shelf",   label: "Shelf",           icon: "inventory_2" }
-            ]
-            current: root.tab
-            onSelected: function(id) { root.tab = id }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-
-            MujoFlickable {
-                id: flickBar
-                anchors.fill: parent
-                visible: root.tab === "bar"
-                contentHeight: colBar.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colBar
-                    width: parent.width
-                    spacing: 14
-                    BarGroup { Layout.fillWidth: true }
-                }
-            }
-
-            MujoFlickable {
-                id: flickIsland
-                anchors.fill: parent
-                visible: root.tab === "island"
-                contentHeight: colIsland.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colIsland
-                    width: parent.width
-                    spacing: 14
-                    IslandGroup { Layout.fillWidth: true }
-                }
-            }
-
-            MujoFlickable {
-                id: flickWidgets
-                anchors.fill: parent
-                visible: root.tab === "widgets"
-                contentHeight: colWidgets.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colWidgets
-                    width: parent.width
-                    spacing: 14
-                    WidgetsGroup { Layout.fillWidth: true }
-                }
-            }
-
-            MujoFlickable {
-                id: flickShelf
-                anchors.fill: parent
-                visible: root.tab === "shelf"
-                contentHeight: colShelf.implicitHeight + 20
-
-                ColumnLayout {
-                    id: colShelf
-                    width: parent.width
-                    spacing: 14
-                    ShelfGroup { Layout.fillWidth: true }
-                }
-            }
-        }
-    }
+    Component { id: barSection; ColumnLayout { spacing: 14; BarGroup { Layout.fillWidth: true } } }
+    Component { id: islandSection; ColumnLayout { spacing: 14; IslandGroup { Layout.fillWidth: true } } }
+    Component { id: widgetsSection; ColumnLayout { spacing: 14; WidgetsGroup { Layout.fillWidth: true } } }
+    Component { id: notificationsSection; ColumnLayout { spacing: 14; NotificationsGroup { Layout.fillWidth: true } } }
+    Component { id: weatherSection; ColumnLayout { spacing: 14; WeatherGroup { Layout.fillWidth: true } } }
+    Component { id: shelfSection; ColumnLayout { spacing: 14; ShelfGroup { Layout.fillWidth: true } } }
 }
+

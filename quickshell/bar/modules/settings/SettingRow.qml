@@ -45,6 +45,7 @@ MujoSettingRow {
     }
 
     Slider {
+        id: slider
         visible: row.kind === "slider"
         Layout.preferredWidth: row.controlWidth
         a11yName: row.title
@@ -54,6 +55,20 @@ MujoSettingRow {
         value: Number(row.value)
         valueText: row.valueText !== "" ? row.valueText : (row.roundValue ? (Math.round(value) + row.format) : (Number(value).toFixed(2) + row.format))
         onMoved: function (v) { row.commit(row.roundValue ? Math.round(v) : Number(v.toFixed(2))) }
+    }
+
+    // The slider's own bubble only appears while you point at it, which left a
+    // page of sliders showing no numbers at all. The value is the setting, so
+    // it stays on screen. Fixed width so a column of sliders lines up.
+    Text {
+        visible: row.kind === "slider"
+        Layout.preferredWidth: 46
+        text: slider.valueText
+        color: Theme.textSecondary
+        font.family: Theme.fontMono
+        font.pixelSize: Theme.fontSizeSmall
+        horizontalAlignment: Text.AlignRight
+        elide: Text.ElideRight
     }
 
     MujoSegmented {
