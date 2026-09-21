@@ -97,6 +97,7 @@
           "Mod+Shift+G".toggle-windowed-fullscreen = _: {};
           "Mod+C".center-column = _: {};
           "Mod+W".toggle-column-tabbed-display = _: {};
+          "Mod+Shift+W".spawn = "skwd-wall-v2";
           "Mod+E".spawn = "nautilus";
           # Flatpak exports binaries under the full app ID, not a short name
           # (e.g. /var/lib/flatpak/exports/bin/app.zen_browser.zen), so these
@@ -301,6 +302,10 @@
             open-floating = true;
             open-focused = false;
           }
+          {
+            matches = [{app-id = "^skwd-wall-v2$";}];
+            open-floating = true;
+          }
         ];
 
         layer-rules = [
@@ -312,12 +317,6 @@
             background-effect = {
               blur = true;
             };
-          }
-          {
-            matches = [
-              {namespace = "^qs-wallpaper-bg";}
-            ];
-            place-within-backdrop = true;
           }
         ];
 
