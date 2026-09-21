@@ -19,7 +19,6 @@ usage() {
 Usage: mujo <command> [args...]
 
 Commands:
-  wallpaper <subcommand>   Wallpaper management
   theme <subcommand>       Shell color theme
   persist <subcommand>     NixOS persistence (impermanence) list
   llm <subcommand>         LLM tracker status (bar widget)
@@ -335,176 +334,6 @@ ai_agent_field() {
     '.agents[] | select(.id == $id) | (.[$k] // empty) | if type == "array" then .[] else . end'
 }
 
-wallpaper_usage() {
-  cat >&2 <<EOF
-Usage: mujo wallpaper <command> [args...]
-
-Commands:
-  set <path>                     Set wallpaper for all monitors
-  set <path> --monitor <name>    Set wallpaper for specific monitor
-  motion <on|off>                 Toggle zoom + pan effect
-  background <hex|theme>        Set letterbox/background color ("theme" or #rrggbb)
-  list                            List local wallpaper files (JSON array)
-  search [query|json] [options]  Search Wallhaven wallpapers (JSON result)
-  details <id>                    Get metadata for a specific wallpaper (JSON)
-  tag <id>                        Get metadata for a specific tag (JSON)
-  save <url> [name]               Download a wallpaper into the library
-  apply-url <url> [name]          Download and set as active wallpaper
-  random                          Apply a random wallpaper from the library
-  engine <subcommand> [args...]   Wallpaper Engine & Steam Workshop integration
-  show                            Show current config
-EOF
-  exit 1
-}
-
-CONF="${HOME}/.config/quickshell/wallpaper.json"
-[[ -d "${CONF%/*}" ]] || mkdir -p "${CONF%/*}"
-[[ -f "${CONF}" ]] || printf '{"effects":{"motion":true}}\n' > "${CONF}"
-
-# Local wallpaper library. Downloads land here; `list`/`random` read from here
-# plus the user's Pictures dir.
-WALLPAPER_DIR="${XDG_PICTURES_DIR:-${HOME}/Pictures}/Wallpapers"
-[[ -d "${WALLPAPER_DIR}" ]] || mkdir -p "${WALLPAPER_DIR}"
-
-# Download <url> into the library, echo the local path (or fail). Optional 2nd
-# arg names the file; otherwise derived from the URL.
-wp_download() {
-  local url="$1" name="${2:-}" dest
-  if [[ -z "${name}" ]]; then
-    name="$(basename "${url%%\?*}")"
-    [[ -n "${name}" && "${name}" == *.* ]] || name="wallhaven-$(date +%s).jpg"
-  fi
-  dest="${WALLPAPER_DIR}/${name}"
-  if [[ -s "${dest}" ]]; then
-    printf '%s' "${dest}"
-    return 0
-  fi
-  if curl -fsSL --max-time 90 -o "${dest}.part" "${url}"; then
-    mv "${dest}.part" "${dest}"
-    printf '%s' "${dest}"
-  else
-    rm -f "${dest}.part"
-    return 1
-  fi
-}
-
-# Emit a JSON array of image files across the library + Pictures, newest first.
-wallpaper_list() {
-  find "${WALLPAPER_DIR}" "${XDG_PICTURES_DIR:-${HOME}/Pictures}" -maxdepth 1 -type f \
-    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
-    -printf '%T@\t%p\n' 2>/dev/null \
-    | sort -rn | cut -f2- | jq -R . | jq -s .
-}
-
-wallpaper_search() {
-  local q="" page="1" categories="111" purity="100" sorting="toplist" order="" toprange="" atleast="" resolutions="" ratios="" colors="" seed="" apikey=""
-
-  if [[ $# -ge 1 && "$1" =~ ^\{.*\}$ ]]; then
-    local json="$1"
-    q="$(echo "${json}" | jq -r '.q // .query // ""' 2>/dev/null || echo "")"
-    page="$(echo "${json}" | jq -r '.page // 1' 2>/dev/null || echo "1")"
-    categories="$(echo "${json}" | jq -r '.categories // "111"' 2>/dev/null || echo "111")"
-    purity="$(echo "${json}" | jq -r '.purity // "100"' 2>/dev/null || echo "100")"
-    sorting="$(echo "${json}" | jq -r '.sorting // "toplist"' 2>/dev/null || echo "toplist")"
-    order="$(echo "${json}" | jq -r '.order // ""' 2>/dev/null || echo "")"
-    toprange="$(echo "${json}" | jq -r '.topRange // .toprange // ""' 2>/dev/null || echo "")"
-    atleast="$(echo "${json}" | jq -r '.atleast // ""' 2>/dev/null || echo "")"
-    resolutions="$(echo "${json}" | jq -r '.resolutions // ""' 2>/dev/null || echo "")"
-    ratios="$(echo "${json}" | jq -r '.ratios // ""' 2>/dev/null || echo "")"
-    colors="$(echo "${json}" | jq -r '.colors // ""' 2>/dev/null || echo "")"
-    seed="$(echo "${json}" | jq -r '.seed // ""' 2>/dev/null || echo "")"
-    apikey="$(echo "${json}" | jq -r '.apikey // .apiKey // ""' 2>/dev/null || echo "")"
-  else
-    while [[ $# -ge 1 ]]; do
-      case "$1" in
-        --query|-q) q="$2"; shift 2 ;;
-        --page|-p) page="$2"; shift 2 ;;
-        --categories|-c) categories="$2"; shift 2 ;;
-        --purity) purity="$2"; shift 2 ;;
-        --sorting|-s) sorting="$2"; shift 2 ;;
-        --order) order="$2"; shift 2 ;;
-        --topRange|--toprange|-t) toprange="$2"; shift 2 ;;
-        --atleast|-a) atleast="$2"; shift 2 ;;
-        --resolutions|-r) resolutions="$2"; shift 2 ;;
-        --ratios) ratios="$2"; shift 2 ;;
-        --colors) colors="$2"; shift 2 ;;
-        --seed) seed="$2"; shift 2 ;;
-        --apikey|--key|-k) apikey="$2"; shift 2 ;;
-        *)
-          if [[ -z "${q}" ]]; then q="$1"; shift
-          elif [[ "${page}" == "1" ]]; then page="$1"; shift
-          else shift; fi
-          ;;
-      esac
-    done
-  fi
-
-  if [[ -z "${apikey}" && -f "${SETTINGS_CONF}" ]]; then
-    apikey="$(jq -r '.wallhaven.apiKey // empty' "${SETTINGS_CONF}" 2>/dev/null || true)"
-  fi
-
-  local curl_args=()
-  [[ -n "${q}" ]] && curl_args+=(--data-urlencode "q=${q}")
-  [[ -n "${page}" ]] && curl_args+=(--data-urlencode "page=${page}")
-  [[ -n "${categories}" ]] && curl_args+=(--data-urlencode "categories=${categories}")
-  [[ -n "${purity}" ]] && curl_args+=(--data-urlencode "purity=${purity}")
-  [[ -n "${sorting}" ]] && curl_args+=(--data-urlencode "sorting=${sorting}")
-  [[ -n "${order}" ]] && curl_args+=(--data-urlencode "order=${order}")
-  [[ -n "${toprange}" ]] && curl_args+=(--data-urlencode "topRange=${toprange}")
-  [[ -n "${atleast}" ]] && curl_args+=(--data-urlencode "atleast=${atleast}")
-  [[ -n "${resolutions}" ]] && curl_args+=(--data-urlencode "resolutions=${resolutions}")
-  [[ -n "${ratios}" ]] && curl_args+=(--data-urlencode "ratios=${ratios}")
-  [[ -n "${colors}" ]] && curl_args+=(--data-urlencode "colors=${colors}")
-  [[ -n "${seed}" ]] && curl_args+=(--data-urlencode "seed=${seed}")
-  [[ -n "${apikey}" ]] && curl_args+=(--data-urlencode "apikey=${apikey}")
-
-  local response http_code body
-  response="$(curl -sS --max-time 25 -w "\n%{http_code}" -G "https://wallhaven.cc/api/v1/search" "${curl_args[@]}" 2>/dev/null || echo -e '{"data":[],"error":"network_error"}\n000')"
-  http_code="$(echo "${response}" | tail -n1)"
-  body="$(echo "${response}" | sed '$d')"
-
-  if [[ "${http_code}" -ge 200 && "${http_code}" -lt 300 ]]; then
-    # Background pre-cache thumbnails for instant rendering
-    echo "${body}" | jq -c '[.data[].thumbs.small // empty]' 2>/dev/null | {
-      if command -v mujo-wallpaper-engine >/dev/null 2>&1; then
-        mujo-wallpaper-engine cache-thumbnails >/dev/null 2>&1 &
-      else
-        python3 "$(dirname "${BASH_SOURCE[0]}")/wallpaper-engine/mujo-wallpaper-engine.py" cache-thumbnails >/dev/null 2>&1 &
-      fi
-    }
-    echo "${body}"
-  elif [[ "${http_code}" -eq 429 ]]; then
-    echo '{"data":[],"error":"rate_limited","message":"Wallhaven rate limit reached (45 req/min). Please wait a moment."}'
-    return 1
-  elif [[ "${http_code}" -eq 401 ]]; then
-    echo '{"data":[],"error":"unauthorized","message":"Invalid Wallhaven API key."}'
-    return 1
-  elif [[ "${http_code}" -eq 000 ]]; then
-    echo '{"data":[],"error":"network_error","message":"Network request failed — check your internet connection."}'
-    return 1
-  else
-    echo "{\"data\":[],\"error\":\"http_${http_code}\",\"message\":\"Request failed with HTTP status ${http_code}\"}"
-    return 1
-  fi
-}
-
-wallpaper_details() {
-  [[ $# -ge 1 ]] || { echo '{"error":"missing_id"}' >&2; return 1; }
-  local id="$1" apikey=""
-  if [[ -f "${SETTINGS_CONF}" ]]; then
-    apikey="$(jq -r '.wallhaven.apiKey // empty' "${SETTINGS_CONF}" 2>/dev/null || true)"
-  fi
-  local url="https://wallhaven.cc/api/v1/w/${id}"
-  [[ -n "${apikey}" ]] && url="${url}?apikey=${apikey}"
-  curl -fsSL --max-time 20 "${url}" 2>/dev/null || { echo '{"data":null,"error":"request_failed"}'; return 1; }
-}
-
-wallpaper_tag() {
-  [[ $# -ge 1 ]] || { echo '{"error":"missing_id"}' >&2; return 1; }
-  local id="$1"
-  curl -fsSL --max-time 20 "https://wallhaven.cc/api/v1/tag/${id}" 2>/dev/null || { echo '{"data":null,"error":"request_failed"}'; return 1; }
-}
-
 LLM_CONF="${HOME}/.config/qsshell/llm-status.json"
 [[ -d "${LLM_CONF%/*}" ]] || mkdir -p "${LLM_CONF%/*}"
 [[ -f "${LLM_CONF}" ]] || printf '{"models":[],"tokens":0,"updated":null}\n' > "${LLM_CONF}"
@@ -533,7 +362,7 @@ DESKTOP_DIR="${XDG_DESKTOP_DIR:-${HOME}/Desktop}"
 DESKTOP_POS="${HOME}/.local/state/qsshell/desktop-icons.json"
 
 # WP-02: the one unified settings store. Everything except the color palette
-# (theme.json) and the wallpaper (wallpaper.json) lives here under namespaced
+# (theme.json) lives here under namespaced
 # keys (bar.*, island.*, notifications.*, weather.*, ai.*, idle.*, lock.*,
 # cava.*, backup.*, motion.*, …).
 #
@@ -1038,16 +867,7 @@ EOF
   # 4. Reload active Kitty terminal windows
   killall -SIGUSR1 kitty >/dev/null 2>&1 || true
 
-  # 5. Synchronize wallpaper background color
-  if [[ -f "${CONF}" ]]; then
-    local cur_bg
-    cur_bg="$(jq -r '.background // "theme"' "${CONF}" 2>/dev/null || echo "theme")"
-    if [[ "${cur_bg}" != "theme" ]]; then
-      jq --arg bg "${bg}" '.background = $bg' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
-    fi
-  fi
-
-  # 6. Synchronize GTK / GNOME color-scheme via dconf
+  # 5. Synchronize GTK / GNOME color-scheme via dconf
   if command -v dconf >/dev/null 2>&1; then
     local hex_clean="${bg#\#}"
     if [[ ${#hex_clean} -eq 6 ]]; then
@@ -1078,152 +898,6 @@ llm_touch() {
 CMD="$1"; shift
 
 case "${CMD}" in
-  wallpaper)
-    [[ $# -ge 1 ]] || wallpaper_usage
-    SUB="$1"; shift
-
-    case "${SUB}" in
-      set)
-        [[ $# -ge 1 ]] || wallpaper_usage
-        WP="$1"; shift
-        MON=""
-        while [[ $# -ge 1 ]]; do
-          case "$1" in
-            --monitor|-m) MON="$2"; shift 2 ;;
-            *) wallpaper_usage ;;
-          esac
-        done
-
-        if [[ ! -f "${WP}" ]]; then
-          echo "Error: file not found: ${WP}" >&2
-          exit 1
-        fi
-
-        WP="$(realpath "${WP}")"
-        IS_VIDEO=0
-        case "${WP}" in
-          *.mp4|*.webm|*.mkv|*.avi|*.mov) IS_VIDEO=1 ;;
-          *) IS_VIDEO=0 ;;
-        esac
-
-        if [[ -n "${MON}" ]]; then
-          if [[ "${IS_VIDEO}" -eq 1 ]]; then
-            jq --arg mon "${MON}" --arg wp "${WP}" '.monitors[$mon] = (.monitors[$mon] // {}) | .monitors[$mon].video = $wp | .monitors[$mon] = (.monitors[$mon] | del(.image))' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
-          else
-            jq --arg mon "${MON}" --arg wp "${WP}" '.monitors[$mon] = (.monitors[$mon] // {}) | .monitors[$mon].image = $wp | .monitors[$mon] = (.monitors[$mon] | del(.video))' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
-          fi
-          echo "Set wallpaper for ${MON}: ${WP}"
-        else
-          if [[ "${IS_VIDEO}" -eq 1 ]]; then
-            jq --arg wp "${WP}" '.default.video = $wp | .default = (.default | del(.image))' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
-          else
-            jq --arg wp "${WP}" '.default.image = $wp | .default = (.default | del(.video))' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
-          fi
-          echo "Set wallpaper for all monitors: ${WP}"
-        fi
-        ;;
-
-      motion)
-        [[ $# -ge 1 ]] || wallpaper_usage
-        case "$1" in
-          on)  jq '.effects.motion = true' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"; echo "Motion: on" ;;
-          off) jq '.effects.motion = false' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"; echo "Motion: off" ;;
-          *)   wallpaper_usage ;;
-        esac
-        ;;
-
-      background)
-        [[ $# -ge 1 ]] || wallpaper_usage
-        HEX="$1"
-        if [[ "${HEX}" != "theme" && ! "${HEX}" =~ ^#[0-9a-fA-F]{6}$ ]]; then
-          echo "Error: background must be #rrggbb or 'theme'" >&2; exit 1
-        fi
-        jq --arg v "${HEX}" '.background = $v' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
-        echo "Background: ${HEX}"
-        ;;
-
-      list)
-        wallpaper_list
-        ;;
-
-      search)
-        wallpaper_search "$@"
-        ;;
-
-      details)
-        wallpaper_details "$@"
-        ;;
-
-      tag)
-        wallpaper_tag "$@"
-        ;;
-
-      save)
-        [[ $# -ge 1 ]] || wallpaper_usage
-        if DEST="$(wp_download "$1" "${2:-}")"; then
-          echo "${DEST}"
-        else
-          echo "Error: download failed: $1" >&2; exit 1
-        fi
-        ;;
-
-      download-progress)
-        [[ $# -ge 1 ]] || wallpaper_usage
-        if command -v mujo-wallpaper-engine >/dev/null 2>&1; then
-          mujo-wallpaper-engine download-progress "$@"
-        else
-          python3 "$(dirname "${BASH_SOURCE[0]}")/wallpaper-engine/mujo-wallpaper-engine.py" download-progress "$@"
-        fi
-        ;;
-
-      cache-thumbnails)
-        if command -v mujo-wallpaper-engine >/dev/null 2>&1; then
-          mujo-wallpaper-engine cache-thumbnails "$@"
-        else
-          python3 "$(dirname "${BASH_SOURCE[0]}")/wallpaper-engine/mujo-wallpaper-engine.py" cache-thumbnails "$@"
-        fi
-        ;;
-
-      apply-url)
-        [[ $# -ge 1 ]] || wallpaper_usage
-        if DEST="$(wp_download "$1" "${2:-}")"; then
-          jq --arg wp "${DEST}" '.default.image = $wp | .default = (.default | del(.video))' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
-          echo "Applied: ${DEST}"
-        else
-          echo "Error: download failed: $1" >&2; exit 1
-        fi
-        ;;
-
-      random)
-        PICK="$(wallpaper_list | jq -r '.[]' | shuf -n1)"
-        if [[ -z "${PICK}" ]]; then
-          echo "Error: no wallpapers in library" >&2; exit 1
-        fi
-        jq --arg wp "${PICK}" '.default.image = $wp | .default = (.default | del(.video))' "${CONF}" > "${CONF}.tmp" && mv "${CONF}.tmp" "${CONF}"
-        echo "Random: ${PICK}"
-        ;;
-
-      engine)
-        [[ $# -ge 1 ]] || {
-          echo "Usage: mujo wallpaper engine <search|details|list|steam-status|subscribe|apply|status|stop|config> [args...]" >&2
-          exit 1
-        }
-        if command -v mujo-wallpaper-engine >/dev/null 2>&1; then
-          mujo-wallpaper-engine "$@"
-        else
-          # Fallback when running from working tree
-          python3 "$(dirname "${BASH_SOURCE[0]}")/wallpaper-engine/mujo-wallpaper-engine.py" "$@"
-        fi
-        ;;
-
-      show)
-        jq . "${CONF}"
-        ;;
-
-      *) wallpaper_usage ;;
-    esac
-    ;;
-
   theme)
     [[ $# -ge 1 ]] || theme_usage
     SUB="$1"; shift
