@@ -36,7 +36,15 @@
         ];
       });
 
+      drv.preInstall = ''
+        export HOME=$TMPDIR
+        mkdir -p $HOME/.local/share/ambxst
+        touch $HOME/.local/share/ambxst/niri.kdl
+      '';
+
       settings = {
+        include = "~/.local/share/ambxst/niri.kdl";
+
         prefer-no-csd = _: {};
 
         hotkey-overlay = {
@@ -83,13 +91,11 @@
           "Mod+Return".spawn = config.terminal;
 
           "Mod+Q".close-window = _: {};
-          "Mod+Space".spawn = ["vicinae" "toggle"];
-          # Standalone Settings app (separate quickshell instance, floated by the
-          # window-rule matching its title below).
-          "Mod+Comma"."spawn-sh" = "qs -p /etc/xdg/quickshell/bar/settings.qml";
-          # Lock screen (WP-14). Mod+Shift+L is taken (move-column-right); path must
-          # match the qs-bar daemon so the IPC targets the running instance.
-          "Mod+Ctrl+L"."spawn-sh" = "qs -p /etc/xdg/quickshell/bar/shell.qml ipc call lock lock";
+          "Mod+Space".spawn = ["ambxst" "toggle" "launcher"];
+          # Ambxst settings UI
+          "Mod+Comma"."spawn-sh" = "ambxst run config";
+          # Ambxst lock screen
+          "Mod+Ctrl+L"."spawn-sh" = "ambxst lock";
 
           "Mod+F".maximize-column = _: {};
           "Mod+G".fullscreen-window = _: {};
