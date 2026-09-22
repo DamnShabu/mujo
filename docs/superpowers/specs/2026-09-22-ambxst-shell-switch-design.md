@@ -50,7 +50,7 @@ Create `nixos/desktop/ambxst.nix` providing `flake.nixosModules.ambxst`:
 ### 5. Niri Wrappers Configuration (`modules/wrappers/niri.nix`)
 * Add `include = "~/.local/share/ambxst/niri.kdl";` to Niri `settings`.
 * Update shell-related keybindings:
-  * `"Mod+Space".spawn = ["ambxst" "toggle" "launcher"];`
+  * `"Mod+Space".spawn = ["ambxst" "run" "launcher"];`
   * `"Mod+Comma"."spawn-sh" = "ambxst run config";`
   * `"Mod+Ctrl+L"."spawn-sh" = "ambxst lock";`
 

@@ -91,7 +91,7 @@
           "Mod+Return".spawn = config.terminal;
 
           "Mod+Q".close-window = _: {};
-          "Mod+Space".spawn = ["ambxst" "toggle" "launcher"];
+          "Mod+Space".spawn = ["ambxst" "run" "launcher"];
           # Ambxst settings UI
           "Mod+Comma"."spawn-sh" = "ambxst run config";
           # Ambxst lock screen

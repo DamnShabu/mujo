@@ -175,7 +175,7 @@ Run: `git add nixos/hosts/main/configuration.nix && git commit -m "feat(main): e
 In `modules/wrappers/niri.nix`:
 Add `include = "~/.local/share/ambxst/niri.kdl";` (or list) to `settings`.
 Update binds:
-- `"Mod+Space".spawn = ["ambxst" "toggle" "launcher"];`
+- `"Mod+Space".spawn = ["ambxst" "run" "launcher"];`
 - `"Mod+Comma"."spawn-sh" = "ambxst run config";`
 - `"Mod+Ctrl+L"."spawn-sh" = "ambxst lock";`
 
