@@ -99,7 +99,6 @@
 
     ambxst = {
       url = "github:Axenide/Ambxst";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
