@@ -44,7 +44,7 @@
       restartTriggers = [generationTrigger];
     };
 
-    daemons = ["qs-bar"];
+    daemons = lib.optional config.services.qs-bar.enable "qs-bar";
     user = config.preferences.user.name;
     # Stable path the qs-bar shell is launched from. Both the systemd daemon and
     # the niri Mod+Space keybind (`qs -p <this> ipc call launcher toggle`)
@@ -68,7 +68,14 @@
       "/home/${user}/.local/share/flatpak/exports/share"
     ];
   in {
-    environment.sessionVariables.QML2_IMPORT_PATH = lib.mkForce qmlPath;
+    options.services.qs-bar.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Whether to run the quickshell bar daemon";
+    };
+
+    config = {
+      environment.sessionVariables.QML2_IMPORT_PATH = lib.mkForce qmlPath;
     environment.sessionVariables.QT_PLUGIN_PATH = lib.mkForce qtPluginPath;
 
     environment.systemPackages = [qs.mujo qs.mujo-keyring qs.mujo-screenshot];
@@ -97,7 +104,7 @@
       # tray, settings UI, weather. Needs qs on PATH
       # (its IPC toggle), curl (weather), wl-copy + xdg-open (launcher), jq
       # (llm-usage.sh reads cached usage from provider config files).
-      qs-bar = mkDaemon {
+      qs-bar = lib.mkIf config.services.qs-bar.enable (mkDaemon {
         command = "${pkgs.quickshell}/bin/quickshell -p ${barConfig}";
         # findutils (find/xargs) and sqlite (sqlite3) are required by
         # llm-usage.sh's Antigravity token-transcript scan — without them the
@@ -123,7 +130,7 @@
           QS_ICON_THEME = "Colloid-Dark";
           XDG_DATA_DIRS = appDataDirs;
         };
-      };
+      });
       wl-cliphist = {
         after = ["niri.service"];
         serviceConfig = {
@@ -141,5 +148,6 @@
     # and the previous root->user activation hook never worked. Upholds= is
     # re-evaluated on every user-manager daemon-reload, i.e. on every switch.
     systemd.user.targets.graphical-session.upholds = map (svc: "${svc}.service") daemons;
+    };
   };
 }
