@@ -22,6 +22,10 @@
       ".local/share/ambxst"
     ];
 
+    persistence.cache.directories = [
+      ".cache/ambxst"
+    ];
+
     # Safeguard: ensure ~/.local/share/ambxst/niri.kdl stub exists before Niri starts
     system.activationScripts.ambxstInit = lib.stringAfter ["users"] ''
       mkdir -p /home/${user}/.local/share/ambxst
