@@ -1,5 +1,47 @@
 {
   "nodes": {
+    "ambxst": {
+      "inputs": {
+        "axctl": "axctl",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1790020432,
+        "narHash": "sha256-ZgO+kqYYfNefevXV1ixWdSycEny5xyRVJVm3WO/2r1Y=",
+        "owner": "Axenide",
+        "repo": "Ambxst",
+        "rev": "2a704c438ddc0b94a11f4e4cf32a16220b62141f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Axenide",
+        "repo": "Ambxst",
+        "type": "github"
+      }
+    },
+    "axctl": {
+      "inputs": {
+        "nixpkgs": [
+          "ambxst",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1789930318,
+        "narHash": "sha256-pjWbz9E1BS6E1ha3jGgIXKPxzPcliv/69sRlgkbi4Rk=",
+        "owner": "Axenide",
+        "repo": "axctl",
+        "rev": "04bb2c61cda436148b1e982f91f627dc428ad9f9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Axenide",
+        "repo": "axctl",
+        "type": "github"
+      }
+    },
     "crane": {
       "locked": {
         "lastModified": 1781825982,
@@ -499,6 +541,7 @@
     },
     "root": {
       "inputs": {
+        "ambxst": "ambxst",
         "disko": "disko",
         "flake-parts": "flake-parts",
         "helium": "helium",

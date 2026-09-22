@@ -96,6 +96,11 @@
     skwd-wall = {
       url = "github:liixini/skwd-wall";
     };
+
+    ambxst = {
+      url = "github:Axenide/Ambxst";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   # Import flake-parts modules from specific directories for clarity and safety
