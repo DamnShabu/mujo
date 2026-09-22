@@ -54,6 +54,7 @@
 
       self.nixosModules.notifications
       self.nixosModules.quickshell
+      self.nixosModules.ambxst
       self.nixosModules.skwd-wall
       self.nixosModules.keyring-prompter
       self.nixosModules.vicinae
@@ -101,6 +102,7 @@
     # machine this config is applied to. Walk docs/application-trust.md §8
     # (graduate the applications you use daily, confirm `mujo trust list`)
     # before setting this to true.
+    services.qs-bar.enable = false;
     apps.trust.launcherIntegration = lib.mkDefault false;
 
     secrets.vaultwarden.enable = true;
