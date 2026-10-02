@@ -29,6 +29,22 @@ else
   fail "Yama LSM is not active — ptrace is unrestricted"
 fi
 
+# init_on_alloc/init_on_free (nixos/security/kernel.nix) are easy to defeat
+# from the same command line: requesting page poisoning makes the kernel switch
+# both off. The boot log's "mem auto-init" line states what actually ran.
+if grep -qw 'page_poison=1' /proc/cmdline; then
+  fail "page_poison=1 is on the command line; it switches init_on_alloc and init_on_free off"
+fi
+if autoinit=$(journalctl -k -b 0 -q --no-pager -o cat -g 'mem auto-init: stack' 2>/dev/null) && [ -n "$autoinit" ]; then
+  if grep -q 'heap alloc:on, heap free:on' <<<"$autoinit"; then
+    pass "heap memory is zeroed on allocation and on free"
+  else
+    fail "heap auto-init is not fully on: ${autoinit##*mem auto-init: }"
+  fi
+else
+  skip "kernel journal unreadable as $(id -un); cannot confirm init_on_alloc/init_on_free"
+fi
+
 # Emergency/rescue must not hand out a root shell without the root password.
 # SYSTEMD_SULOGIN_FORCE=1 is exactly the bypass, so its presence is a failure.
 if grep -qs SYSTEMD_SULOGIN_FORCE /proc/cmdline /etc/systemd/system.conf; then

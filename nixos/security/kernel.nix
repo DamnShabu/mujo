@@ -8,9 +8,18 @@
   in {
     config = lib.mkIf (cfg.enable && cfg.kernel.enable) {
       boot = {
-        # Kernel memory initialization and allocator hardening
+        # Kernel memory initialization and allocator hardening.
+        #
+        # page_poison=1 used to head this list. It defeated the two lines below
+        # it: when page poisoning is requested, mem_debugging_and_hardening_init()
+        # (mm/mm_init.c) logs "CONFIG_PAGE_POISONING is on, will take precedence
+        # over init_on_alloc and init_on_free" and switches both off. What ran
+        # instead was the debugging feature: every freed page memset to 0xaa and
+        # every allocated page scanned back for that pattern -- an extra full
+        # read of each page on the allocation path (amdgpu's GTT/TTM pages
+        # included) on top of the write, while init_on_alloc never ran at all.
+        # init_on_free alone already guarantees freed memory holds no stale data.
         kernelParams = [
-          "page_poison=1"
           "slab_nomerge"
           "init_on_alloc=1"
           "init_on_free=1"
