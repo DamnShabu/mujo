@@ -126,6 +126,5 @@
     package = self.packages.${pkgs.stdenv.hostPlatform.system}.niri;
   };
 
-  services.xserver.videoDrivers = ["amdgpu"];
-  boot.initrd.kernelModules = ["amdgpu"];
+  # The GPU (driver, early KMS, firmware notes, monitoring) is in _gpu.nix.
 }

@@ -666,11 +666,12 @@
               assigned.
 
           **True VFIO passthrough is not available on this machine and this
-          option cannot provide it.** There is one GPU (`1002:7590` at
-          `0000:03:00.0`) and it drives both monitors; assigning it to the
-          guest would take the desktop with it. `/sys/kernel/iommu_groups` is
-          also empty — the IOMMU is off, and turning it on is an early-boot
-          kernel parameter, which this repo does not enable by default.
+          option cannot provide it.** There is one GPU (the RX 9070 XT,
+          `1002:7550`; see nixos/hosts/main/_gpu.nix) and it drives both
+          monitors; assigning it to the guest would take the desktop with it.
+          `/sys/kernel/iommu_groups` is also empty — the IOMMU is off, and
+          turning it on is an early-boot kernel parameter, which this repo does
+          not enable by default.
 
           The tradeoff for `native`, stated plainly: an untrusted guest is
           issuing amdgpu ioctls that reach the host kernel's GPU driver, with

@@ -58,7 +58,6 @@
             files =
               [
                 "/etc/machine-id"
-                "/etc/lact/config.yaml"
                 {
                   file = "/var/keys/secret_file";
                   parentDirectory = {mode = "u=rwx,g=,o=";};
