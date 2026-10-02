@@ -41,30 +41,46 @@
     };
 
     config = lib.mkIf (cfg.enable && cfg.devices.enable) {
-      boot.kernelParams =
-        lib.optionals cfg.devices.iommuPassthrough [
-          # Passthrough mode. A performance setting, not a protection one: it
-          # maps devices directly rather than translating their DMA. Gated
-          # because it still acts during early device initialisation, which on
-          # this machine is where a bad interaction costs a display.
-          "iommu=pt"
-        ]
-        ++ lib.optionals cfg.devices.dmaProtection [
-          # Force the IOMMU on rather than relying on firmware defaults.
-          # This host is Intel (i9-14900K), so the parameter is intel_iommu.
-          # It used to read amd_iommu=on, which the AMD GPU made look right --
-          # but the IOMMU belongs to the CPU, and the kernel silently ignores
-          # the wrong vendor prefix. Enabling dmaProtection would have added
-          # boot risk and no IOMMU.
-          "intel_iommu=on"
+      boot.kernelParams = lib.mkMerge [
+        (lib.optionals cfg.devices.iommuPassthrough [
+            # Passthrough mode. A performance setting, not a protection one: it
+            # maps devices directly rather than translating their DMA. Gated
+            # because it still acts during early device initialisation, which on
+            # this machine is where a bad interaction costs a display.
+            "iommu=pt"
+          ]
+          ++ lib.optionals cfg.devices.dmaProtection [
+            # Force the IOMMU on rather than relying on firmware defaults.
+            # This host is Intel (i9-14900K), so the parameter is intel_iommu.
+            # It used to read amd_iommu=on, which the AMD GPU made look right --
+            # but the IOMMU belongs to the CPU, and the kernel silently ignores
+            # the wrong vendor prefix. Enabling dmaProtection would have added
+            # boot risk and no IOMMU.
+            "intel_iommu=on"
 
-          # Refuse DMA from devices the firmware left enabled before the kernel
-          # took over -- the window an evil-maid Thunderbolt/PCIe device uses.
-          # Both parameters are off by default: they change device
-          # initialisation early in boot, and on some firmware/GPU combinations
-          # that is the difference between a display and a black screen.
-          "efi=disable_early_pci_dma"
-        ];
+            # Refuse DMA from devices the firmware left enabled before the kernel
+            # took over -- the window an evil-maid Thunderbolt/PCIe device uses.
+            # Both parameters are off by default: they change device
+            # initialisation early in boot, and on some firmware/GPU combinations
+            # that is the difference between a display and a black screen.
+            "efi=disable_early_pci_dma"
+          ])
+
+        # These switches own IOMMU and early-DMA policy, but they are not the
+        # only modules that write kernel parameters: hardening presets such as
+        # nix-mineral can carry IOMMU and early-DMA parameters of their own,
+        # which would turn on exactly what dmaProtection = false keeps off. The
+        # kernel acts on the last occurrence of `intel_iommu=` and `efi=`, so the
+        # off values go at the very end of the command line (order 2000 sorts
+        # after mkAfter's 1500) and this switch has the final word. Both equal
+        # this kernel's defaults (INTEL_IOMMU_DEFAULT_ON and EFI_DISABLE_PCI_DMA
+        # are unset), so when nothing else asks for the on values they change
+        # nothing.
+        (lib.mkOrder 2000 (lib.optionals (!cfg.devices.dmaProtection) [
+          "intel_iommu=off"
+          "efi=no_disable_early_pci_dma"
+        ]))
+      ];
 
       # Thunderbolt device manager to guard against unauthorized PCIe direct memory access
       services.hardware.bolt.enable = lib.mkDefault true;
