@@ -1,19 +1,14 @@
 {inputs, ...}: {
-  flake.nixosModules.nix = {
-    pkgs,
-    lib,
-    ...
-  }: {
+  flake.nixosModules.nix = {pkgs, ...}: {
     imports = [
       inputs.nix-index-database.nixosModules.nix-index
     ];
     programs.nix-index-database.comma.enable = true;
     nix.settings = {
       experimental-features = ["nix-command" "flakes"];
-      # auto-optimise-store hashes and hardlinks every path as it is written,
-      # on the critical path of every build. The scheduled optimise below gets
-      # the same disk saving without taxing each build.
-      auto-optimise-store = false;
+      # auto-optimise-store is set from the Settings JSON in
+      # nixos/core/system-preferences.nix (off). Setting it here as well
+      # silently overrode that toggle.
       # max-jobs/cores are left at their defaults on purpose: they resolve to
       # "auto", which already scales down to a weak machine's core count.
     };

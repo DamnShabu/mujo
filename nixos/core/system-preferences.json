@@ -4,14 +4,12 @@
   "locale": "en_US.UTF-8",
   "firewall": {
     "enable": true,
-    "allowedTCPPorts": [
-      11434
-    ]
+    "allowedTCPPorts": []
   },
   "ssh": {
     "enable": false
   },
-  "autoOptimiseStore": true,
+  "autoOptimiseStore": false,
   "zramSwap": {
     "enable": true,
     "memoryPercent": 50
@@ -33,4 +31,3 @@
     "autoLock": "30m"
   }
 }
-

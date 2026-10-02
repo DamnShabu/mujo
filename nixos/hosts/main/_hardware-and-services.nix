@@ -25,11 +25,14 @@
 
   # The journal had grown to 3.6 GB: the default cap is 10% of the filesystem,
   # and /var/log lives on a 3.7 TB volume.
-  services.journald.extraConfig = "SystemMaxUse=200M";
+  services.journald.settings.Journal.SystemMaxUse = "200M";
 
   # 5.3s of every boot, spent blocking network-online.target for a desktop that
   # has nothing ordered after it.
-  systemd.services.NetworkManager-wait-online.enable = false;
+  systemd.network.wait-online.enable = false;
+
+  # No location services.
+  services.geoclue2.enable = false;
 
   # Monitor user session slices for runaway memory pressure and kill runaway
   # cgroups before the machine locks up or thrashes swap.

@@ -1,4 +1,4 @@
-{pkgs, ...}: {
+{...}: {
   flake.nixosModules.security-storage = {
     config,
     lib,
@@ -166,8 +166,14 @@
       systemd.coredump = {
         enable = true;
         settings.Coredump = {
-          Storage = if cfg.storage.coredumpDisabled then "none" else "external";
-          ProcessSizeMax = if cfg.storage.coredumpDisabled then 0 else 2147483648;
+          Storage =
+            if cfg.storage.coredumpDisabled
+            then "none"
+            else "external";
+          ProcessSizeMax =
+            if cfg.storage.coredumpDisabled
+            then 0
+            else 2147483648;
         };
       };
 

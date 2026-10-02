@@ -578,8 +578,8 @@ QtObject {
     property color errorDim: withAlpha(active.error, 0.18)
 
     // ─── Typography ───────────────────────────────────────────────────────────
-    property string fontFamily: "Ubuntu Sans"
-    property string fontMono: "JetBrains Mono"
+    property string fontFamily: "Monocraft"
+    property string fontMono: "Monocraft"
 
     property int fontSizeLabel: 10        // uppercase micro-labels
     property int fontSizeSmall: 11

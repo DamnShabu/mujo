@@ -12,7 +12,7 @@
     users.users.${config.preferences.user.name} = {
       isNormalUser = true;
       description = "${config.preferences.user.name}'s account";
-      extraGroups = ["wheel" "networkmanager" "input" "docker" "systemd-journal"];
+      extraGroups = ["wheel" "input" "systemd-journal"];
       shell = self.packages.${pkgs.stdenv.hostPlatform.system}.environment;
 
       hashedPasswordFile = "/persist/passwd";
@@ -76,6 +76,9 @@
 
       ".ssh"
 
+      ".config/gh"
+      ".cache/gh"
+
       ".local/share/applications"
       ".config/quickshell"
       ".local/state/quickshell"
@@ -98,6 +101,11 @@
         targetDir="/persist/userdata/home/${config.preferences.user.name}"
         mkdir -p "$targetDir"
         chown "${config.preferences.user.name}" "$targetDir"
+        if [ -f "$targetDir/.face" ] && [ ! -e "$targetDir/.face.icon" ]; then
+          ln -sf "$targetDir/.face" "$targetDir/.face.icon"
+        elif [ -f "$targetDir/.face.icon" ] && [ ! -e "$targetDir/.face" ]; then
+          ln -sf "$targetDir/.face.icon" "$targetDir/.face"
+        fi
       '';
     };
 

@@ -11,6 +11,5 @@
       else "yurii";
   in {
     preferences.user.name = lib.mkDefault finalName;
-    preferences.locale.timeZone = lib.mkDefault "Europe/Berlin";
   };
 }

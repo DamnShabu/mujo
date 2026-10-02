@@ -48,13 +48,18 @@ Core dumps can unintentionally capture full process memory containing decrypted 
 Sections 1–4 describe the posture. `nixos/security/privacy.nix` enforces this
 much of it, and nothing beyond it:
 
+The host runs systemd-networkd (wired, DHCP). The rows marked *NM* apply only
+while `networking.networkmanager.enable` is true and are inactive today; networkd
+has no per-network stable MAC policy, so the wired NIC uses its factory address.
+
 | Control | Setting | Effect |
 |---|---|---|
-| Wi-Fi MAC | `wifi.macAddress = "stable-ssid"` | The factory MAC never goes on the wire; each SSID sees a different, stable address |
-| Wi-Fi scanning | `wifi.scanRandMacAddress = true` | Probe requests do not carry a stable identifier while looking for networks |
-| Ethernet MAC | `ethernet.macAddress = "stable"` | Same, per connection |
-| DHCP hostname | `ipv4/ipv6.dhcp-send-hostname = false` | Every DHCP server the machine meets no longer learns its name |
-| Connectivity check | `[connectivity] enabled=false` | NetworkManager stops fetching a probe URL after each network change |
+| DHCP hostname (networkd) | `SendHostname = false` on the DHCPv4/DHCPv6 default networks | Every DHCP server the machine meets no longer learns its name |
+| Wi-Fi MAC (*NM*) | `wifi.macAddress = "stable-ssid"` | The factory MAC never goes on the wire; each SSID sees a different, stable address |
+| Wi-Fi scanning (*NM*) | `wifi.scanRandMacAddress = true` | Probe requests do not carry a stable identifier while looking for networks |
+| Ethernet MAC (*NM*) | `ethernet.macAddress = "stable"` | Same, per connection |
+| DHCP hostname (*NM*) | `ipv4/ipv6.dhcp-send-hostname = false` | Same as the networkd row |
+| Connectivity check (*NM*) | `[connectivity] enabled=false` | NetworkManager stops fetching a probe URL after each network change |
 | LLMNR / mDNS | `LLMNR=no`, `MulticastDNS=no` | The host no longer broadcasts or answers name queries on untrusted networks |
 | IPv6 | `tempAddresses = "default"`, `addr_gen_mode = 2` | Temporary addresses preferred; interface identifiers are not MAC-derived |
 

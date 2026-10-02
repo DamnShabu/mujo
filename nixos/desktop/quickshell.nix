@@ -91,10 +91,6 @@
     # reached by path too.
     environment.etc."xdg/quickshell/bar".source = qs.bar;
 
-    services.udev.extraRules = ''
-      KERNEL=="event*", SUBSYSTEM=="input", MODE="0666"
-    '';
-
     persistence.data.directories = [
       ".config/qsshell"
     ];

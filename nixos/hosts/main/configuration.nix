@@ -12,12 +12,7 @@
     ];
   };
 
-  flake.nixosModules.hostMain = {
-    pkgs,
-    config,
-    lib,
-    ...
-  }: {
+  flake.nixosModules.hostMain = {lib, ...}: {
     imports = [
       ./_boot.nix
       ./_networking.nix
@@ -47,6 +42,7 @@
       self.nixosModules.steam
       self.nixosModules.telegram
       self.nixosModules.gaming
+      self.nixosModules.roblox-manager
       self.nixosModules.vm
       self.nixosModules.user-config
       self.nixosModules.user
@@ -57,7 +53,9 @@
       self.nixosModules.ambxst
       self.nixosModules.skwd-wall
       self.nixosModules.keyring-prompter
-      self.nixosModules.vicinae
+      self.nixosModules.psst
+      self.nixosModules.keyd
+      self.nixosModules.greeting
 
       self.nixosModules.vaultwarden
 
@@ -96,14 +94,17 @@
 
     nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 
-    # Left off deliberately. With it on, every application the launcher starts
-    # goes through `mujo-trust run`, so anything not yet graduated boots the
-    # 4 GB quarantine MicroVM the first time it is clicked — on the only
-    # machine this config is applied to. Walk docs/application-trust.md §8
-    # (graduate the applications you use daily, confirm `mujo trust list`)
-    # before setting this to true.
+    # ambxst is the shell now (nixos/desktop/ambxst.nix).
     services.qs-bar.enable = false;
-    apps.trust.launcherIntegration = lib.mkDefault false;
+
+    # apps.trust.launcherIntegration stays off, deliberately. With it on, every
+    # application the launcher starts goes through `mujo-trust run`, so anything
+    # not yet graduated boots the 4 GB quarantine MicroVM the first time it is
+    # clicked — on the only machine this config is applied to. Walk
+    # docs/application-trust.md §8 (graduate the applications you use daily,
+    # confirm `mujo trust list`) before flipping `trust.launcherIntegration` in
+    # nixos/core/system-preferences.json, its only definition: a second
+    # mkDefault here made that switch a build error.
 
     secrets.vaultwarden.enable = true;
     # Wired but inert until secrets are declared. Usage shape:

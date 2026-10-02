@@ -282,9 +282,17 @@ suggestion. So:
 
 - **Administration** (`register`, `graduate`, `revoke`, `tier`, `rollback`,
   `evaluate`) is a root CLI that writes the file directly.
-- **Self-reporting** (`begin`, `end`, `violation`, `get`) goes through
-  `mujo-trustd` on a unix socket, which exposes only the verbs an application is
-  safe to let speak about itself. There is no verb that promotes anything.
+- **Self-reporting** (`begin`, `end`, `get`) goes through `mujo-trustd` on
+  `/run/mujo/trust.sock` (group `users`), which exposes only the verbs an
+  application is safe to let speak about itself. There is no verb that promotes
+  anything.
+- **Violations** arrive on `/run/mujo/trust-report.sock`, which is root-only:
+  `violation` revokes, and on the users socket any process of the user's could
+  revoke any application by name. The credential broker is the one reporter.
+- **What an application is**, and the exact command each runtime starts it with,
+  is `mujo-trust-launch` (`resolve`, `plan`); nothing else inspects PATH or
+  `/var/lib/flatpak`. The name it derives (Flatpak id, or program name) is the
+  registry key, the broker ACL key and the sandbox home, so they cannot disagree.
 
 ### One entry point
 
@@ -342,7 +350,8 @@ over it:
 #### Flatpaks are the third case
 
 A Flatpak brings its own Bubblewrap sandbox and cannot be nested inside
-another, so `mujo-sandbox-run` steps aside and the engine calls `flatpak run`.
+another, so `mujo-sandbox-run` refuses it and the engine calls `flatpak run`
+(built by `mujo-trust-launch plan`, which is also what adds the narrowing below).
 For a long time that meant it called it with *exactly* what the application's
 manifest asked for, which made the table above advice rather than enforcement
 for every Flatpak on the system. Zen and Vesktop declare `devices=all`, and on
@@ -396,7 +405,8 @@ Grants are fixed at build time. Every request is journalled — granted or denie
 by credential *name* only, never value. Empty by default: an application with no
 entry gets no socket and can ask for nothing.
 
-A denial is not only logged. The handler reports it to `mujo-trustd` as a
+A denial is not only logged. The handler reports it to `mujo-trustd`, on the
+root-only report socket, as a
 `violation`, which revokes the application — an application reaching for a
 credential it was never granted is a boundary probe, not a typo, since the socket
 it is talking to is the only one it can see and its grants were fixed at build

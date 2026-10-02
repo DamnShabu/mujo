@@ -16,7 +16,7 @@ ColumnLayout {
         hostname: "main",
         timezone: "Europe/Berlin",
         locale: "en_US.UTF-8",
-        autoOptimiseStore: true
+        autoOptimiseStore: false
     })
     property bool nixosDirty: false
     property var defaultsMap: ({})
@@ -212,7 +212,7 @@ ColumnLayout {
                 description: "Automatically deduplicate store files via hardlinks on system build."
 
                 ToggleSwitch {
-                    checked: root.nixosPrefs.autoOptimiseStore !== false
+                    checked: root.nixosPrefs.autoOptimiseStore === true
                     onToggled: function(c) { root.setNixosPref("autoOptimiseStore", c) }
                 }
             }

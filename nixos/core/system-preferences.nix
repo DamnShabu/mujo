@@ -12,7 +12,10 @@ in {
 
     networking.firewall = {
       enable = lib.mkDefault (prefs.firewall.enable or true);
-      allowedTCPPorts = lib.mkDefault (prefs.firewall.allowedTCPPorts or [11434]);
+      # No mkDefault: lists merge, and modules such as podman's define this at
+      # normal priority, which silently discarded a mkDefault'd list -- ports
+      # added in Settings were never opened.
+      allowedTCPPorts = prefs.firewall.allowedTCPPorts or [];
     };
 
     services.openssh = {
@@ -26,7 +29,10 @@ in {
       openFirewall = lib.mkDefault true;
     };
 
-    nix.settings.auto-optimise-store = lib.mkDefault (prefs.autoOptimiseStore or true);
+    # Off by default: it hashes and hardlinks every path on the critical path
+    # of every build, and nix.optimise.automatic (nixos/core/nix.nix) gets the
+    # same disk saving on a schedule.
+    nix.settings.auto-optimise-store = lib.mkDefault (prefs.autoOptimiseStore or false);
 
     zramSwap = {
       enable = lib.mkDefault (prefs.zramSwap.enable or true);
@@ -46,5 +52,3 @@ in {
     };
   };
 }
-
-

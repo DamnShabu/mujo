@@ -43,7 +43,10 @@
       "Bash(HOME=/home/yurii bash quickshell/mujo.sh idle-guard charging)",
       "Bash(echo \"charging_exit=$?\")",
       "mcp__sandbox__screenshot",
-      "mcp__sandbox__logs"
+      "mcp__sandbox__logs",
+      "Bash(rtk rg *)",
+      "WebSearch",
+      "mcp__nixos__nix"
     ]
   },
   "enableAllProjectMcpServers": true,

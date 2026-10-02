@@ -1,4 +1,4 @@
-{pkgs, ...}: {
+{...}: {
   flake.nixosModules.security-boot = {
     config,
     lib,

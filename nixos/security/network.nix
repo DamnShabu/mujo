@@ -2,14 +2,14 @@
   flake.nixosModules.security-network = {
     config,
     lib,
-    pkgs,
     ...
   }: let
     cfg = config.security.mujo;
   in {
     config = lib.mkIf (cfg.enable && cfg.network.enable) {
+      # firewall.enable is owned by nixos/core/system-preferences.nix (default
+      # true); a second mkDefault here would conflict with the Settings toggle.
       networking.firewall = {
-        enable = lib.mkDefault true;
         allowPing = lib.mkDefault false;
         logRefusedConnections = lib.mkDefault true;
       };

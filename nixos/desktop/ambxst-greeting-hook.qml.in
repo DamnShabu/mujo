@@ -1,0 +1,13 @@
+    property bool lockscreenVisible: false
+    // mujo-greeting (nixos/desktop/greeting.nix): remember when the lock went
+    // up; on unlock, hand the time away to the greeting, which decides whether
+    // that was long enough to say hello again.
+    property real lockedAt: 0
+    onLockscreenVisibleChanged: {
+        if (lockscreenVisible) {
+            lockedAt = Date.now();
+        } else if (lockedAt > 0) {
+            Quickshell.execDetached(["@greeting@", "unlock", String(Math.round((Date.now() - lockedAt) / 1000))]);
+            lockedAt = 0;
+        }
+    }

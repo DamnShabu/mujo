@@ -1,9 +1,5 @@
 {...}: {
-  flake.nixosModules.mullvad = {
-    pkgs,
-    config,
-    ...
-  }: let
+  flake.nixosModules.mullvad = {pkgs, ...}: let
     # Declarative daemon settings, merged into the persisted settings.json by
     # mergeSettings below. DNS content blocking = the six booleans under
     # tunnel_options.dns_options.default_options, and they only apply while
@@ -115,7 +111,19 @@
       else
         existing={}
       fi
-      jq -s 'reduce .[] as $x ({}; . * $x)' <(printf '%s' "$existing") "$fragment" > "$tmp"
+      # auto_connect only once an account is logged in. With no account the
+      # daemon cannot build a tunnel, and auto_connect then leaves it in its
+      # blocked state: a fresh install had no network at all (so no Flatpaks
+      # either) until someone logged in to Mullvad. device.json holds the
+      # string "logged_out" until then and an object after. Logging in takes
+      # effect for auto_connect from the next daemon start.
+      logged_in=false
+      if jq -e 'type == "object"' /var/lib/mullvad-vpn/device.json >/dev/null 2>&1; then
+        logged_in=true
+      fi
+      jq -s --argjson li "$logged_in" \
+        'reduce .[] as $x ({}; . * $x) | .auto_connect = (.auto_connect and $li)' \
+        <(printf '%s' "$existing") "$fragment" > "$tmp"
       chown root:root "$tmp"
       chmod 0600 "$tmp"
       mv -f "$tmp" "$settings"
@@ -123,8 +131,8 @@
   in {
     # Requires the impermanence module (defines persistence.*): the settings
     # dir below is only persisted across reboots when it is active.
-    # services.mullvad-vpn.enable adds cfg.package to systemPackages; we set
-    # it to pkgs.mullvad-vpn below so daemon, CLI, and GUI stay in sync.
+    # Daemon/CLI come from the default package (pkgs.mullvad) and the GUI from
+    # gui.enable (pkgs.mullvad-vpn); nixpkgs keeps both on the same release.
     # We also install an autostart desktop entry so the GUI launches on login.
     environment.systemPackages = [
       (pkgs.makeAutostartItem {
@@ -135,9 +143,7 @@
 
     services.mullvad-vpn = {
       enable = true;
-      # Default is pkgs.mullvad (CLI-only, one release behind the GUI). Pin
-      # daemon, CLI, and GUI to the same package so the gRPC versions match.
-      package = pkgs.mullvad-vpn;
+      gui.enable = true;
     };
     # The daemon writes account/device/settings state to MULLVAD_SETTINGS_DIR
     # (default /etc/mullvad-vpn), but /etc is tmpfs. Redirect it to a

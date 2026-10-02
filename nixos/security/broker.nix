@@ -7,15 +7,15 @@
   }: let
     cfg = config.security.mujo;
     brokerCfg = cfg.broker;
-    user = config.preferences.user.name;
 
     sockDir = "/run/mujo/secrets";
     vaultMount = "/run/mujo/vault";
-    # nixos/apps/trust.nix owns this socket. Connecting to it needs write
+    # nixos/apps/trust.nix owns this socket (root-only: it accepts `violation`,
+    # which revokes, and nothing else). Connecting to it needs write
     # permission on the socket inode only, which ProtectSystem=strict does not
     # take away: a read-only superblock rejects MAY_WRITE for regular files,
     # directories and symlinks, not for sockets.
-    trustSock = "/run/mujo/trust.sock";
+    trustSock = "/run/mujo/trust-report.sock";
 
     # ── the broker ──────────────────────────────────────────────────────────
     #
@@ -96,7 +96,7 @@
         '';
       };
 
-    brokerSockets = lib.mapAttrs' (app: grants:
+    brokerSockets = lib.mapAttrs' (app: _grants:
       lib.nameValuePair "mujo-secretd-${app}" {
         description = "Mujo credential broker socket for ${app}";
         wantedBy = ["sockets.target"];

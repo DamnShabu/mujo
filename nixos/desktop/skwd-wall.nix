@@ -1,4 +1,8 @@
-{inputs, ...}: {
+{
+  inputs,
+  self,
+  ...
+}: {
   flake.nixosModules.skwd-wall = {
     pkgs,
     config,
@@ -7,10 +11,24 @@
   }: let
     user = config.preferences.user.name;
     matugenDir = "${inputs.ambxst}/assets/matugen";
-    skwdPkg = inputs.skwd-wall.packages.${pkgs.system}.default;
+    skwdPkg = inputs.skwd-wall.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
     themeHook = pkgs.writeShellScriptBin "skwd-wall-theme-hook" ''
       set -euo pipefail
+
+      export PATH="${lib.makeBinPath (with pkgs; [
+        coreutils
+        findutils
+        gnused
+        gnugrep
+        gawk
+        jq
+        procps
+        dconf
+        matugen
+        util-linux
+        config.programs.ambxst.package
+      ])}:$PATH"
 
       # Prevent concurrent runs
       LOCKDIR="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/skwd-wall"
@@ -24,14 +42,36 @@
       SRC="''${1:-}"
       THUMB="''${2:-}"
 
+      # skwd-helm and walld report Wallpaper Engine walls by workshop ID
+      # (optionally "we:"-prefixed) and videos by their file. matugen and
+      # ambxst's wallpaper layer need a still image: pass one through, map a
+      # WE ID to its preview, else print the fallback $2.
+      resolve_still() {
+        local p="$1" f
+        if [[ -f "$p" && ! "$p" =~ \.(mp4|mkv|webm|avi)$ ]]; then
+          echo "$p"; return
+        fi
+        if [[ "$p" =~ ^(we:)?([0-9]+)$ ]]; then
+          for f in "$HOME"/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/workshop/content/431960/"''${BASH_REMATCH[2]}"/preview.* \
+                   "$HOME"/.local/share/Steam/steamapps/workshop/content/431960/"''${BASH_REMATCH[2]}"/preview.*; do
+            [[ -f "$f" ]] && { echo "$f"; return; }
+          done
+        fi
+        echo "''${2:-}"
+      }
+
       # 1. Resolve source image
-      if [[ -z "$SRC" || ! -f "$SRC" || "$SRC" =~ \.(mp4|mkv|webm|avi)$ || "$SRC" =~ ^we: ]]; then
+      STILL=$(resolve_still "$SRC")
+      if [[ -n "$STILL" ]]; then
+        SRC="$STILL"
+      else
         if [[ -n "$THUMB" && -f "$THUMB" ]]; then
           SRC="$THUMB"
         else
           # Try finding current wallpaper from skwd-helm outputs
-          CURRENT=$(${skwdPkg}/bin/skwd-helm outputs 2>/dev/null | awk '{print $NF}' | head -n 1 || true)
-          if [[ -n "$CURRENT" && -f "$CURRENT" && ! "$CURRENT" =~ \.(mp4|mkv|webm|avi)$ ]]; then
+          CURRENT=$(${skwdPkg}/bin/skwd-helm outputs 2>/dev/null | awk -F'\t' '{print $NF}' | head -n 1 || true)
+          CURRENT=$(resolve_still "$CURRENT")
+          if [[ -n "$CURRENT" ]]; then
             SRC="$CURRENT"
           else
             # Try latest thumbnail in skwd-wall-v2 cache
@@ -50,7 +90,69 @@
 
       echo "skwd-wall-theme-hook: Processing colors from $SRC"
 
-      # 2. Run matugen to generate ambxst colors.json
+      # 2. Synchronize Ambxst wallpaper & backdrop
+      OUTPUTS_DATA=$(${skwdPkg}/bin/skwd-helm outputs 2>/dev/null || true)
+      WALL_TARGET="$SRC"
+      if [[ "$SRC" =~ \.cache/skwd-wall-v2/thumbs/ && -n "$OUTPUTS_DATA" ]]; then
+        FIRST_OUT=$(echo "$OUTPUTS_DATA" | awk -F'\t' '{print $NF}' | head -n 1 || true)
+        WALL_TARGET=$(resolve_still "$FIRST_OUT" "$SRC")
+      fi
+
+      WALL_DIR=$(dirname "$WALL_TARGET")
+      AMBXST_CACHE="$HOME/.cache/ambxst"
+      AMBXST_WALL_JSON="$AMBXST_CACHE/wallpapers.json"
+      mkdir -p "$AMBXST_CACHE"
+
+      # ambxst's wallpaper layer (niri's overview backdrop) prefers
+      # perScreenWallpapers over currentWall, so every entry must be a
+      # drawable image, never a WE ID.
+      RESOLVED=""
+      if [[ -n "$OUTPUTS_DATA" ]]; then
+        while IFS=$'\t' read -r mon _type _mute _vol p; do
+          [[ -n "$mon" ]] && RESOLVED+="$mon"$'\t'"$(resolve_still "$p" "$WALL_TARGET")"$'\n'
+        done <<< "$OUTPUTS_DATA"
+      fi
+      PER_SCREEN_JSON=$(printf '%s' "$RESOLVED" | ${pkgs.jq}/bin/jq -R -s '
+        split("\n") | map(select(length > 0) | split("\t") | {(.[0]): .[1]}) | add // {}
+      ')
+
+      if [[ -f "$AMBXST_WALL_JSON" ]]; then
+        ${pkgs.jq}/bin/jq \
+          --arg wall "$WALL_TARGET" \
+          --arg dir "$WALL_DIR" \
+          --argjson perScreen "$PER_SCREEN_JSON" \
+          '.currentWall = $wall | .wallPath = $dir | .perScreenWallpapers = $perScreen' \
+          "$AMBXST_WALL_JSON" > "$AMBXST_WALL_JSON.tmp" && mv "$AMBXST_WALL_JSON.tmp" "$AMBXST_WALL_JSON"
+      else
+        ${pkgs.jq}/bin/jq -n \
+          --arg wall "$WALL_TARGET" \
+          --arg dir "$WALL_DIR" \
+          --argjson perScreen "$PER_SCREEN_JSON" \
+          '{
+            activeColorPreset: "",
+            currentWall: $wall,
+            matugenScheme: "scheme-tonal-spot",
+            perScreenWallpapers: $perScreen,
+            tintEnabled: false,
+            wallPath: $dir
+          }' > "$AMBXST_WALL_JSON"
+      fi
+
+      AMBXST_BIN="${config.programs.ambxst.package}/bin/ambxst"
+      if [[ -x "$AMBXST_BIN" ]]; then
+        SET_PER_MON=0
+        while IFS=$'\t' read -r mon p; do
+          if [[ -n "$mon" && -f "$p" ]]; then
+            "$AMBXST_BIN" wallpaper -monitor "$mon" "$p" >/dev/null 2>&1 || true
+            SET_PER_MON=1
+          fi
+        done <<< "$RESOLVED"
+        if [[ $SET_PER_MON -eq 0 ]]; then
+          "$AMBXST_BIN" wallpaper "$WALL_TARGET" >/dev/null 2>&1 || true
+        fi
+      fi
+
+      # 3. Run matugen to generate ambxst colors.json
       mkdir -p "$HOME/.cache/ambxst"
       (
         cd "${matugenDir}"
@@ -66,14 +168,14 @@
         exit 1
       fi
 
-      # 3. Synchronize Kitty theme
+      # 4. Synchronize Kitty theme
       mkdir -p "$HOME/.config/quickshell"
       if [[ -f "$HOME/.cache/ambxst/kitty.conf" ]]; then
         ln -sf "$HOME/.cache/ambxst/kitty.conf" "$HOME/.config/quickshell/kitty-theme.conf"
         ${pkgs.procps}/bin/pkill -SIGUSR1 kitty 2>/dev/null || true
       fi
 
-      # 4. Synchronize Fish shell colors
+      # 5. Synchronize Fish shell colors
       BG=$(${pkgs.jq}/bin/jq -r '.background' "$COLORS_JSON")
       TEXT=$(${pkgs.jq}/bin/jq -r '.overSurface' "$COLORS_JSON")
       ACCENT=$(${pkgs.jq}/bin/jq -r '.primary' "$COLORS_JSON")
@@ -177,7 +279,7 @@ FISH_EOF
         " 2>/dev/null || true
       fi
 
-      # 5. Synchronize Zen Browser Chrome
+      # 6. Synchronize Zen Browser Chrome
       if [[ -f "$HOME/.cache/ambxst/pywalzen.css" ]]; then
         for zendir in "$HOME/.var/app/app.zen_browser.zen/config/zen"/*.Default* "$HOME/.var/app/app.zen_browser.zen/.zen"/*.Default* "$HOME/.zen"/*.Default* "$HOME/.config/zen"/*.Default*; do
           if [[ -d "$zendir" ]]; then
@@ -190,7 +292,7 @@ FISH_EOF
         done
       fi
 
-      # 6. Synchronize Vesktop Discord theme
+      # 7. Synchronize Vesktop Discord theme
       if [[ -f "$HOME/.config/vesktop/themes/ambxst.css" ]]; then
         for vdir in "$HOME/.var/app/dev.vencord.Vesktop/data/themes" "$HOME/.var/app/dev.vencord.Vesktop/config/vesktop/themes"; do
           if [[ -d "$vdir" ]]; then
@@ -199,7 +301,7 @@ FISH_EOF
         done
       fi
 
-      # 7. Synchronize Flatpak GTK themes
+      # 8. Synchronize Flatpak GTK themes
       if [[ -f "$HOME/.config/gtk-3.0/gtk.css" ]]; then
         for gdir in "$HOME/.var/app"/*/config/gtk-3.0; do
           if [[ -d "$gdir" ]]; then
@@ -215,7 +317,7 @@ FISH_EOF
         done
       fi
 
-      # 8. Synchronize Btop theme
+      # 9. Synchronize Btop theme
       mkdir -p "$HOME/.config/btop/themes"
       cat > "$HOME/.config/btop/themes/skwd.theme" <<BTOP_EOF
 # Generated by skwd-wall-theme-hook
@@ -267,7 +369,7 @@ BTOP_CONF_EOF
         sed -i 's/^color_theme = .*/color_theme = "skwd"/' "$HOME/.config/btop/btop.conf" || true
       fi
 
-      # 9. Synchronize GTK / GNOME dark mode preference via dconf
+      # 10. Synchronize GTK / GNOME dark mode preference via dconf
       if command -v dconf >/dev/null 2>&1; then
         HEX_CLEAN="''${BG#\#}"
         if [[ ''${#HEX_CLEAN} -eq 6 ]]; then
@@ -291,6 +393,14 @@ BTOP_CONF_EOF
     ];
 
     services.skwd-deck.enable = true;
+    services.skwd-deck.extraPackages = lib.optional (pkgs.stdenv.hostPlatform.system == "x86_64-linux") self.packages.${pkgs.stdenv.hostPlatform.system}.skwd-deck-steamworks;
+
+    # walld runs the configured post-processing command as `sh -c <command>`,
+    # resolving both through its own PATH, which the upstream module limits to
+    # skwd-paper and skwd-lens. With only the hook added it still logged
+    # "post-processing spawn failed: No such file or directory" on every
+    # apply: that was `sh`, not the hook. bash ships the `sh` it needs.
+    systemd.user.services.skwd-walld.path = [themeHook pkgs.bash];
 
     environment.systemPackages = [
       themeHook
@@ -332,13 +442,12 @@ BTOP_CONF_EOF
           # Initial theme sync
           ${themeHook}/bin/skwd-wall-theme-hook || true
 
-          # Event loop from skwd-helm watch
+          # Event loop from skwd-helm watch. skwd.wall.applied is not handled
+          # here: walld's own post-processing hook (configured below) runs the
+          # theme hook for that event, and handling it here as well ran it twice.
           ${skwdPkg}/bin/skwd-helm watch 2>/dev/null | while read -r line; do
             EVENT=$(echo "$line" | ${pkgs.jq}/bin/jq -r '.event // empty' 2>/dev/null || true)
-            if [[ "$EVENT" == "skwd.wall.applied" ]]; then
-              PATH_VAL=$(echo "$line" | ${pkgs.jq}/bin/jq -r '.data.path // empty' 2>/dev/null || true)
-              ${themeHook}/bin/skwd-wall-theme-hook "$PATH_VAL" || true
-            elif [[ "$EVENT" == "skwd.wall.theme_done" ]]; then
+            if [[ "$EVENT" == "skwd.wall.theme_done" ]]; then
               SRC_VAL=$(echo "$line" | ${pkgs.jq}/bin/jq -r '.data.source // empty' 2>/dev/null || true)
               ${themeHook}/bin/skwd-wall-theme-hook "$SRC_VAL" || true
             fi
@@ -351,13 +460,24 @@ BTOP_CONF_EOF
 
     systemd.user.targets.graphical-session.upholds = ["skwd-wall-theme-listener.service"];
 
-    system.activationScripts.skwdWallInit = lib.stringAfter ["users"] ''
-      CONF_DIR="/home/${user}/.config/skwd-wall-v2"
+    # Edits the persisted copy: at boot, activation runs before ~/.config is
+    # bind-mounted from /persist, so the home path is an empty tmpfs directory
+    # and the old version never found config.json there -- the hook was only
+    # ever configured by a runtime `switch`. A fresh install has no config.json
+    # at all yet; start one with just these keys and walld fills in the rest.
+    system.activationScripts.skwdWallInit = lib.stringAfter ["users" "createPersistentStorageDirs"] ''
+      CONF_DIR="${
+        if config.persistence.enable
+        then "/persist/userdata/home/${user}"
+        else "/home/${user}"
+      }/.config/skwd-wall-v2"
       mkdir -p "$CONF_DIR"
       CONF_FILE="$CONF_DIR/config.json"
-      if [[ -f "$CONF_FILE" ]]; then
-        ${pkgs.jq}/bin/jq '.postProcessing = [{"command": "skwd-wall-theme-hook \"%path%\" \"%thumb%\" \"%type%\" \"%name%\"", "type": "all"}] | .system.postProcessOnRestore = true' "$CONF_FILE" > "$CONF_FILE.tmp" && mv "$CONF_FILE.tmp" "$CONF_FILE"
-      fi
+      [[ -s "$CONF_FILE" ]] || echo '{}' > "$CONF_FILE"
+      # walld substitutes each %placeholder% already shell-quoted
+      # ('/path/x.jpg'), so they must not be quoted again: "%path%" reached
+      # the hook as a path with literal quotes in it, which no file matches.
+      ${pkgs.jq}/bin/jq '.postProcessing = [{"command": "skwd-wall-theme-hook %path% %thumb% %type% %name%", "type": "all"}] | .system.postProcessOnRestore = true' "$CONF_FILE" > "$CONF_FILE.tmp" && mv "$CONF_FILE.tmp" "$CONF_FILE"
       chown -R ${user}:users "$CONF_DIR"
     '';
 

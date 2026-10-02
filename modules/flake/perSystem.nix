@@ -34,7 +34,6 @@
       packages.antigravity-cli = unstable.antigravity-cli;
       packages.antigravity-ide = unstable.antigravity-ide;
       packages.claude-code = unstable.claude-code;
-      packages.vicinae = unstable.vicinae;
       packages.herdr = inputs.herdr.packages.${system}.default;
       packages.helium = inputs.helium.packages.${system}.default.overrideAttrs (old: {
         buildInputs = (old.buildInputs or []) ++ [pkgs.libpulseaudio];
@@ -63,7 +62,57 @@
         '';
       };
 
+      # monocraft ships plain, no-ligature and nerd-patched .ttc files that all
+      # claim the family "Monocraft"; keep only the nerd one so the family
+      # always resolves to the variant with icon glyphs.
+      packages.monocraft-nerd = pkgs.runCommand "monocraft-nerd-${pkgs.monocraft.version}" {} ''
+        install -Dm444 ${pkgs.monocraft}/share/fonts/truetype/*-nerd-fonts-patched.ttc \
+          $out/share/fonts/truetype/Monocraft-nerd-fonts-patched.ttc
+      '';
       packages.mujo-screenshot = qs.mujo-screenshot;
+
+      packages.skwd-deck-steamworks =lib.mkIf (system == "x86_64-linux") (let
+        version = inputs.skwd-wall.packages.${system}.deck.version;
+        sources = {
+          "1.0.0-beta.17" = {
+            url = "https://github.com/liixini/skwd-wall/releases/download/v1.0.0-beta.17/skwd-deck-steamworks-1.0.0_beta.17-1-x86_64.pkg.tar.zst";
+            hash = "sha256-XRp9P4/BSTnO7L8KdMYpNgooirjmljJRptHkUQct6QI=";
+          };
+          "1.0.0-beta.18" = {
+            url = "https://github.com/liixini/skwd-wall/releases/download/v1.0.0-beta.18/skwd-deck-steamworks-1.0.0_beta.18-1-x86_64.pkg.tar.zst";
+            hash = "sha256-UT8CEDhV4iIG6qSz8xRyFTxL3ZROacn2vjaE6ee5QcM=";
+          };
+          "1.0.0-beta.23" = {
+            url = "https://github.com/liixini/skwd-wall/releases/download/v1.0.0-beta.23/skwd-deck-steamworks-1.0.0_beta.23-1-x86_64.pkg.tar.zst";
+            hash = "sha256-Jl0SOytpZyuKyQLmduexVC+seRVwINhza9vBcUTeOIo=";
+          };
+        };
+        source = sources.${version} or (throw "Unsupported skwd-deck-steamworks version: ${version}");
+      in
+        unstable.stdenvNoCC.mkDerivation {
+          pname = "skwd-deck-steamworks";
+          inherit version;
+          src = pkgs.fetchurl {
+            inherit (source) url hash;
+          };
+          nativeBuildInputs = with pkgs; [autoPatchelfHook zstd];
+          buildInputs = with pkgs; [stdenv.cc.cc.lib];
+          unpackPhase = ''
+            mkdir package
+            tar --zstd -xf "$src" -C package
+          '';
+          installPhase = ''
+            mkdir -p "$out"
+            cp -a package/usr/. "$out/"
+          '';
+          meta = {
+            description = "Steam Client Workshop backend for Skwd Deck";
+            homepage = "https://github.com/liixini/skwd-wall";
+            license = lib.licenses.unfree // {free = true;};
+            platforms = ["x86_64-linux"];
+            mainProgram = "skwd-steam";
+          };
+        });
 
       packages.skeuos-gtk = let
         src = pkgs.fetchFromGitHub {

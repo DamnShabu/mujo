@@ -6,7 +6,6 @@
   flake.nixosModules.desktop = {
     pkgs,
     config,
-    lib,
     ...
   }: let
     selfpkgs = self.packages."${pkgs.stdenv.hostPlatform.system}";
@@ -71,6 +70,7 @@
 
     # ── fonts ─────────────────────────────────────────────────────────────────
     fonts.packages = with pkgs; [
+      selfpkgs.monocraft-nerd
       fira-code
       nerd-fonts.jetbrains-mono
       ubuntu-sans
@@ -92,15 +92,11 @@
         lcdfilter = "default";
       };
       defaultFonts = {
-        serif = ["Ubuntu Sans"];
-        sansSerif = ["Ubuntu Sans"];
-        monospace = ["Fira Code" "JetBrainsMono Nerd Font"];
+        serif = ["Monocraft"];
+        sansSerif = ["Monocraft"];
+        monospace = ["Monocraft"];
       };
     };
-
-    # ── locale ────────────────────────────────────────────────────────────────
-    time.timeZone = lib.mkDefault config.preferences.locale.timeZone;
-    i18n.defaultLocale = lib.mkDefault config.preferences.locale.default;
 
     # ── desktop file associations (XDG) ───────────────────────────────────────
     xdg.mime = {
@@ -143,7 +139,7 @@
       # AMD-only (services.xserver.videoDrivers = ["amdgpu"]), and
       # enableRedistributableFirmware — already true — covers it.
       enableRedistributableFirmware = true;
-      bluetooth.enable = true;
+      bluetooth.enable = false;
       graphics = {
         enable = true;
         enable32Bit = true;

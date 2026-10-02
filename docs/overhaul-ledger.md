@@ -372,8 +372,9 @@ rebinding it — `nix flake check` proved each one by failing when removed:
 Nothing else was dead. Specifically checked and **not** dead: every QML component
 is referenced outside its own file and registered in a `qmldir`; all nine
 `security.mujo.<sub>.enable` options are read (as `cfg.<sub>.enable`);
-`persistence.volumeGroup`, `nukeRoot` and `cache.files` are all read by
-`impermanence.nix`.
+`cache.files` is read by `impermanence.nix`. (`persistence.volumeGroup` and
+`nukeRoot` were removed later: / is a tmpfs, and systemd stage 1 rejects the
+postDeviceCommands script nukeRoot added, so it could never be enabled.)
 
 ---
 
@@ -1066,7 +1067,7 @@ property checked), `DELETED` (what absorbed it).
 | `nixos/core/base.nix` | CHANGED | removed two `"yurii"` literals that the repo's own rule forbids; both were already shadowed | 2 |
 | `nixos/core/general.nix` | CHANGED | bare `ponytail:` replaced with the actual ceiling: this grants passwordless root | 2 |
 | `nixos/core/user.nix` | CORRECT | sole resolver of the username, from gitignored `secrets/username` with one fallback | 2 |
-| `nixos/core/impermanence.nix` | CORRECT | derives `persistence.user` from `preferences.user.name`; reads `volumeGroup`, `nukeRoot`, `cache.files` | 1 |
+| `nixos/core/impermanence.nix` | CORRECT | derives `persistence.user` from `preferences.user.name`; reads `cache.files` | 1 |
 | `nixos/core/ui-overrides.nix` | CORRECT | `tryEval` isolates parse errors only, and the marker says exactly that | 2 |
 | `nixos/core/user-config.nix` | CORRECT | pure XDG variable declarations, no logic | 1 |
 | `nixos/hosts/main/configuration.nix` | CHANGED | `launcherIntegration` `true` → `false` with the reason inline | 5 |

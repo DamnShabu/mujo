@@ -219,7 +219,7 @@
                 end
                 function exit_handler --on-event fish_exit
                     cd ~
-                    set mnt "(string escape $mnt)"
+                    set mnt $(string escape -- $mnt)
                     if test -n \"$mnt\"
                         if mountpoint -q \"$mnt\"
                             if umount \"$mnt\"

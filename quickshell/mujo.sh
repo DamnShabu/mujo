@@ -415,7 +415,7 @@ persist_norm_user() {
 PREFS_JSON="${REPO}/nixos/core/system-preferences.json"
 prefs_write() {
   local filter="$1"; shift
-  [[ -f "${PREFS_JSON}" ]] || printf '{"hostname":"main","timezone":"Europe/Berlin","locale":"en_US.UTF-8","firewall":{"enable":true,"allowedTCPPorts":[11434]},"ssh":{"enable":false},"autoOptimiseStore":true,"zramSwap":{"enable":true,"memoryPercent":50}}\n' > "${PREFS_JSON}"
+  [[ -f "${PREFS_JSON}" ]] || printf '{"hostname":"main","timezone":"Europe/Berlin","locale":"en_US.UTF-8","firewall":{"enable":true,"allowedTCPPorts":[]},"ssh":{"enable":false},"autoOptimiseStore":false,"zramSwap":{"enable":true,"memoryPercent":50}}\n' > "${PREFS_JSON}"
   jq "$@" "${filter}" "${PREFS_JSON}" > "${PREFS_JSON}.tmp" && mv "${PREFS_JSON}.tmp" "${PREFS_JSON}"
   git -C "${REPO}" add "${PREFS_JSON}" 2>/dev/null || true
 }
@@ -1949,7 +1949,7 @@ case "${CMD}" in
     SUB="$1"; shift
     case "${SUB}" in
       get)
-        [[ -f "${PREFS_JSON}" ]] || printf '{"hostname":"main","timezone":"Europe/Berlin","locale":"en_US.UTF-8","firewall":{"enable":true,"allowedTCPPorts":[11434]},"ssh":{"enable":false},"autoOptimiseStore":true,"zramSwap":{"enable":true,"memoryPercent":50}}\n' > "${PREFS_JSON}"
+        [[ -f "${PREFS_JSON}" ]] || printf '{"hostname":"main","timezone":"Europe/Berlin","locale":"en_US.UTF-8","firewall":{"enable":true,"allowedTCPPorts":[]},"ssh":{"enable":false},"autoOptimiseStore":false,"zramSwap":{"enable":true,"memoryPercent":50}}\n' > "${PREFS_JSON}"
         jq . "${PREFS_JSON}"
         ;;
       set)
