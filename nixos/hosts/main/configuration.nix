@@ -17,6 +17,7 @@
       ./_boot.nix
       ./_networking.nix
       ./_hardware-and-services.nix
+      ./_gpu.nix
 
       self.nixosModules.base
       self.nixosModules.general

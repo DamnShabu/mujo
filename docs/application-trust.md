@@ -240,7 +240,7 @@ quarantine had quietly degraded to a namespace again.
   `xdg-dbus-proxy` does not.
 - **The GPU is shared, not passed through — and `apps.microvm.gpu = "native"`
   is the widest hole in this domain.** VFIO passthrough is not available on this
-  machine at all: there is one GPU (`1002:7590` at `0000:03:00.0`) and it drives
+  machine at all: there is one GPU (the RX 9070 XT, `1002:7550`) and it drives
   both monitors, so assigning it to the guest would take the desktop with it,
   and `/sys/kernel/iommu_groups` is empty because the IOMMU is off. What is
   available is `virtio-gpu-gl` with `drm_native_context=on`, where the guest's
