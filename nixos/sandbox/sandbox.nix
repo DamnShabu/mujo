@@ -6,7 +6,7 @@
 # a root backdoor shell). It already does screenshots, key injection and guest
 # command execution, so the only new code here is the JSON-RPC shim in ./mcp.py.
 #
-# The working tree is 9p-mounted read-only at /mnt/nixconf and qs-bar is
+# The working tree is virtiofs-mounted read-only at /mnt/nixconf and qs-bar is
 # repointed at it, so the loop is: edit QML -> `reload` -> `screenshot`. No
 # rebuild, and nothing the guest does can reach the host session or home.
 {self, ...}: {
@@ -63,57 +63,23 @@
           "-spice port=5920,disable-ticketing=on,image-compression=off,seamless-migration=on,streaming-video=filter,max-refresh-rate=165"
         ];
       };
+      # virtiofs on Linux hosts; writable defaults to false, so virtiofsd runs
+      # --readonly and the guest mounts ro. The sandbox may read the working
+      # tree, never write to it.
+      #
+      # virtiofsd is started with --cache=always (hardcoded in qemu-vm.nix), so
+      # the guest keeps serving what it read at boot while the host edits these
+      # trees. `reload` (mcp.py) drops guest caches before copying for that
+      # reason; without it, it copies stale bytes into /run/quickshell-bar and
+      # reports success while showing the old UI.
       sharedDirectories.nixconf = {
         source = ''''${MUJO_SANDBOX_REPO:-/home/${user}/nixconf}'';
         target = "/mnt/nixconf";
-        securityModel = "none";
       };
       sharedDirectories.hostConfig = {
         source = ''''${MUJO_SANDBOX_CONFIG:-/home/${user}/.config}'';
         target = "/mnt/host-config";
-        securityModel = "none";
       };
-      # The sandbox may read the working tree, never write to it.
-      #
-      # cache=none, not cache=loose: both of these mounts are edited on the
-      # host while the guest is running -- the working tree by whoever is
-      # iterating on QML, ~/.config by the live session. cache=loose tells the
-      # kernel nothing else changes them, so the guest kept serving the
-      # contents it read at boot and `reload` copied those stale bytes into
-      # /run/quickshell-bar, reporting success while showing the old UI.
-      # The tmpfs copy is what makes shell startup fast; the page cache here
-      # only decides whether that copy is current.
-      fileSystems."/mnt/nixconf".options = [
-        "ro"
-        "trans=virtio"
-        "version=9p2000.L"
-        "msize=1048576"
-        "cache=none"
-        "posixacl=0"
-      ];
-      fileSystems."/mnt/host-config".options = [
-        "ro"
-        "trans=virtio"
-        "version=9p2000.L"
-        "msize=1048576"
-        "cache=none"
-        "posixacl=0"
-      ];
-      fileSystems."/nix/.ro-store".options = [
-        "ro"
-        "trans=virtio"
-        "version=9p2000.L"
-        "msize=1048576"
-        "cache=loose"
-        "posixacl=0"
-      ];
-      fileSystems."/tmp/shared".options = [
-        "trans=virtio"
-        "version=9p2000.L"
-        "msize=1048576"
-        "cache=none"
-        "posixacl=0"
-      ];
     };
 
     environment.sessionVariables = {
@@ -185,6 +151,7 @@
 
     # Enough to render the bar without tofu.
     fonts.packages = with pkgs; [
+      self.packages.${pkgs.stdenv.hostPlatform.system}.monocraft-nerd
       ubuntu-sans
       fira-code
       material-symbols

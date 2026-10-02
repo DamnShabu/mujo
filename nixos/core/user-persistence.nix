@@ -1,6 +1,6 @@
 {...}: {
   # GUI-managed persistence list. The Settings app's Persistence panel edits
-  # nixos/user-persistence.json (via `mujo persist`); this module folds that list
+  # nixos/core/user-persistence.json (via `mujo persist`); this module folds that list
   # into the existing impermanence configuration — the SAME persistence system,
   # with one extra declarative input, not a second source of truth. A rebuild
   # applies it; the bind mount then survives the impermanence root wipe.

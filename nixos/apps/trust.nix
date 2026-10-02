@@ -1,4 +1,30 @@
 {...}: {
+  # The registry's state machine, checked offline by `nix flake check`: the
+  # same writer and jq library the host installs, against a scratch registry.
+  perSystem = {pkgs, ...}: {
+    checks.trustRegistry =
+      pkgs.runCommand "trust-registry-check" {
+        nativeBuildInputs = with pkgs; [bash coreutils findutils jq util-linux];
+      } ''
+        cp ${./mujo-trust.jq} mujo-trust.jq
+        cp ${./mujo-trust-registry.sh} mujo-trust-registry.sh
+        cp ${./test-mujo-trust-registry.sh} test-mujo-trust-registry.sh
+        bash test-mujo-trust-registry.sh
+        touch $out
+      '';
+
+    # Application launch resolution against a fake Flatpak tree and PATH.
+    checks.trustLaunch =
+      pkgs.runCommand "trust-launch-check" {
+        nativeBuildInputs = with pkgs; [bash coreutils jq];
+      } ''
+        cp ${./mujo-trust-launch.sh} mujo-trust-launch.sh
+        cp ${./test-mujo-trust-launch.sh} test-mujo-trust-launch.sh
+        bash test-mujo-trust-launch.sh
+        touch $out
+      '';
+  };
+
   flake.nixosModules.app-trust = {
     config,
     lib,
@@ -6,11 +32,12 @@
     ...
   }: let
     cfg = config.apps.trust;
-    user = config.preferences.user.name;
 
     dbDir = "/var/lib/mujo-trust";
     dbFile = "${dbDir}/registry.json";
     sockPath = "/run/mujo/trust.sock";
+    # Root-only; nixos/security/broker.nix reports violations here.
+    reportSockPath = "/run/mujo/trust-report.sock";
 
     # Subtractive `flatpak run` overrides for a GRADUATED Flatpak. §7 of
     # docs/application-trust.md calls capability profiles "enforced, not
@@ -24,8 +51,8 @@
     # picked, not chosen from the manual:
     #
     #   * `devices=all` -- declared by Zen and Vesktop -- hands the application
-    #     the host's entire /dev: /dev/input/event* (mode 0666 here, so a
-    #     working keylogger with no privilege at all), /dev/nvme0n1, /dev/mem,
+    #     the host's entire /dev: /dev/input/event* (readable through the
+    #     user's `input` group, so a working keylogger), /dev/nvme0n1, /dev/mem,
     #     /dev/tpm0, /dev/kvm, /dev/uinput. `--nodevice=all --device=dri` takes
     #     that from ~190 entries to 18 and keeps the GPU. GameMaker and Obsidian
     #     already declare only `dri`, so for them it changes nothing.
@@ -45,68 +72,36 @@
       "--nosocket=pcsc"
     ];
 
-    # One `case` arm per key. An empty list yields `narrow=()`, which is how an
-    # override opts an application out of narrowing entirely -- hence the
-    # separate `matched` flag rather than testing whether the array is empty.
-    #
-    # Every arm carries its own leading newline and indent, and the call site
-    # interpolates it at the end of the `case ... in` line rather than on a line
-    # of its own. An interpolation that opens a line at column zero drags the
-    # enclosing indented string's common indent to zero, so Nix strips nothing,
-    # and the `USAGE` heredoc terminator further up ends up indented and never
-    # matches -- the script is then truncated at that heredoc, with the error
-    # reported nowhere near the change that caused it.
-    narrowCases = attrs:
-      lib.concatMapStrings
-      (arm: "\n            ${arm}")
-      (lib.mapAttrsToList
-        (k: flags: "${lib.escapeShellArg k}) narrow=(${lib.escapeShellArgs flags}); matched=1 ;;")
-        attrs);
+    # What mujo-trust-launch reads to narrow a GRADUATED Flatpak: the
+    # per-application override wins, then the registry tier's profile, then
+    # the default.
+    narrowingJson = builtins.toJSON {
+      default = narrowedFlatpak;
+      tiers = cfg.flatpakNarrowing;
+      overrides = cfg.flatpakNarrowingOverrides;
+    };
 
-    # The shared jq library lives in /etc, not in the state directory: that
-    # directory is an impermanence bind mount, and a tmpfiles symlink placed
-    # there was created underneath the mount and then covered by it, so every
-    # request died with "module not found".
-    jqDir = "/etc/mujo";
+    # Everything that needs to know what an application is, or how a runtime
+    # starts it, asks this (./mujo-trust-launch.sh; test-mujo-trust-launch.sh).
+    trustLaunch = pkgs.writeShellApplication {
+      name = "mujo-trust-launch";
+      runtimeInputs = with pkgs; [coreutils jq];
+      text = builtins.readFile ./mujo-trust-launch.sh;
+    };
 
-    # Shared by the daemon and the root CLI. Kept in one place because a trust
-    # record written by one and read by the other has to agree on its shape.
-    jqLib = pkgs.writeText "mujo-trust.jq" ''
-      def now_iso: (now | todate);
-
-      def new_record($name; $tier; $path):
-        { name: $name,
-          tier: $tier,
-          state: "QUARANTINE",
-          store_path: $path,
-          previous_store_path: null,
-          observed_seconds: 0,
-          session_started: null,
-          registered_at: now_iso,
-          last_evaluated: now_iso,
-          violations: 0,
-          violation_log: [] };
-
-      # An application is identified by its store path, which is a hash of its
-      # content and its whole build closure. A rebuilt or updated package is a
-      # different application, and docs/application-trust.md §5 requires it to
-      # start its evaluation over -- while the path that was trusted stays
-      # recorded, because that is what a rollback returns to.
-      def requarantine($path):
-        .previous_store_path = .store_path
-        | .store_path = $path
-        | .state = "QUARANTINE"
-        | .observed_seconds = 0
-        | .session_started = null
-        | .last_evaluated = now_iso;
-
-      # The runtime a state maps to. This is the whole point of the engine:
-      # nothing else in the system decides where an application runs.
-      def runtime_for:
-        if .state == "REVOKED" then "denied"
-        elif .state == "GRADUATED" then "native"
-        else "quarantine" end;
-    '';
+    # The registry's state machine (./mujo-trust.jq) and its only writer
+    # (./mujo-trust-registry.sh). The daemon, the evaluator, the seeder and the
+    # root CLI each call the writer with one verb; none of them edits the file.
+    # test-mujo-trust-registry.sh drives the same writer offline.
+    jqLib = ./mujo-trust.jq;
+    trustRegistry = pkgs.writeShellApplication {
+      name = "mujo-trust-registry";
+      runtimeInputs = with pkgs; [coreutils jq util-linux];
+      # The file's own `disable` directive stops applying once this wrapper
+      # puts its header above it; the jq programs are single-quoted on purpose.
+      excludeShellChecks = ["SC2016"];
+      text = builtins.readFile ./mujo-trust-registry.sh;
+    };
 
     # ── privileged daemon ───────────────────────────────────────────────────
     #
@@ -117,27 +112,15 @@
     # application call about itself, and administration stays a root CLI.
     trustHandler = pkgs.writeShellApplication {
       name = "mujo-trustd-handler";
-      runtimeInputs = with pkgs; [coreutils jq util-linux];
-      # $a / $p in the blocks below are jq variables, not shell ones.
+      runtimeInputs = with pkgs; [coreutils jq trustRegistry];
+      # $a in `get` is a jq variable, not a shell one.
       excludeShellChecks = ["SC2016"];
       text = ''
-        umask 022
-        mkdir -p ${dbDir}
-        [ -f ${dbFile} ] || echo '{"applications":{}}' > ${dbFile}
-
-        # jq cannot write in place, and a half-written registry is worse than a
-        # stale one: swap it atomically or not at all.
-        commit() {
-          local tmp
-          tmp=$(mktemp ${dbDir}/.registry.XXXXXX)
-          if jq -L${jqDir} "$@" ${dbFile} > "$tmp"; then
-            chmod 644 "$tmp"
-            mv "$tmp" ${dbFile}
-          else
-            rm -f "$tmp"
-            return 1
-          fi
-        }
+        # Which socket this connection came in on. `violation` revokes, so it is
+        # accepted only on the root-only report socket the broker writes to; on
+        # the users-group socket any process of the user's could otherwise
+        # revoke any application by name.
+        mode="''${1:?socket mode}"
 
         # systemd accepts each connection into its own instance of this service,
         # so a client that connects and then says nothing would otherwise hold a
@@ -146,21 +129,18 @@
         [ -n "''${verb:-}" ] || exit 0
         [ -n "''${app:-}" ] || { echo "ERR missing application"; exit 0; }
 
+        case "$mode:$verb" in
+          report:violation | user:begin | user:end | user:get) ;;
+          *) echo "ERR $verb is not accepted on this socket"; exit 0 ;;
+        esac
+
         # The application names its own key in the registry. Bound it: an
         # unbounded name is a way to grow a root-owned file in /var/lib without
         # ever launching anything.
         [ "''${#app}" -le 128 ] || { echo "ERR application name too long"; exit 0; }
 
-        # Every verb below is a read-modify-write of one JSON file, and `mv` only
-        # makes the final swap atomic -- it does not stop two concurrent handlers
-        # from both reading the pre-update registry and the second one discarding
-        # the first one's write. That is not merely a lost update: the write most
-        # likely to be lost is `begin`'s requarantine of an application whose
-        # store path changed, which would leave an updated binary sitting on its
-        # old GRADUATED state. Serialise the whole request instead.
-        exec 8>${dbDir}/.registry.lock
-        flock -w 5 8 || { echo "ERR registry busy"; exit 0; }
-
+        # Every write is serialised by mujo-trust-registry's own lock, which is
+        # why this handler must not hold that lock itself.
         case "$verb" in
           begin)
             # The client supplies the store path or Flatpak active commit path it is
@@ -170,56 +150,25 @@
               /nix/store/* | /var/lib/flatpak/*) ;;
               *) echo "ERR identity is not a store or flatpak path"; exit 0 ;;
             esac
-
-            commit --arg a "$app" --arg p "$arg" '
-              include "mujo-trust";
-              if .applications[$a] == null
-              then .applications[$a] = new_record($a; "medium"; $p)
-              elif .applications[$a].store_path != $p
-              then .applications[$a] |= requarantine($p)
-              else . end
-              # Only one accumulator per application: parallel launches must not
-              # let an application bank several hours per hour of real time.
-              | if .applications[$a].session_started == null
-                then .applications[$a].session_started = now
-                else . end
-            ' || { echo "ERR registry update failed"; exit 0; }
-
-            jq -L${jqDir} -r --arg a "$app" \
-              'include "mujo-trust"; .applications[$a] | runtime_for' ${dbFile}
+            mujo-trust-registry begin "$app" "$arg" || echo "ERR registry update failed"
             ;;
 
           end)
-            commit --arg a "$app" '
-              include "mujo-trust";
-              if .applications[$a].session_started == null then . else
-                .applications[$a].observed_seconds +=
-                  ((now - .applications[$a].session_started) | floor)
-                | .applications[$a].session_started = null
-              end
-            ' || { echo "ERR registry update failed"; exit 0; }
-            echo "OK"
+            if mujo-trust-registry end "$app"; then echo "OK"; else echo "ERR registry update failed"; fi
             ;;
 
           violation)
-            # Any reported boundary violation revokes immediately. Deciding
-            # whether it was a false positive is a human's job, and a revoked
-            # application still runs -- from its previous known-good path, via
-            # `mujo-trust rollback`.
-            commit --arg a "$app" --arg r "''${arg:-unspecified}" '
-              include "mujo-trust";
-              if .applications[$a] == null then . else
-                .applications[$a].violations += 1
-                | .applications[$a].state = "REVOKED"
-                | .applications[$a].last_evaluated = now_iso
-                | .applications[$a].violation_log +=
-                    [{ at: now_iso, reason: $r }]
-              end
-            ' || { echo "ERR registry update failed"; exit 0; }
-            echo "OK"
+            # A revoked application still runs -- from its previous known-good
+            # path, via `mujo-trust rollback`.
+            if mujo-trust-registry violation "$app" "''${arg:-unspecified}"; then
+              echo "OK"
+            else
+              echo "ERR registry update failed"
+            fi
             ;;
 
           get)
+            [ -f ${dbFile} ] || { echo "ERR unknown application"; exit 0; }
             jq -r --arg a "$app" '.applications[$a] // "ERR unknown application"' ${dbFile}
             ;;
 
@@ -230,60 +179,38 @@
       '';
     };
 
+    # One accepted connection on either socket; `mode` is which verbs it takes.
+    handlerUnit = mode: {
+      description = "Mujo trust registry request (${mode})";
+      serviceConfig = {
+        ExecStart = "${lib.getExe trustHandler} ${mode}";
+        StandardInput = "socket";
+        StandardOutput = "socket";
+        StandardError = "journal";
+        # Root, because it owns the registry -- but with everything else it
+        # does not need taken away.
+        ProtectHome = true;
+        ProtectSystem = "strict";
+        ReadWritePaths = [dbDir];
+        PrivateNetwork = true;
+        NoNewPrivileges = true;
+        RestrictAddressFamilies = ["AF_UNIX"];
+        SystemCallFilter = ["@system-service"];
+      };
+    };
+
     # ── evaluation ──────────────────────────────────────────────────────────
     #
-    # Time alone never graduates anything (Phase 20): the policy below also
-    # requires a clean violation record, and refuses to move CRITICAL past
-    # quarantine or HIGH past observation without a person saying so.
+    # The graduation policy itself is `evaluate` in mujo-trust.jq; this only
+    # feeds it the configured periods.
     trustEvaluate = pkgs.writeShellApplication {
       name = "mujo-trust-evaluate";
-      runtimeInputs = with pkgs; [coreutils jq util-linux];
-      excludeShellChecks = ["SC2016"];
+      runtimeInputs = [trustRegistry];
       text = ''
         [ -f ${dbFile} ] || exit 0
-
-        # This pass rewrites every record, so running it unserialised against a
-        # live socket handler is the worst of the lost-update cases: it could
-        # discard a REVOKED state that a `violation` had just written. Same lock
-        # the handler takes.
-        exec 8>${dbDir}/.registry.lock
-        flock -w 10 8 || exit 0
-
-        tmp=$(mktemp ${dbDir}/.registry.XXXXXX)
-        # Swap the registry atomically or leave it alone: a half-written
-        # evaluation would be worse than a stale one.
-        if jq -L${jqDir} \
-          --argjson quarantine ${toString (cfg.observationPeriodHours * 3600)} \
-          --argjson observing ${toString (cfg.observingPeriodHours * 3600)} '
-          include "mujo-trust";
-          .applications |= with_entries(
-            .value |= (
-              # Bank what a still-running application has accumulated so far.
-              # Time was otherwise only credited when a session ended, so
-              # anything long-running sat at the same number forever.
-              (if .session_started == null then .
-               else .observed_seconds += ((now - .session_started) | floor)
-                    | .session_started = now
-               end)
-              | if .violations > 0 then .
-              elif .state == "QUARANTINE"
-                   and .observed_seconds >= $quarantine
-                   and .tier != "critical"
-              then .state = "OBSERVING" | .last_evaluated = now_iso
-              elif .state == "OBSERVING"
-                   and .observed_seconds >= ($quarantine + $observing)
-                   and (.tier == "low" or .tier == "medium")
-              then .state = "GRADUATED" | .last_evaluated = now_iso
-              else . end
-            )
-          )
-        ' ${dbFile} > "$tmp"
-        then
-          chmod 644 "$tmp"
-          mv "$tmp" ${dbFile}
-        else
-          rm -f "$tmp"
-        fi
+        mujo-trust-registry evaluate \
+          ${toString (cfg.observationPeriodHours * 3600)} \
+          ${toString (cfg.observingPeriodHours * 3600)}
       '';
     };
 
@@ -294,70 +221,20 @@
     # their tier synchronised, and any updated store/commit path triggers re-quarantine.
     trustSeed = pkgs.writeShellApplication {
       name = "mujo-trust-seed";
-      runtimeInputs = with pkgs; [coreutils jq util-linux];
-      excludeShellChecks = ["SC2016"];
+      runtimeInputs = with pkgs; [coreutils trustRegistry trustLaunch];
       text = ''
-        umask 022
-        mkdir -p ${dbDir}
-        [ -f ${dbFile} ] || echo '{"applications":{}}' > ${dbFile}
-
-        identity_of() {
-          local app="$1"
-          if [ "$app" = "flatpak" ] && [ "''${2:-}" = "run" ] && [ -n "''${3:-}" ]; then
-            app="$3"
-          fi
-
-          if [ -d "/var/lib/flatpak/app/$app" ]; then
-            local active="/var/lib/flatpak/app/$app/current/active"
-            if [ -e "$active" ]; then
-              readlink -f "$active"
-              return 0
-            fi
-          fi
-
-          local bin
-          bin=$(type -P "$app") || return 1
-          [ -n "$bin" ] || return 1
-          readlink -f "$bin"
-        }
-
         seed_app() {
-          local name="$1" tier="$2" state="$3" bin="$4"
-          local path
-          path=$(identity_of "$bin") || return 0
-          [ -n "$path" ] || return 0
-
-          local tmp
-          # Same registry lock the socket handler and the evaluator take; seeding
-          # runs at boot, when the first launches are also happening.
-          exec 8>${dbDir}/.registry.lock
-          flock -w 10 8 || return 0
-          tmp=$(mktemp ${dbDir}/.registry.XXXXXX)
-          if jq -L${jqDir} --arg a "$name" --arg t "$tier" --arg s "$state" --arg p "$path" '
-            include "mujo-trust";
-            if .applications[$a] == null then
-              .applications[$a] = (new_record($a; $t; $p) | .state = $s)
-            elif .applications[$a].store_path != $p then
-              .applications[$a] |= requarantine($p)
-              | (if $s != "QUARANTINE" then .applications[$a].state = $s else . end)
-            else
-              .applications[$a].tier = $t
-              | (if $s != "QUARANTINE" then .applications[$a].state = $s else . end)
-            end
-          ' ${dbFile} > "$tmp"; then
-            chmod 644 "$tmp"
-            mv "$tmp" ${dbFile}
-          else
-            rm -f "$tmp"
-          fi
+          local name="$1" tier="$2" state="$3"
+          local resolved path
+          # Not installed (yet) is not an error: it is seeded when it appears.
+          resolved=$(mujo-trust-launch resolve "$name" 2>/dev/null) || return 0
+          IFS=$'\t' read -r _ _ path <<<"$resolved"
+          # One application failing to seed must not stop the rest.
+          mujo-trust-registry seed "$name" "$tier" "$state" "$path" || true
         }
 
         ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: appCfg: ''
-            seed_app "${name}" "${appCfg.tier}" "${appCfg.state}" "${
-              if appCfg.binary != ""
-              then appCfg.binary
-              else name
-            }"
+            seed_app ${lib.escapeShellArg name} ${appCfg.tier} ${appCfg.state}
           '')
           cfg.defaultApplications)}
 
@@ -370,10 +247,7 @@
                 ${lib.concatStringsSep "|" (map lib.escapeShellArg (builtins.attrNames cfg.defaultApplications))})
                   ;;
                 *)
-                  active="$app_dir/current/active"
-                  if [ -e "$active" ]; then
-                    seed_app "$f_name" "medium" "QUARANTINE" "$f_name"
-                  fi
+                  seed_app "$f_name" "medium" "QUARANTINE"
                   ;;
               esac
             fi
@@ -385,7 +259,7 @@
     # ── user-facing CLI ─────────────────────────────────────────────────────
     mujoTrustCli = pkgs.writeShellApplication {
       name = "mujo-trust";
-      runtimeInputs = with pkgs; [coreutils jq socat util-linux trustSeed];
+      runtimeInputs = with pkgs; [coreutils jq socat trustRegistry trustSeed trustLaunch];
       # The single-quoted blocks below are jq programs, and $a / $p / $s are
       # jq variables passed with --arg. shellcheck sees shell parameters that
       # will not expand, which is exactly the intent.
@@ -417,65 +291,12 @@
           exit 64
         }
 
-        extract_flatpak_app() {
-          local in_run=0
-          for arg in "$@"; do
-            case "$arg" in
-              *flatpak) in_run=1 ;;
-              run) in_run=1 ;;
-              -*) ;;
-              *)
-                if [ "$in_run" -eq 1 ] && [ -d "/var/lib/flatpak/app/$arg" ]; then
-                  echo "$arg"
-                  return 0
-                elif [ -d "/var/lib/flatpak/app/$arg" ]; then
-                  echo "$arg"
-                  return 0
-                fi
-                ;;
-            esac
-          done
-          return 1
-        }
-
-        # Capability narrowing for a GRADUATED Flatpak, assigned into the
-        # caller's `narrow` array. A per-application override wins outright, so
-        # an empty override list is a real opt-out and not a fall-through to the
-        # tier profile.
-        narrow_flatpak() {
-          local matched=0 tier
-          narrow=()
-          case "$1" in${narrowCases cfg.flatpakNarrowingOverrides}
-            *) ;;
-          esac
-          [ "$matched" -eq 0 ] || return 0
-
-          tier=$(jq -r --arg a "$1" '.applications[$a].tier // "medium"' ${dbFile} 2>/dev/null) || tier=medium
-          case "$tier" in${narrowCases cfg.flatpakNarrowing}
-            *) narrow=(${lib.escapeShellArgs narrowedFlatpak}) ;;
-          esac
-        }
-
-        # Resolve the launched name to its identity (Nix store path or Flatpak commit).
+        # The identity (store path or Flatpak commit) <argv> resolves to.
         identity_of() {
-          local app="$1"
-          local fp_app=""
-          if fp_app=$(extract_flatpak_app "$@"); then
-            app="$fp_app"
-          fi
-
-          if [ -d "/var/lib/flatpak/app/$app" ]; then
-            local active="/var/lib/flatpak/app/$app/current/active"
-            if [ -e "$active" ]; then
-              readlink -f "$active"
-              return 0
-            fi
-          fi
-
-          local bin
-          bin=$(type -P "$app") || return 1
-          [ -n "$bin" ] || return 1
-          readlink -f "$bin"
+          local resolved path
+          resolved=$(mujo-trust-launch resolve "$@") || return 1
+          IFS=$'\t' read -r _ _ path <<<"$resolved"
+          echo "$path"
         }
 
         ask() {
@@ -489,107 +310,31 @@
           fi
         }
 
-        # Root-only mutations write the registry directly. They deliberately do
-        # not go through the socket: the socket is what an application can
-        # reach, and an application must not be able to promote itself.
-        edit_db() {
-          local tmp
-          # graduate/revoke/tier/rollback race the socket handler exactly like
-          # everything else that writes this file; take the same lock. The fd is
-          # scoped to this block rather than opened with `exec`, because cmd_run
-          # in this same script spawns applications that outlive it -- an fd left
-          # open at process scope would be inherited by one of them and hold the
-          # registry lock for as long as the application ran.
-          tmp=$(mktemp ${dbDir}/.registry.XXXXXX)
-          {
-            flock -w 10 8 || {
-              echo "mujo-trust: registry is busy, try again" >&2
-              rm -f "$tmp"
-              exit 75
-            }
-            if jq -L${jqDir} "$@" "$DB" > "$tmp"; then
-              chmod 644 "$tmp"
-              mv "$tmp" "$DB"
-            else
-              rm -f "$tmp"
-              exit 1
-            fi
-          } 8>${dbDir}/.registry.lock
-        }
-
+        # What the application is and how each runtime starts it are both
+        # mujo-trust-launch's; this only asks the daemon which runtime, runs
+        # the command it is handed, and closes the session.
         cmd_run() {
-          local app="''${1:-}"
-          [ -n "$app" ] || usage
+          [ "$#" -ge 1 ] || usage
 
-          local app_name="$app"
-          local is_flatpak=0
-          local fp_app=""
-          if fp_app=$(extract_flatpak_app "$@"); then
-            app_name="$fp_app"
-            is_flatpak=1
-          elif [ -d "/var/lib/flatpak/app/$app" ]; then
-            is_flatpak=1
-          fi
+          local resolved name path runtime
+          resolved=$(mujo-trust-launch resolve "$@") || exit 127
+          IFS=$'\t' read -r name _ path <<<"$resolved"
 
-          local path
-          if ! path=$(identity_of "$@"); then
-            echo "mujo-trust: $app: not found" >&2
-            exit 127
-          fi
-
-          local runtime
-          runtime=$(ask begin "$app_name" "$path")
+          runtime=$(ask begin "$name" "$path")
 
           case "$runtime" in
-            quarantine)
-              echo "mujo-trust: $app_name is quarantined; launching in the MicroVM domain." >&2
-              if [ "$is_flatpak" -eq 1 ]; then
-                case "$app" in
-                  *flatpak)
-                    mujo-quarantine-run "$@" || true
-                    ;;
-                  *)
-                    mujo-quarantine-run flatpak run "$@" || true
-                    ;;
-                esac
-              else
-                mujo-quarantine-run "$@" || true
-              fi
-              ;;
-            native)
-              if [ "$is_flatpak" -eq 1 ]; then
-                local -a narrow=()
-                narrow_flatpak "$app_name"
-                case "$app" in
-                  *flatpak)
-                    # The caller spelled the launcher out: `mujo-trust run
-                    # flatpak run <app>`. flatpak reads its own options only
-                    # before the application id, so the narrowing is spliced in
-                    # after `run`. Appending it would pass the flags to the
-                    # application and leave this path an unnarrowed way in.
-                    local -a cmd=()
-                    local spliced=0 arg
-                    for arg in "$@"; do
-                      cmd+=("$arg")
-                      if [ "$spliced" -eq 0 ] && [ "$arg" = "run" ]; then
-                        cmd+=("''${narrow[@]}")
-                        spliced=1
-                      fi
-                    done
-                    "''${cmd[@]}" || true
-                    ;;
-                  *)
-                    flatpak run "''${narrow[@]}" "$@" || true
-                    ;;
-                esac
-              else
-                mujo-sandbox-run "$@" || true
-              fi
+            quarantine | native)
+              [ "$runtime" = native ] ||
+                echo "mujo-trust: $name is quarantined; launching in the MicroVM domain." >&2
+              local -a cmd=()
+              mapfile -d "" -t cmd < <(mujo-trust-launch plan "$runtime" "$@")
+              [ "''${#cmd[@]}" -gt 0 ] || { ask end "$name" >/dev/null; exit 70; }
+              "''${cmd[@]}" || true
               ;;
             denied)
-              echo "mujo-trust: $app_name is REVOKED and will not be launched." >&2
-              echo "            'mujo-trust status $app_name' shows why; 'sudo mujo-trust rollback $app_name' restores the previous version." >&2
-              ask end "$app_name" >/dev/null
+              echo "mujo-trust: $name is REVOKED and will not be launched." >&2
+              echo "            'mujo-trust status $name' shows why; 'sudo mujo-trust rollback $name' restores the previous version." >&2
+              ask end "$name" >/dev/null
               exit 126
               ;;
             *)
@@ -598,7 +343,7 @@
               ;;
           esac
 
-          ask end "$app_name" >/dev/null
+          ask end "$name" >/dev/null
         }
 
         cmd_list() {
@@ -625,51 +370,42 @@
             echo "Default applications seeded into trust registry."
             ;;
 
+          # Root-only mutations call the registry writer directly. They
+          # deliberately do not go through the socket: the socket is what an
+          # application can reach, and an application must not be able to
+          # promote itself.
           register)
             require_root register
             [ -n "''${2:-}" ] || usage
-            path=$(identity_of "$2") || { echo "mujo-trust: $2: not found" >&2; exit 127; }
-            edit_db --arg a "$2" --arg t "''${3:-medium}" --arg p "$path" \
-              'include "mujo-trust"; .applications[$a] = new_record($a; $t; $p)'
-            echo "Registered '$2' as QUARANTINE, tier ''${3:-medium}."
+            resolved=$(mujo-trust-launch resolve "$2") || exit 127
+            IFS=$'\t' read -r name _ path <<<"$resolved"
+            mujo-trust-registry register "$name" "''${3:-medium}" "$path"
+            echo "Registered '$name' as QUARANTINE, tier ''${3:-medium}."
             ;;
 
           tier)
             require_root tier
             [ -n "''${3:-}" ] || usage
-            edit_db --arg a "$2" --arg t "$3" '.applications[$a].tier = $t'
+            mujo-trust-registry tier "$2" "$3"
             echo "'$2' is now tier $3."
             ;;
 
           graduate|quarantine|revoke)
             require_root "$1"
             [ -n "''${2:-}" ] || usage
-            state=$(echo "$1" | tr '[:lower:]' '[:upper:]')
-            [ "$state" = "GRADUATE" ] && state=GRADUATED
-            [ "$state" = "REVOKE" ] && state=REVOKED
-            edit_db --arg a "$2" --arg s "$state" \
-              'include "mujo-trust"; .applications[$a].state = $s | .applications[$a].last_evaluated = now_iso'
+            case "$1" in
+              graduate) state=GRADUATED ;;
+              quarantine) state=QUARANTINE ;;
+              revoke) state=REVOKED ;;
+            esac
+            mujo-trust-registry state "$2" "$state"
             echo "'$2' is now $state."
             ;;
 
           rollback)
             require_root rollback
             [ -n "''${2:-}" ] || usage
-            prev=$(jq -r --arg a "$2" '.applications[$a].previous_store_path // ""' "$DB")
-            if [ -z "$prev" ] || [ ! -e "$prev" ]; then
-              echo "mujo-trust: no previous known-good version of '$2' is still in the store." >&2
-              exit 1
-            fi
-            # The old closure is still in the Nix store until it is garbage
-            # collected, which is what makes rollback a lookup rather than a
-            # rebuild.
-            edit_db --arg a "$2" --arg p "$prev" '
-              include "mujo-trust";
-              .applications[$a].store_path = $p
-              | .applications[$a].previous_store_path = null
-              | .applications[$a].state = "GRADUATED"
-              | .applications[$a].violations = 0
-              | .applications[$a].last_evaluated = now_iso'
+            prev=$(mujo-trust-registry rollback "$2")
             echo "'$2' rolled back to $prev and restored to GRADUATED."
             echo "Note: nix will re-select the newer version on the next rebuild unless it is pinned."
             ;;
@@ -729,10 +465,8 @@
           machine at once, so it is a switch someone throws on purpose. The
           runbook is in docs/application-trust.md §8.
 
-          Known limitation: applications whose desktop entry execs a launcher
-          (Flatpak's `flatpak run …`) are identified as that launcher, not as
-          themselves, so they all share one trust record. Keep those out of the
-          engine until the entry resolves to the application's own store path.
+          A desktop entry that execs `flatpak run [options] <id>` is recorded
+          as <id>, not as flatpak (mujo-trust-launch resolves it).
         '';
       };
 
@@ -805,76 +539,85 @@
               default = "QUARANTINE";
               description = "Initial trust state.";
             };
-            binary = lib.mkOption {
-              type = lib.types.str;
-              default = "";
-              description = "Binary name or command on PATH to resolve store path from.";
-            };
           };
         });
         default = {
           kitty = {
             tier = "low";
             state = "GRADUATED";
-            binary = "kitty";
           };
           fish = {
             tier = "low";
             state = "GRADUATED";
-            binary = "fish";
           };
           cutefetch = {
             tier = "low";
             state = "GRADUATED";
-            binary = "cutefetch";
           };
           claude = {
             tier = "high";
             state = "GRADUATED";
-            binary = "claude";
           };
           opencode = {
             tier = "high";
             state = "GRADUATED";
-            binary = "opencode";
           };
           agy = {
             tier = "high";
             state = "GRADUATED";
-            binary = "agy";
           };
           herdr = {
             tier = "high";
             state = "GRADUATED";
-            binary = "herdr";
           };
           "com.valvesoftware.Steam" = {
             tier = "low";
             state = "GRADUATED";
-            binary = "com.valvesoftware.Steam";
           };
           mujo-vault = {
             tier = "critical";
             state = "QUARANTINE";
-            binary = "mujo-vault";
           };
           mujo-trust = {
             tier = "critical";
             state = "QUARANTINE";
-            binary = "mujo-trust";
           };
         };
-        description = "Declarative default applications to seed into the progressive trust registry.";
+        description = ''
+          Declarative default applications to seed into the progressive trust
+          registry. The attribute name *is* the application: a Flatpak
+          application id, or a program name on PATH. It is the same name
+          `mujo-trust run` records a launch under and the key
+          security.mujo.broker.acl grants credentials to.
+        '';
       };
     };
 
     config = lib.mkIf cfg.enable {
       environment.systemPackages = [mujoTrustCli mujoRunCli trustEvaluate trustSeed];
 
-      # jq include path: the daemon, the CLI and the evaluator all load the same
-      # definitions from /etc/mujo, so a record written by one is read the same
-      # way by the others.
+      # mujo-trust-registry's default jq include path. It lives in /etc, not in
+      # the state directory: that directory is an impermanence bind mount, and a
+      # tmpfiles symlink placed there was created underneath the mount and then
+      # covered by it, so every request died with "module not found".
       environment.etc."mujo/mujo-trust.jq".source = jqLib;
+      environment.etc."mujo/flatpak-narrowing.json".text = narrowingJson;
+
+      # A broker violation revokes the registry record whose name equals the
+      # ACL key, so a key no launch is recorded under detects nothing.
+      assertions = let
+        acl = lib.attrByPath ["security" "mujo" "broker" "acl"] {} config;
+        undeclared = lib.subtractLists (lib.attrNames cfg.defaultApplications) (lib.attrNames acl);
+      in [
+        {
+          assertion = undeclared == [];
+          message = ''
+            security.mujo.broker.acl grants credentials to ${lib.concatStringsSep ", " undeclared},
+            which apps.trust.defaultApplications does not declare. Declare each one there
+            under the name `mujo-trust run` records it by (its Flatpak id or program name).
+          '';
+        }
+      ];
 
       # The shell reads this marker rather than a build-time value: it runs from
       # the working tree as often as from the store, and a file it can stat is
@@ -887,6 +630,10 @@
         "d /run/mujo 0755 root root -"
       ];
 
+      # Two sockets onto one handler. The users-group one carries what a launch
+      # needs (begin/end/get); the root-only one carries `violation`, which
+      # revokes, and is what the credential broker reports to. On a shared
+      # socket any process of the user's could revoke any application by name.
       systemd.sockets.mujo-trustd = {
         description = "Mujo trust registry socket";
         wantedBy = ["sockets.target"];
@@ -899,24 +646,20 @@
         };
       };
 
-      systemd.services."mujo-trustd@" = {
-        description = "Mujo trust registry request";
-        serviceConfig = {
-          ExecStart = lib.getExe trustHandler;
-          StandardInput = "socket";
-          StandardOutput = "socket";
-          StandardError = "journal";
-          # Root, because it owns the registry -- but with everything else it
-          # does not need taken away.
-          ProtectHome = true;
-          ProtectSystem = "strict";
-          ReadWritePaths = [dbDir];
-          PrivateNetwork = true;
-          NoNewPrivileges = true;
-          RestrictAddressFamilies = ["AF_UNIX"];
-          SystemCallFilter = ["@system-service"];
+      systemd.sockets.mujo-trust-report = {
+        description = "Mujo trust violation report socket";
+        wantedBy = ["sockets.target"];
+        socketConfig = {
+          ListenStream = reportSockPath;
+          Accept = "yes";
+          SocketMode = "0600";
+          SocketUser = "root";
+          SocketGroup = "root";
         };
       };
+
+      systemd.services."mujo-trustd@" = handlerUnit "user";
+      systemd.services."mujo-trust-report@" = handlerUnit "report";
 
       systemd.services.mujo-trust-seed = {
         description = "Seed default applications into Mujo trust registry";
@@ -948,18 +691,12 @@
         };
       };
 
-      # Allow users in wheel group to manage application trust without password prompt in GUI
-      security.polkit.extraConfig = ''
-        polkit.addRule(function(action, subject) {
-          if (action.id == "org.freedesktop.policykit.exec" &&
-              subject.isInGroup("wheel")) {
-            var prog = action.lookup("program");
-            if (prog && (prog.indexOf("mujo-trust") !== -1 || prog == "/run/current-system/sw/bin/mujo-trust")) {
-              return polkit.Result.YES;
-            }
-          }
-        });
-      '';
+      # Deliberately no polkit rule for mujo-trust. There used to be one that
+      # returned YES to any wheel user; polkit sees the program and not its
+      # arguments, so it covered `graduate` too, and an application running
+      # unsandboxed as the user could `pkexec mujo-trust graduate <itself>`
+      # without anyone being asked. Reading needs no escalation (the registry
+      # is 0644), so every pkexec here is a mutation and gets the PIN prompt.
 
       # System state owned by root, so it belongs in /var/lib and in the system
       # persistence list rather than under the user's home.

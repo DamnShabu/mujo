@@ -46,6 +46,7 @@
       pkgs.nh
       pkgs.lf
       pkgs.git
+      pkgs.gh
       selfpkgs.herdr
       selfpkgs.nix-check-bin
       selfpkgs.jprocsall

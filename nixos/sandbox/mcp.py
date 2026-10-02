@@ -168,7 +168,7 @@ def ensure_up():
     if spice_port_busy():
         raise RuntimeError(PORT_BUSY_MESSAGE)
     t_start = time.time()
-    print(f"sandbox: booting VM...", file=sys.stderr)
+    print("sandbox: booting VM...", file=sys.stderr)
     if getattr(vm, "shared_dir", None):
         (vm.shared_dir / "qs_ready").unlink(missing_ok=True)
         (vm.shared_dir / "shot.png").unlink(missing_ok=True)
@@ -400,6 +400,9 @@ def _dispatch(name, a):
         )
     if name == "reload":
         loads, restarts = shell_state()
+        # virtiofsd runs --cache=always, so without this the copy below reads
+        # whatever the guest cached at boot, not the edited working tree.
+        run("echo 3 > /proc/sys/vm/drop_caches")
         user_run(
             # Any settings window still open is a separate process running the
             # QML it was launched with. Leaving it up makes a reload look like
@@ -490,6 +493,6 @@ while True:
             reply(mid, result={})
         else:
             reply(mid, error={"code": -32601, "message": f"unknown method {method}"})
-    except Exception as e:
+    except Exception:
         import traceback
         reply(mid, error={"code": -32000, "message": traceback.format_exc()})

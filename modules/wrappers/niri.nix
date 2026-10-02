@@ -32,7 +32,7 @@
     in {
       package = pkgs.niri.overrideAttrs (old: {
         patches = (old.patches or []) ++ [
-          ./niri-fullscreen-capture-cursor.patch
+          # ./niri-fullscreen-capture-cursor.patch
         ];
       });
 
@@ -91,6 +91,12 @@
           "Mod+Return".spawn = config.terminal;
 
           "Mod+Q".close-window = _: {};
+          # Tap-Super -> KEY_F13 via keyd (nixos/desktop/keyd.nix). xkb maps that
+          # keycode to the XF86Tools keysym, not to F13, and niri matches binds
+          # by keysym -- a bind named "F13" here never fires. This is the
+          # launcher trigger that actually fires; Mod+Space below is shadowed by
+          # the ambxst include (on a duplicate key, the included file wins).
+          "XF86Tools".spawn = ["ambxst" "run" "launcher"];
           "Mod+Space".spawn = ["ambxst" "run" "launcher"];
           # Ambxst settings UI
           "Mod+Comma"."spawn-sh" = "ambxst run config";
@@ -318,12 +324,9 @@
         layer-rules = [
           {
             matches = [
-              {namespace = "^noctalia-overview-";}
+              {namespace = "^ambxst:wallpaper$";}
             ];
             place-within-backdrop = true;
-            background-effect = {
-              blur = true;
-            };
           }
         ];
 

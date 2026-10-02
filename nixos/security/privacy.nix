@@ -2,7 +2,6 @@
   flake.nixosModules.security-privacy = {
     config,
     lib,
-    pkgs,
     ...
   }: let
     cfg = config.security.mujo;
@@ -21,70 +20,96 @@
       '';
     };
 
-    config = lib.mkIf (cfg.enable && cfg.privacy.enable) {
-      # ── network-layer identifiers ───────────────────────────────────────
+    config = lib.mkIf (cfg.enable && cfg.privacy.enable) (lib.mkMerge [
+      # ── networkd ────────────────────────────────────────────────────────
       #
-      # The goal from docs/privacy-model.md is minimising unique entropy, not
-      # spoofing. "stable" derives a per-network MAC from a host secret: the
-      # factory address never goes out on the wire, and a given network still
-      # sees a consistent device, so DHCP reservations and captive portals keep
-      # working. "random" would re-roll on every connect and make the machine
-      # more conspicuous, not less.
-      networking.networkmanager = {
-        wifi.macAddress = lib.mkDefault "stable-ssid";
-        wifi.scanRandMacAddress = lib.mkDefault true;
-        ethernet.macAddress = lib.mkDefault "stable";
-
-        connectionConfig = {
-          # The hostname is a stable, often personal identifier ("yurii-laptop")
-          # handed to every DHCP server the machine ever meets, and it is not
-          # needed to get a lease.
-          "ipv4.dhcp-send-hostname" = false;
-          "ipv6.dhcp-send-hostname" = false;
-        };
-      };
-
-      # NetworkManager's connectivity check fetches a URL after every network
-      # change, which announces the machine to a third party on each new
-      # network. The desktop only uses it to draw a "limited connectivity" icon.
-      environment.etc."NetworkManager/conf.d/20-mujo-no-connectivity-check.conf".text = ''
-        [connectivity]
-        enabled=false
-      '';
-
-      # ── name resolution ─────────────────────────────────────────────────
+      # The host moved from NetworkManager to networkd, and every
+      # NetworkManager setting below went dead with it: networkd sends the
+      # hostname with each DHCP request by default. These are the two networks
+      # NixOS generates for `networking.useDHCP`; defining them without that
+      # would create .network files with no [Match] section, which match every
+      # interface.
       #
-      # LLMNR and mDNS broadcast the hostname, and answer queries about it, to
-      # every device on whatever network the machine joins. That is a standing
-      # announcement on cafe and hotel wifi for a feature this host does not use.
-      services.resolved = {
-        settings.Resolve =
-          {
-            LLMNR = "no";
-            MulticastDNS = "no";
-          }
-          // lib.optionalAttrs cfg.privacy.dnsOverTls {
-            DNSOverTLS = "yes";
+      # The MAC is not covered. networkd has no per-network "stable" policy,
+      # only the factory address or a fresh random one each boot, which breaks
+      # DHCP reservations and is more conspicuous, not less (see below). On a
+      # wired home LAN the factory MAC is the accepted cost.
+      (lib.mkIf (config.networking.useNetworkd && config.networking.useDHCP) {
+        systemd.network.networks =
+          lib.genAttrs ["99-ethernet-default-dhcp" "99-wireless-client-dhcp"]
+          (_: {
+            dhcpV4Config.SendHostname = false;
+            dhcpV6Config.SendHostname = false;
+          });
+      })
+
+      (lib.mkIf config.networking.networkmanager.enable {
+        # ── network-layer identifiers ───────────────────────────────────────
+        #
+        # The goal from docs/privacy-model.md is minimising unique entropy, not
+        # spoofing. "stable" derives a per-network MAC from a host secret: the
+        # factory address never goes out on the wire, and a given network still
+        # sees a consistent device, so DHCP reservations and captive portals keep
+        # working. "random" would re-roll on every connect and make the machine
+        # more conspicuous, not less.
+        networking.networkmanager = {
+          wifi.macAddress = lib.mkDefault "stable-ssid";
+          wifi.scanRandMacAddress = lib.mkDefault true;
+          ethernet.macAddress = lib.mkDefault "stable";
+
+          connectionConfig = {
+            # The hostname is a stable, often personal identifier ("yurii-laptop")
+            # handed to every DHCP server the machine ever meets, and it is not
+            # needed to get a lease.
+            "ipv4.dhcp-send-hostname" = false;
+            "ipv6.dhcp-send-hostname" = false;
           };
-      };
+        };
 
-      # ── IPv6 addressing ─────────────────────────────────────────────────
-      #
-      # IPv6 privacy extensions (RFC 4941) come from the NixOS option, not from
-      # a raw sysctl. nixos/modules/tasks/network-interfaces.nix already defines
-      # net.ipv6.conf.*.use_tempaddr from networking.tempAddresses, so setting
-      # the sysctl directly collided with it and made the entire host
-      # configuration fail to evaluate. "default" is the value that both
-      # generates temporary addresses and prefers them as source addresses.
-      networking.tempAddresses = lib.mkDefault "default";
+        # NetworkManager's connectivity check fetches a URL after every network
+        # change, which announces the machine to a third party on each new
+        # network. The desktop only uses it to draw a "limited connectivity" icon.
+        environment.etc."NetworkManager/conf.d/20-mujo-no-connectivity-check.conf".text = ''
+          [connectivity]
+          enabled=false
+        '';
+      })
 
-      boot.kernel.sysctl = {
-        # RFC 7217: derive stable-but-per-prefix IPv6 interface identifiers
-        # rather than embedding the NIC's MAC address in every packet. nixpkgs
-        # does not set this one, so it does not conflict.
-        "net.ipv6.conf.all.addr_gen_mode" = 2;
-        "net.ipv6.conf.default.addr_gen_mode" = 2;
-      };
-    };
+      {
+        # ── name resolution ─────────────────────────────────────────────────
+        #
+        # LLMNR and mDNS broadcast the hostname, and answer queries about it, to
+        # every device on whatever network the machine joins. That is a standing
+        # announcement on cafe and hotel wifi for a feature this host does not use.
+        services.resolved = {
+          settings.Resolve =
+            {
+              LLMNR = "no";
+              MulticastDNS = "no";
+            }
+            // lib.optionalAttrs cfg.privacy.dnsOverTls {
+              DNSOverTLS = "yes";
+            };
+        };
+
+        # ── IPv6 addressing ─────────────────────────────────────────────────
+        #
+        # IPv6 privacy extensions (RFC 4941) come from the NixOS option, not from
+        # a raw sysctl. nixos/modules/tasks/network-interfaces.nix already defines
+        # net.ipv6.conf.*.use_tempaddr from networking.tempAddresses, so setting
+        # the sysctl directly collided with it and made the entire host
+        # configuration fail to evaluate. "default" is the value that both
+        # generates temporary addresses and prefers them as source addresses.
+        networking.tempAddresses = lib.mkDefault "default";
+
+        boot.kernel.sysctl = {
+          # RFC 7217: derive stable-but-per-prefix IPv6 interface identifiers
+          # rather than embedding the NIC's MAC address in every packet. nixpkgs
+          # does not set this one, so it does not conflict.
+          "net.ipv6.conf.all.addr_gen_mode" = 2;
+          "net.ipv6.conf.default.addr_gen_mode" = 2;
+        };
+      }
+    ]);
   };
 }

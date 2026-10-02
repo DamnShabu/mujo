@@ -6,7 +6,6 @@
   flake.wrappers.kitty = {
     wlib,
     config,
-    pkgs,
     ...
   }: {
     imports = [wlib.wrapperModules.kitty];
@@ -30,11 +29,16 @@
           enable_audio_bell = "no";
 
           font_size = 15;
-          font_family = "JetBrainsMono Nerd Font";
+          font_family = "Monocraft";
 
           cursor_text_color = "background";
 
-          allow_remote_control = "yes";
+          # "yes" also accepted remote-control escape codes written to the tty,
+          # so printing untrusted text (`cat`, curl output, an agent's reply)
+          # could make kitty launch commands. Nothing here uses `kitty @` --
+          # theme reloads go through SIGUSR1 -- and socket-only keeps it for a
+          # future listen_on socket.
+          allow_remote_control = "socket-only";
           shell_integration = "enabled";
           # Disable URL detection to prevent false positives like
           # "flatpak install flathub org.vinegarhq.Sober" being

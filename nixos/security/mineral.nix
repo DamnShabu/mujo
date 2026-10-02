@@ -30,7 +30,10 @@
 
         kernel-modules.enable = false; # Mujo manages driver and kernel module loading
         settings.misc.nix-wheel = false; # Allow normal nix operation
-        settings.network.random-mac = false; # Mujo privacy.nix manages stable MAC addresses
+        # Mujo sets kernel.sysrq = 16 (emergency sync only) in kernel.nix; mineral
+        # mkForce'd it to 0 over that, silently, and the kernel test failed on it.
+        settings.kernel.sysrq = "none";
+        settings.network.random-mac = false; # per-boot random MACs break DHCP reservations; see privacy.nix
       };
     };
   };

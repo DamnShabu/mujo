@@ -2,7 +2,6 @@
   flake.nixosModules.security-users = {
     config,
     lib,
-    pkgs,
     ...
   }: let
     cfg = config.security.mujo;

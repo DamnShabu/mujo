@@ -1,9 +1,5 @@
 {
-  flake.nixosModules.base = {
-    lib,
-    pkgs,
-    ...
-  }: {
+  flake.nixosModules.base = {lib, ...}: {
     options = {
       preferences = {
         user = {
@@ -55,13 +51,6 @@
 
       persistence = {
         enable = lib.mkEnableOption "enable persistence";
-
-        nukeRoot.enable = lib.mkEnableOption "Destroy /root on every boot";
-
-        volumeGroup = lib.mkOption {
-          type = lib.types.str;
-          default = "btrfs_vg";
-        };
 
         user = lib.mkOption {
           type = lib.types.str;

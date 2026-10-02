@@ -1,0 +1,156 @@
+--- a/modules/globals/GlobalStates.qml
++++ b/modules/globals/GlobalStates.qml
+@@ -374,27 +374,35 @@
+         }
+     }
+ 
++    Timer {
++        id: autoSaveThemeTimer
++        interval: 400
++        repeat: false
++        onTriggered: root.applyThemeChanges()
++    }
++
+     function markThemeChanged() {
+         // Take a snapshot before the first change
+         if (!themeHasChanges) {
+             themeSnapshot = createThemeSnapshot();
+-            Config.pauseAutoSave = true;
+         }
+         themeHasChanges = true;
++        autoSaveThemeTimer.restart();
+     }
+ 
+     function applyThemeChanges() {
+-        if (themeHasChanges) {
+-            Config.loader.writeAdapter();
+-            themeHasChanges = false;
+-            themeSnapshot = null;
+-            Config.pauseAutoSave = false;
+-        }
++        autoSaveThemeTimer.stop();
++        Config.loader.writeAdapter();
++        themeHasChanges = false;
++        themeSnapshot = null;
++        Config.pauseAutoSave = false;
+     }
+ 
+     function discardThemeChanges() {
+-        if (themeHasChanges && themeSnapshot) {
++        autoSaveThemeTimer.stop();
++        if (themeSnapshot) {
+             restoreThemeSnapshot(themeSnapshot);
++            Config.loader.writeAdapter();
+             themeHasChanges = false;
+             themeSnapshot = null;
+             Config.pauseAutoSave = false;
+@@ -485,38 +493,43 @@
+         }
+     }
+ 
++    Timer {
++        id: autoSaveShellTimer
++        interval: 400
++        repeat: false
++        onTriggered: root.applyShellChanges()
++    }
++
+     function markShellChanged() {
+         // Take a snapshot before the first change
+         if (!shellHasChanges) {
+             shellSnapshot = createShellSnapshot();
+-            Config.pauseAutoSave = true;
+         }
+         shellHasChanges = true;
++        autoSaveShellTimer.restart();
+     }
+ 
+     function applyShellChanges() {
+-        if (shellHasChanges) {
+-            Config.saveBar();
+-            Config.saveNotch();
+-            Config.saveWorkspaces();
+-            Config.saveOverview();
+-            Config.saveDock();
+-            Config.saveLockscreen();
+-            Config.saveDesktop();
+-            Config.saveSystem();
+-            
+-            shellHasChanges = false;
+-            shellSnapshot = null;
+-            Config.pauseAutoSave = false;
+-        }
++        autoSaveShellTimer.stop();
++        Config.saveBar();
++        Config.saveNotch();
++        Config.saveWorkspaces();
++        Config.saveOverview();
++        Config.saveDock();
++        Config.saveLockscreen();
++        Config.saveDesktop();
++        Config.saveSystem();
++        
++        shellHasChanges = false;
++        shellSnapshot = null;
++        Config.pauseAutoSave = false;
+     }
+ 
+     function discardShellChanges() {
+-        if (shellHasChanges && shellSnapshot) {
++        autoSaveShellTimer.stop();
++        if (shellSnapshot) {
+             restoreShellSnapshot(shellSnapshot);
+-            shellHasChanges = false;
+-            shellSnapshot = null;
+-            Config.pauseAutoSave = false;
++            root.applyShellChanges();
+         }
+     }
+ 
+@@ -578,30 +591,35 @@
+         }
+     }
+ 
++    Timer {
++        id: autoSaveCompositorTimer
++        interval: 400
++        repeat: false
++        onTriggered: root.applyCompositorChanges()
++    }
++
+     function markCompositorChanged() {
+         // Take a snapshot before the first change
+         if (!compositorHasChanges) {
+             compositorSnapshot = createCompositorSnapshot();
+-            Config.pauseAutoSave = true;
+         }
+         compositorHasChanges = true;
++        autoSaveCompositorTimer.restart();
+     }
+ 
+     function applyCompositorChanges() {
+-        if (compositorHasChanges) {
+-            Config.saveCompositor();
+-            compositorHasChanges = false;
+-            compositorSnapshot = null;
+-            Config.pauseAutoSave = false;
+-        }
++        autoSaveCompositorTimer.stop();
++        Config.saveCompositor();
++        compositorHasChanges = false;
++        compositorSnapshot = null;
++        Config.pauseAutoSave = false;
+     }
+ 
+     function discardCompositorChanges() {
+-        if (compositorHasChanges && compositorSnapshot) {
++        autoSaveCompositorTimer.stop();
++        if (compositorSnapshot) {
+             restoreCompositorSnapshot(compositorSnapshot);
+-            compositorHasChanges = false;
+-            compositorSnapshot = null;
+-            Config.pauseAutoSave = false;
++            root.applyCompositorChanges();
+         }
+     }
+ 

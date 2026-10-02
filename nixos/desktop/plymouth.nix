@@ -1,9 +1,5 @@
 {self, ...}: {
-  flake.nixosModules.plymouth = {
-    pkgs,
-    lib,
-    ...
-  }: let
+  flake.nixosModules.plymouth = {pkgs, ...}: let
     themeDir = "${self}/nixos/desktop/plymouth";
     themeName = "nixos-mac-style";
 
@@ -20,6 +16,8 @@
       enable = true;
       theme = themeName;
       themePackages = [theme];
+      # The initrd carries exactly this one font file.
+      font = "${self.packages.${pkgs.stdenv.hostPlatform.system}.monocraft-nerd}/share/fonts/truetype/Monocraft-nerd-fonts-patched.ttc";
     };
   };
 }

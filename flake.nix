@@ -57,7 +57,7 @@
     };
 
     # niri IPC QML plugin for quickshell shells; exposed on the QML import
-    # path in nixos/features/quickshell.nix.
+    # path in nixos/desktop/quickshell.nix.
     qml-niri = {
       url = "github:imiric/qml-niri/main";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -71,7 +71,7 @@
 
     # cachix/secretspec ships no flake.nix (devenv only), so this is a source
     # input; the binary is built from it via rustPlatform.buildRustPackage in
-    # nixos/features/vaultwarden.nix with only the `cli` + `bw` features.
+    # nixos/security/vaultwarden.nix with only the `cli` + `bw` features.
     secretspec = {
       url = "github:cachix/secretspec/v0.18.0";
       flake = false;
@@ -99,6 +99,20 @@
 
     ambxst = {
       url = "github:Axenide/Ambxst";
+    };
+
+    # phisch/psst ships no flake.nix, so this is a source input; the three
+    # binaries are built from it in nixos/desktop/psst.nix. Note the name
+    # collision: nixpkgs' `psst` is an unrelated Spotify client.
+    psst = {
+      url = "github:phisch/psst/v0.2.0";
+      flake = false;
+    };
+
+    # The Roblox manager (nixos/apps/roblox-manager.nix), its own repo.
+    roblox-manager = {
+      url = "github:DamnShabu/roblox-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 

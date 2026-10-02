@@ -65,6 +65,9 @@
                     icon-theme = iconThemeName;
                     cursor-theme = cursorThemeName;
                     color-scheme = "prefer-dark";
+                    font-name = "Monocraft 11";
+                    document-font-name = "Monocraft 11";
+                    monospace-font-name = "Monocraft 11";
                     font-antialiasing = "rgba";
                     font-hinting = "slight";
                     font-rgba-order = "rgb";

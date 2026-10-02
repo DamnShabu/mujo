@@ -40,20 +40,24 @@
       '';
 
     generationTrigger = self.rev or self.dirtyRev or "unknown";
+
+    # psst-keyring-prompter (nixos/desktop/psst.nix) is the default answer now;
+    # both own org.gnome.keyring.SystemPrompter, so only one may run.
+    useMujo = config.desktop.keyringPrompter == "mujo";
   in {
     # Secret Service daemon + PAM auto-unlock at login. When the login keyring is
     # auto-unlocked the prompter stays out of the way; it only appears for locked
     # keyrings or apps that request a secret while locked.
     services.gnome.gnome-keyring.enable = true;
 
-    environment.systemPackages = [mujoKeyringPrompter];
+    environment.systemPackages = lib.mkIf useMujo [mujoKeyringPrompter];
 
     # The keyrings themselves must survive the impermanence root wipe.
     persistence.data.directories = [
       ".local/share/keyrings"
     ];
 
-    systemd.user.services.mujo-keyring-prompter = {
+    systemd.user.services.mujo-keyring-prompter = lib.mkIf useMujo {
       description = "mujō keyring prompter (gcr system prompter replacement)";
       after = ["graphical-session.target"];
       partOf = ["graphical-session.target"];
@@ -68,6 +72,6 @@
 
     # Keep it started across switches mid-session (see quickshell.nix for why
     # upholds= is used rather than relying on wantedBy alone).
-    systemd.user.targets.graphical-session.upholds = ["mujo-keyring-prompter.service"];
+    systemd.user.targets.graphical-session.upholds = lib.optional useMujo "mujo-keyring-prompter.service";
   };
 }

@@ -39,6 +39,14 @@ in {
     # Flip to true for a QEMU window with the real Niri/Quickshell session
     # instead of a serial console in this terminal.
     virtualisation.graphics = false;
+
+    # qemu-vm rebuilds fileSystems from virtualisation.fileSystems and drops
+    # neededForBoot on /persist, so the initrd activation created every
+    # persisted directory in the tmpfs *under* the mountpoint, and the real
+    # /persist then came up with root-owned, systemd-created bind sources --
+    # a whole class of first-boot failures the real host (neededForBoot = true,
+    # nixos/core/impermanence.nix) never has.
+    virtualisation.fileSystems."/persist".neededForBoot = lib.mkForce true;
     virtualisation.cores = 4;
     virtualisation.qemu.options = ["-cpu host"];
 
@@ -74,6 +82,15 @@ in {
         lib.mkForce
         "/run/wrappers/bin:/run/current-system/sw/bin:${lib.makeBinPath (with pkgs; [jq socat])}";
       script = ''
+        # multi-user.target is reached before the autologin session exists, and
+        # the sandbox checks need the user's session bus -- without it a
+        # sandboxed GTK app cannot register and the suite reported a failure
+        # that an interactive run never shows. Wait for the session.
+        export XDG_RUNTIME_DIR=/run/user/$(id -u)
+        for _ in $(seq 1 120); do
+          [ -S "$XDG_RUNTIME_DIR/bus" ] && break
+          sleep 1
+        done
         echo "########## MUJO ACCEPTANCE START ##########"
         ${pkgs.bash}/bin/bash ${tests}/run-all-tests.sh || true
         echo "########## MUJO ACCEPTANCE END ##########"

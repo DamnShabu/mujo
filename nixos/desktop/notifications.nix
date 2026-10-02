@@ -1,9 +1,5 @@
 {...}: {
-  flake.nixosModules.notifications = {
-    pkgs,
-    config,
-    ...
-  }: {
+  flake.nixosModules.notifications = {pkgs, ...}: {
     environment.systemPackages = with pkgs; [
       quickshell
       libnotify

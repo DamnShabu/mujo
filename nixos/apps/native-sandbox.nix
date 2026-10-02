@@ -20,6 +20,17 @@
         # environment, and an unset variable under `set -u` would abort the
         # launch rather than simply forwarding no Wayland socket.
         RUNTIME_DIR="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+        # Same for the display. Guessing wayland-0 was wrong here -- niri's
+        # socket is wayland-1 -- so any caller without WAYLAND_DISPLAY (a
+        # systemd unit, the acceptance suite) launched GTK apps that could not
+        # open a display and exited. Use the socket that actually exists.
+        WAYLAND="''${WAYLAND_DISPLAY:-}"
+        if [ -z "$WAYLAND" ]; then
+          for s in "$RUNTIME_DIR"/wayland-[0-9]*; do
+            if [ -S "$s" ]; then WAYLAND=''${s##*/}; break; fi
+          done
+          WAYLAND="''${WAYLAND:-wayland-0}"
+        fi
 
         usage() {
           cat >&2 <<'USAGE'
@@ -62,14 +73,16 @@
 
         [ "$#" -ge 1 ] || usage
 
-        # Flatpak applications manage their own Bubblewrap sandbox and
-        # cannot be nested inside an unprivileged Bubblewrap namespace.
-        if [ -d "/var/lib/flatpak/app/$1" ]; then
-          exec flatpak run "$@"
-        fi
-        if [ "$1" = "flatpak" ]; then
-          exec "$@"
-        fi
+        # A Flatpak brings its own Bubblewrap sandbox and cannot be nested in
+        # this one. It is refused rather than passed through: a pass-through was
+        # an unnarrowed way to run a GRADUATED Flatpak. `mujo-trust run` starts
+        # Flatpaks, with the narrowing (mujo-trust-launch plan).
+        case "$(command -v "$1" 2>/dev/null || true)" in
+          */flatpak | */flatpak/exports/bin/*)
+            echo "mujo-sandbox-run: $1 is a Flatpak; launch it with mujo-trust run." >&2
+            exit 64
+            ;;
+        esac
 
         # Determine application identifier for isolated persistent state
         app_name="$app"
@@ -93,10 +106,11 @@
         # claims over the wire.
         if [ -n "$app" ]; then
           host_sock="/run/mujo/secrets/$app.sock"
+          # None means the ACL grants it nothing -- the common case, since
+          # mujo-trust run always names the application -- and mujo-credential
+          # inside says so if it ever asks.
           if [ -S "$host_sock" ]; then
             binds+=(--ro-bind "$host_sock" /run/mujo/secret.sock)
-          else
-            echo "mujo-sandbox-run: no broker socket for '$app'; it was granted no credentials." >&2
           fi
         fi
 
@@ -240,13 +254,13 @@
           --ro-bind-try /bin /bin \
           --ro-bind-try /usr /usr \
           --bind "$SANDBOX_HOME" "$USER_HOME" \
-          --ro-bind-try "$RUNTIME_DIR/''${WAYLAND_DISPLAY:-wayland-0}" "$RUNTIME_DIR/''${WAYLAND_DISPLAY:-wayland-0}" \
+          --ro-bind-try "$RUNTIME_DIR/$WAYLAND" "$RUNTIME_DIR/$WAYLAND" \
           --ro-bind-try "$RUNTIME_DIR/pipewire-0" "$RUNTIME_DIR/pipewire-0" \
           --ro-bind-try "$RUNTIME_DIR/pulse" "$RUNTIME_DIR/pulse" \
           "''${binds[@]}" \
           --setenv HOME "$USER_HOME" \
           --setenv XDG_RUNTIME_DIR "$RUNTIME_DIR" \
-          --setenv WAYLAND_DISPLAY "''${WAYLAND_DISPLAY:-wayland-0}" \
+          --setenv WAYLAND_DISPLAY "$WAYLAND" \
           --setenv DBUS_SESSION_BUS_ADDRESS "unix:path=$RUNTIME_DIR/bus" \
           --setenv MUJO_SECRET_SOCKET /run/mujo/secret.sock \
           --setenv GSETTINGS_BACKEND keyfile \

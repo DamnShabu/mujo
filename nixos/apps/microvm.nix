@@ -451,18 +451,23 @@
       fonts = {
         enableDefaultPackages = true;
         packages = with pkgs; [
+          self.packages.${pkgs.stdenv.hostPlatform.system}.monocraft-nerd
           ubuntu-sans
           fira-code
           nerd-fonts.jetbrains-mono
           material-symbols
         ];
+        fontconfig.defaultFonts = {
+          serif = ["Monocraft"];
+          sansSerif = ["Monocraft"];
+          monospace = ["Monocraft"];
+        };
       };
 
       services.dbus.enable = true;
       services.flatpak.enable = true;
       programs.fuse.userAllowOther = true;
       boot.kernelModules = ["fuse"] ++ lib.optional (cfg.gpu != "none") "virtio_gpu";
-      security.unprivilegedUsernsClone = true;
       boot.kernel.sysctl = {
         "kernel.unprivileged_userns_clone" = 1;
         "user.max_user_namespaces" = 65536;
@@ -543,13 +548,6 @@
             ${lib.optionalString caps.audio ''"--socket=pulseaudio" "--env=PULSE_SERVER=tcp:10.0.2.2:${toString pulseTcpPort}"''} \
             ${flatpakEnvArgs} \
             "$@")
-        elif [ -d "/var/lib/flatpak/app/$1" ]; then
-          # Flatpak app passed by ID (e.g. dev.vencord.Vesktop, app.zen_browser.zen)
-          # shellcheck disable=SC2059
-          cmdline=$(printf '%q ' "flatpak" "run" \
-            ${lib.optionalString caps.audio ''"--socket=pulseaudio" "--env=PULSE_SERVER=tcp:10.0.2.2:${toString pulseTcpPort}"''} \
-            ${flatpakEnvArgs} \
-            "$@")
         else
           # Resolve to a store path before crossing the boundary. /run/current-system
           # inside the guest is the *guest's* system, so a host PATH entry such as
@@ -570,7 +568,7 @@
           case "$target" in
             /nix/store/*) ;;
             *)
-              echo "mujo-quarantine-run: $1 does not resolve into the Nix store; the guest could not see it." >&2
+              echo "mujo-quarantine-run: $1 does not resolve into the Nix store; the guest could not see it. (A Flatpak is spelled: flatpak run <id>.)" >&2
               exit 127
               ;;
           esac
