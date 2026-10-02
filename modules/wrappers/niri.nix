@@ -322,15 +322,18 @@
             open-floating = true;
           }
           {
-            # Games draw opaque. The first rule makes every window 90% opaque
-            # over a 3-pass blur, and a translucent fullscreen window can never
-            # be scanned out directly: each frame is composited over a blurred
-            # backdrop instead, which costs GPU time and latency and washes the
-            # picture out. Steam gives its games the window class
-            # steam_app_<id> (every Proton game, and native ones built on
-            # SDL); anything run through gamescope matches the second entry.
-            # Mod+O still toggles opacity per window. Later rules win, so this
-            # stays last.
+            # Games: opaque and without the background effect. The first rule
+            # gives every window 90% opacity over a blur of the wallpaper.
+            # niri already drops the opacity for a window in true fullscreen,
+            # but not for windowed or borderless-maximized games, which then
+            # show the desktop through every frame; and it still renders the
+            # background-effect element under every one of them, fullscreen
+            # included (render_background_effect runs whatever the window's
+            # state). `blur false` here switches that element off entirely.
+            # Steam gives its games the window class steam_app_<id> (every
+            # Proton game, and native ones built on SDL); anything run through
+            # gamescope matches the second entry. Mod+O still toggles opacity
+            # per window. Later rules win, so this stays last.
             matches = [
               {app-id = "^steam_app_";}
               {app-id = "^gamescope$";}
