@@ -6,7 +6,7 @@
     ...
   }: let
     user = config.preferences.user.name;
-    sharedMcp = import ./_ai-mcp.nix {inherit user;};
+    sharedMcp = import ./_ai-mcp.nix;
     opencodeConfig = pkgs.writeText "opencode.json" (builtins.toJSON {
       "$schema" = "https://opencode.ai/config.json";
       lsp = true;

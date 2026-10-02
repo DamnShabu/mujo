@@ -6,7 +6,7 @@
     ...
   }: let
     user = config.preferences.user.name;
-    sharedMcp = import ./_ai-mcp.nix {inherit user;};
+    sharedMcp = import ./_ai-mcp.nix;
     # Format taken from what `agy mcp add` itself writes: a `mcpServers` map of
     # {command, args, disabled}, with `command` a bare string.
     mcpConfig = pkgs.writeText "mcp_config.json" (builtins.toJSON {
