@@ -13,7 +13,7 @@ echo "=== Running GPU Tests ==="
 
 # _gpu.nix describes this card; a different one means that file (and its
 # kernel/Mesa minimums) needs a fresh look, not just a passing test.
-EXPECTED_DEVICE="0x7550" # Navi 48: RX 9070 XT / RX 9070
+EXPECTED_DEVICE="0x7550" # Navi 48: RX 9070 XT, RX 9070 and RX 9070 GRE
 
 gpu=""
 for dev in /sys/bus/pci/devices/*; do
@@ -32,7 +32,7 @@ slot=$(basename "$gpu")
 device=$(cat "$gpu/device")
 
 if [ "$device" = "$EXPECTED_DEVICE" ]; then
-  pass "RX 9070 XT (Navi 48, 1002:${device#0x}) at $slot"
+  pass "Navi 48 (RX 9070 series, 1002:${device#0x}) at $slot"
 else
   fail "GPU at $slot is 1002:${device#0x}, not the RX 9070 XT (1002:${EXPECTED_DEVICE#0x}) that nixos/hosts/main/_gpu.nix is written for"
 fi
@@ -44,11 +44,13 @@ else
   fail "bound to '$driver', not amdgpu — check 'journalctl -k -b -g amdgpu' for the probe error"
 fi
 
+# The same floor _gpu.nix asserts at build time: 6.12 is the first kernel whose
+# amdgpu has GFX 12 at all.
 kernel=$(uname -r)
-if [ "$(printf '%s\n' 6.14 "$kernel" | sort -V | head -n1)" = "6.14" ]; then
-  pass "kernel $kernel (RDNA4 needs 6.14+)"
+if [ "$(printf '%s\n' 6.12 "$kernel" | sort -V | head -n1)" = "6.12" ]; then
+  pass "kernel $kernel (RDNA4 needs 6.12+)"
 else
-  fail "kernel $kernel is older than 6.14, which RDNA4 needs"
+  fail "kernel $kernel is older than 6.12, which has no RDNA4 support"
 fi
 
 # A zero version means the block never got its firmware: SMU (power and
@@ -100,8 +102,12 @@ fi
 root_port=$(readlink -f "$gpu" | cut -d/ -f1-5)
 root_width=$(cat "$root_port/max_link_width" 2>/dev/null || echo 0)
 root_speed=$(cat "$root_port/max_link_speed" 2>/dev/null || echo unknown)
+# The negotiated link, for context only: amdgpu drops the link speed at idle,
+# so a low current speed is not by itself a fault.
+now_width=$(cat "$root_port/current_link_width" 2>/dev/null || echo "?")
+now_speed=$(cat "$root_port/current_link_speed" 2>/dev/null || echo "?")
 if [ "$root_width" -ge 8 ]; then
-  pass "slot $(basename "$root_port"): up to x$root_width at $root_speed"
+  pass "slot $(basename "$root_port"): up to x$root_width at $root_speed (now x$now_width at $now_speed)"
 else
   fail "slot $(basename "$root_port") is only x$root_width — move the card to the CPU's x16 slot"
 fi
@@ -133,7 +139,9 @@ check_connector() {
   done
   fail "$where names $name, but no monitor is on it (connected: ${connected[*]:-none})"
 }
-for p in $(tr ' ' '\n' </proc/cmdline | sed -n 's/^video=\([^:]*\):.*/\1/p'); do
+# Only connector names (DP-1, HDMI-A-1, eDP-1, ...): `video=efifb:off` and
+# friends configure a framebuffer driver, not a monitor.
+for p in $(tr ' ' '\n' </proc/cmdline | sed -n 's/^video=\([A-Za-z]*-\([A-Za-z]-\)\{0,1\}[0-9][0-9]*\):.*/\1/p'); do
   check_connector "$p" "kernel video= parameter"
 done
 niri_settings="$(dirname -- "${BASH_SOURCE[0]}")/../../modules/wrappers/niri-settings.json"
