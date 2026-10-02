@@ -115,7 +115,7 @@ scan_persist_deep() {
     xargs -0 -r grep -Il --binary-files=without-match -- "$1" 2>/dev/null || true
 }
 
-# list_findings <label> <path...> — prints at most 10, then a count.
+# list_findings <item...> — prints at most 10, then a count.
 list_findings() {
   local -a items=("$@")
   printf '           %s\n' "${items[@]:0:10}"
