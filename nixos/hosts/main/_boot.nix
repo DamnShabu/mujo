@@ -98,7 +98,12 @@ in {
     supportedFilesystems.ntfs = true;
 
     kernelParams = ["quiet" "video=DP-1:1920x1080@165" "video=HDMI-A-1:1920x1080@60"];
-    kernelModules = ["coretemp" "cpuid" "v4l2loopback"];
+    # v4l2loopback used to be listed here too, left over from OBS's virtual
+    # camera. Nothing put its module package in boot.extraModulePackages, so
+    # systemd-modules-load failed on it every boot and the system came up
+    # "degraded". If a virtual camera is ever needed again, use
+    # programs.obs-studio.enableVirtualCamera, which ships the module with it.
+    kernelModules = ["coretemp" "cpuid"];
 
     binfmt.emulatedSystems = ["aarch64-linux"];
 
