@@ -4,8 +4,8 @@
 # the two joined into one list, so its module concatenates them on the way out.
 #
 # `_`-prefixed, so flake.nix's importTree skips it (AGENTS.md, MODULE DISCOVERY)
-# — this is a plain function returning an attrset, not a flake-parts module.
-{user}: {
+# — this is a plain attrset, not a flake-parts module.
+{
   # mcp-nixos is installed system-wide in nixos/core/nix.nix.
   nixos = {
     command = "mcp-nixos";
