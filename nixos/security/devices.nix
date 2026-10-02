@@ -17,6 +17,14 @@
           shows up as a machine that does not reach a display. Enable it once you
           have confirmed the machine boots with it, and keep a previous generation
           selectable while you do.
+
+          While it is off, the IOMMU is kept off: `intel_iommu=off` goes last on
+          the command line, so no other module can switch it on underneath this
+          option. That also overrides a firmware that opts in to the IOMMU on
+          its own (DMAR platform opt-in, i.e. Thunderbolt "Kernel DMA
+          Protection"); this board does not, as an empty
+          /sys/kernel/iommu_groups under the kernel defaults showed. On one
+          that does, turn this option on rather than lose that protection.
         '';
       };
 
@@ -35,7 +43,8 @@
           host has an AMD GPU whose initialisation is the sensitive part.
 
           Turn it on by itself, with a known-good generation still selectable in
-          the boot menu, and only if I/O measurements show you need it.
+          the boot menu, and only if I/O measurements show you need it. It only
+          means something with `dmaProtection` on: otherwise the IOMMU is off.
         '';
       };
     };
@@ -72,15 +81,26 @@
         # which would turn on exactly what dmaProtection = false keeps off. The
         # kernel acts on the last occurrence of `intel_iommu=` and `efi=`, so the
         # off values go at the very end of the command line (order 2000 sorts
-        # after mkAfter's 1500) and this switch has the final word. Both equal
-        # this kernel's defaults (INTEL_IOMMU_DEFAULT_ON and EFI_DISABLE_PCI_DMA
-        # are unset), so when nothing else asks for the on values they change
-        # nothing.
+        # after mkAfter's 1500) and this switch has the final word.
+        #
+        # What they cost when nothing else asked for the on values: nothing for
+        # efi=, whose off value is this kernel's default (EFI_DISABLE_PCI_DMA is
+        # unset). intel_iommu=off matches the default too
+        # (INTEL_IOMMU_DEFAULT_ON is unset) with one exception: it also sets
+        # no_platform_optin, so a firmware that opts in to the IOMMU by itself
+        # is overruled. See the dmaProtection description for why that does not
+        # apply to this board.
         (lib.mkOrder 2000 (lib.optionals (!cfg.devices.dmaProtection) [
           "intel_iommu=off"
           "efi=no_disable_early_pci_dma"
         ]))
       ];
+
+      warnings = lib.optional (cfg.devices.iommuPassthrough && !cfg.devices.dmaProtection) ''
+        security.mujo.devices.iommuPassthrough has no effect while
+        security.mujo.devices.dmaProtection is off: that keeps the IOMMU off
+        altogether (intel_iommu=off), so there is nothing to pass through.
+      '';
 
       # Thunderbolt device manager to guard against unauthorized PCIe direct memory access
       services.hardware.bolt.enable = lib.mkDefault true;
