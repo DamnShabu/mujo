@@ -87,7 +87,6 @@ in {
       $out/bin/mujo-keyring --add-flags "$out/libexec/mujo-keyring.py"
   '';
 
-
   # PAM auth helper for the lock screen (WP-14). Reads a password on stdin,
   # authenticates the current user via the `qsshell-lock` PAM service, exits 0/1.
   # Not setuid — pam_unix uses the setuid unix_chkpwd for the shadow check.

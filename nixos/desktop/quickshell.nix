@@ -76,74 +76,74 @@
 
     config = {
       environment.sessionVariables.QML2_IMPORT_PATH = lib.mkForce qmlPath;
-    environment.sessionVariables.QT_PLUGIN_PATH = lib.mkForce qtPluginPath;
+      environment.sessionVariables.QT_PLUGIN_PATH = lib.mkForce qtPluginPath;
 
-    environment.systemPackages = [qs.mujo qs.mujo-keyring qs.mujo-screenshot];
+      environment.systemPackages = [qs.mujo qs.mujo-keyring qs.mujo-screenshot];
 
-    # PAM service the lock-screen helper (qs.unlock) authenticates against. A
-    # bare service gets NixOS's default unix auth (pam_unix → setuid unix_chkpwd),
-    # which is all the lock needs — same shape swaylock/hyprlock use.
-    security.pam.services.qsshell-lock = {};
+      # PAM service the lock-screen helper (qs.unlock) authenticates against. A
+      # bare service gets NixOS's default unix auth (pam_unix → setuid unix_chkpwd),
+      # which is all the lock needs — same shape swaylock/hyprlock use.
+      security.pam.services.qsshell-lock = {};
 
-    # Expose the bar tree at a stable, rebuild-invariant path so the launcher
-    # toggle keybind can address the running instance by config path, and the
-    # Settings app (bar/settings.qml, spawned by `mujo settings` / Mod+,) can be
-    # reached by path too.
-    environment.etc."xdg/quickshell/bar".source = qs.bar;
+      # Expose the bar tree at a stable, rebuild-invariant path so the launcher
+      # toggle keybind can address the running instance by config path, and the
+      # Settings app (bar/settings.qml, spawned by `mujo settings` / Mod+,) can be
+      # reached by path too.
+      environment.etc."xdg/quickshell/bar".source = qs.bar;
 
-    persistence.data.directories = [
-      ".config/qsshell"
-    ];
+      persistence.data.directories = [
+        ".config/qsshell"
+      ];
 
-    systemd.user.services = {
-      # The one shell: workspaces, launcher (Mod+Space via niri → qs ipc),
-      # tray, settings UI, weather. Needs qs on PATH
-      # (its IPC toggle), curl (weather), wl-copy + xdg-open (launcher), jq
-      # (llm-usage.sh reads cached usage from provider config files).
-      qs-bar = lib.mkIf config.services.qs-bar.enable (mkDaemon {
-        command = "${pkgs.quickshell}/bin/quickshell -p ${barConfig}";
-        # findutils (find/xargs) and sqlite (sqlite3) are required by
-        # llm-usage.sh's Antigravity token-transcript scan — without them the
-        # "Tokens by day/model" charts silently stay empty under the service
-        # even though they work under an interactive `qs -p` (whose shell PATH
-        # masks the gap).  gnugrep + gnused do the model-name extraction from
-        # the dumped blobs. sqlite3 also runs opencode's usage query against
-        # ~/.local/share/opencode/opencode-*.db, and libsecret (secret-tool)
-        # reads the Antigravity OAuth token that resolves its account email.
-        # systemd provides systemd-run, used by Launch.qml to spawn launched apps
-        # in their own transient user scope (so they survive qs-bar restarts
-        # instead of dying inside qs-bar's cgroup on every rebuild).
-        # /run/current-system/sw must be on PATH (NixOS appends /bin to each
-        # entry): systemd-run resolves the launched app's binary against this
-        # service's PATH, and without it every app outside the package list
-        # below (i.e. all normal desktop apps) silently fails with
-        # "Failed to find executable <app>".
-        # /run/wrappers before /run/current-system/sw: the latter's pkexec is the
-        # plain store binary, and only the wrapper is setuid, so anything the UI
-        # escalates (trust graduate, rebuild, GC) fails without it.
-        path = with pkgs; ["/run/wrappers"] ++ [bash coreutils findutils gnugrep gnused jq curl sqlite libsecret wl-clipboard cliphist xdg-utils systemd swayidle brightnessctl cava quickshell qs.unlock qs.mujo-screenshot] ++ ["/run/current-system/sw"];
-        environment = {
-          QS_ICON_THEME = "Colloid-Dark";
-          XDG_DATA_DIRS = appDataDirs;
+      systemd.user.services = {
+        # The one shell: workspaces, launcher (Mod+Space via niri → qs ipc),
+        # tray, settings UI, weather. Needs qs on PATH
+        # (its IPC toggle), curl (weather), wl-copy + xdg-open (launcher), jq
+        # (llm-usage.sh reads cached usage from provider config files).
+        qs-bar = lib.mkIf config.services.qs-bar.enable (mkDaemon {
+          command = "${pkgs.quickshell}/bin/quickshell -p ${barConfig}";
+          # findutils (find/xargs) and sqlite (sqlite3) are required by
+          # llm-usage.sh's Antigravity token-transcript scan — without them the
+          # "Tokens by day/model" charts silently stay empty under the service
+          # even though they work under an interactive `qs -p` (whose shell PATH
+          # masks the gap).  gnugrep + gnused do the model-name extraction from
+          # the dumped blobs. sqlite3 also runs opencode's usage query against
+          # ~/.local/share/opencode/opencode-*.db, and libsecret (secret-tool)
+          # reads the Antigravity OAuth token that resolves its account email.
+          # systemd provides systemd-run, used by Launch.qml to spawn launched apps
+          # in their own transient user scope (so they survive qs-bar restarts
+          # instead of dying inside qs-bar's cgroup on every rebuild).
+          # /run/current-system/sw must be on PATH (NixOS appends /bin to each
+          # entry): systemd-run resolves the launched app's binary against this
+          # service's PATH, and without it every app outside the package list
+          # below (i.e. all normal desktop apps) silently fails with
+          # "Failed to find executable <app>".
+          # /run/wrappers before /run/current-system/sw: the latter's pkexec is the
+          # plain store binary, and only the wrapper is setuid, so anything the UI
+          # escalates (trust graduate, rebuild, GC) fails without it.
+          path = with pkgs; ["/run/wrappers"] ++ [bash coreutils findutils gnugrep gnused jq curl sqlite libsecret wl-clipboard cliphist xdg-utils systemd swayidle brightnessctl cava quickshell qs.unlock qs.mujo-screenshot] ++ ["/run/current-system/sw"];
+          environment = {
+            QS_ICON_THEME = "Colloid-Dark";
+            XDG_DATA_DIRS = appDataDirs;
+          };
+        });
+        wl-cliphist = {
+          after = ["niri.service"];
+          serviceConfig = {
+            ExecStart = "${pkgs.wl-clipboard}/bin/wl-paste --watch ${pkgs.cliphist}/bin/cliphist store";
+            Restart = "always";
+            RestartSec = 2;
+          };
+          wantedBy = ["graphical-session.target"];
+          restartTriggers = [generationTrigger];
         };
-      });
-      wl-cliphist = {
-        after = ["niri.service"];
-        serviceConfig = {
-          ExecStart = "${pkgs.wl-clipboard}/bin/wl-paste --watch ${pkgs.cliphist}/bin/cliphist store";
-          Restart = "always";
-          RestartSec = 2;
-        };
-        wantedBy = ["graphical-session.target"];
-        restartTriggers = [generationTrigger];
       };
-    };
-    # Start (and keep started) the graphical daemons whenever
-    # graphical-session.target is active. wantedBy alone only fires at login;
-    # switch-to-configuration does not start brand-new user units mid-session,
-    # and the previous root->user activation hook never worked. Upholds= is
-    # re-evaluated on every user-manager daemon-reload, i.e. on every switch.
-    systemd.user.targets.graphical-session.upholds = map (svc: "${svc}.service") daemons;
+      # Start (and keep started) the graphical daemons whenever
+      # graphical-session.target is active. wantedBy alone only fires at login;
+      # switch-to-configuration does not start brand-new user units mid-session,
+      # and the previous root->user activation hook never worked. Upholds= is
+      # re-evaluated on every user-manager daemon-reload, i.e. on every switch.
+      systemd.user.targets.graphical-session.upholds = map (svc: "${svc}.service") daemons;
     };
   };
 }
