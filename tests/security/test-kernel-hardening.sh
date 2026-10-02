@@ -41,8 +41,10 @@ if autoinit=$(journalctl -k -b 0 -q --no-pager -o cat -g 'mem auto-init: stack' 
   else
     fail "heap auto-init is not fully on: ${autoinit##*mem auto-init: }"
   fi
+elif [ -z "$(journalctl -k -b 0 -q --no-pager -n 1 2>/dev/null)" ]; then
+  skip "kernel journal unreadable as $(id -un); re-run as a systemd-journal member or root to confirm init_on_alloc/init_on_free"
 else
-  skip "kernel journal unreadable as $(id -un); cannot confirm init_on_alloc/init_on_free"
+  skip "this boot's 'mem auto-init' line is no longer in the journal (rotated out); re-check after a reboot"
 fi
 
 # Emergency/rescue must not hand out a root shell without the root password.
