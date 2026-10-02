@@ -31,9 +31,11 @@
       nin = ns.input or {};
     in {
       package = pkgs.niri.overrideAttrs (old: {
-        patches = (old.patches or []) ++ [
-          # ./niri-fullscreen-capture-cursor.patch
-        ];
+        patches =
+          (old.patches or [])
+          ++ [
+            # ./niri-fullscreen-capture-cursor.patch
+          ];
       });
 
       drv.preInstall = ''

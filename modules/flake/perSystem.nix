@@ -71,7 +71,7 @@
       '';
       packages.mujo-screenshot = qs.mujo-screenshot;
 
-      packages.skwd-deck-steamworks =lib.mkIf (system == "x86_64-linux") (let
+      packages.skwd-deck-steamworks = lib.mkIf (system == "x86_64-linux") (let
         version = inputs.skwd-wall.packages.${system}.deck.version;
         sources = {
           "1.0.0-beta.17" = {

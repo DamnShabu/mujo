@@ -28,12 +28,12 @@
         ''
         # Unlock hook for the greeting popup (nixos/desktop/greeting.nix).
         + lib.optionalString (config.desktop.greeting.enable or false) ''
-        substituteInPlace modules/globals/GlobalStates.qml \
-          --replace-fail "    property bool lockscreenVisible: false" \
-          "$(cat ${pkgs.replaceVars ./ambxst-greeting-hook.qml.in {
-          greeting = "${config.desktop.greeting.package}/bin/mujo-greeting";
-        }})"
-      '';
+          substituteInPlace modules/globals/GlobalStates.qml \
+            --replace-fail "    property bool lockscreenVisible: false" \
+            "$(cat ${pkgs.replaceVars ./ambxst-greeting-hook.qml.in {
+            greeting = "${config.desktop.greeting.package}/bin/mujo-greeting";
+          }})"
+        '';
     };
   in {
     imports = [
