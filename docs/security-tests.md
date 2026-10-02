@@ -61,7 +61,8 @@ applied — a check that cannot fail is not a check.
 
 | Path | ID | What it attacks |
 |---|---|---|
-| `tests/security/test-kernel-hardening.sh` | SEC-001/002 | ptrace scope, BPF, kernel surface sysctls |
+| `tests/security/test-kernel-hardening.sh` | SEC-001/002 | ptrace scope, BPF, kernel surface sysctls, heap auto-init actually on |
+| `tests/security/test-vulnerability-scan.sh` | — | vulnix finds no unhandled CVE in the system closure; lynis runs on the tailored profile |
 | `tests/storage/test-vault-isolation.sh` | SEC-004 | vault mount and container permissions |
 | `tests/storage/test-swap-leakage.sh` | SEC-006 | secrets reaching swap |
 | `tests/network/test-firewall-rules.sh` | SEC-008 | inbound and spoofing policy |
@@ -72,6 +73,7 @@ applied — a check that cannot fail is not a check.
 | `tests/recovery/test-recovery-bypass.sh` | SEC-011 | unauthenticated recovery, boot tampering, hibernation |
 | `tests/redteam/test-boundary-violations.sh` | — | the full escape matrix, every expected result DENIED |
 | `tests/performance/test-performance-budget.sh` | — | isolation overhead against the budget |
+| `tests/hardware/test-gpu.sh` | HW-001 | the GPU stack of `nixos/hosts/main/_gpu.nix`: driver, firmware, Resizable BAR, slot width, IOMMU policy, and no hangs or resets this boot |
 | `tests/vm/run.sh` | — | the storage model itself: installs the host config onto real disko-formatted disks in a throwaway VM |
 
 ### On the performance suite

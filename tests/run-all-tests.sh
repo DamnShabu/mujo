@@ -33,6 +33,7 @@ run_test "$SCRIPT_DIR/physical/test-physical-extraction.sh"
 run_test "$SCRIPT_DIR/recovery/test-recovery-bypass.sh"
 run_test "$SCRIPT_DIR/redteam/test-boundary-violations.sh"
 run_test "$SCRIPT_DIR/performance/test-performance-budget.sh"
+run_test "$SCRIPT_DIR/hardware/test-gpu.sh"
 
 echo ""
 echo "================================================="
