@@ -40,6 +40,19 @@
         "org.videolan.VLC"
       ];
 
+      # Every Flatpak renders with the Mesa in its runtime's GL extension
+      # (org.freedesktop.Platform.GL.default), not the host's: Steam, every
+      # Proton game, Bottles and Prism all draw through it. Nothing updated it
+      # before -- nix-flatpak only installs -- so that driver stayed at
+      # whatever version was current on install day, and a GPU newer than it
+      # gets llvmpipe. A weekly timer keeps the apps, runtimes and GL extension
+      # current; it is a timer rather than update.onActivation so a rebuild
+      # stays offline-capable and does not wait on Flathub.
+      update.auto = {
+        enable = true;
+        onCalendar = "weekly";
+      };
+
       overrides = {
         global.Context = {
           sockets = ["wayland" "x11"];
