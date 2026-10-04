@@ -214,6 +214,8 @@
 
           # display / session
           "Mod+Shift+P"."power-off-monitors" = _: {};
+          # Quiet mode: also RGB and fans off; any input wakes (nixos/services/quiet.nix).
+          "Mod+Ctrl+P".spawn-sh = "mujo-quiet on";
           "Mod+Shift+R".spawn-sh = "${lib.getExe pkgs.niri} msg action reload-config";
           "Mod+Shift+Slash"."show-hotkey-overlay" = _: {};
         };
