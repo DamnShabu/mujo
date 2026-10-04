@@ -48,6 +48,7 @@
       self.nixosModules.user-config
       self.nixosModules.user
       self.nixosModules.mullvad
+      self.nixosModules.quiet
 
       self.nixosModules.notifications
       self.nixosModules.quickshell
@@ -106,6 +107,11 @@
     # confirm `mujo trust list`) before flipping `trust.launcherIntegration` in
     # nixos/core/system-preferences.json, its only definition: a second
     # mkDefault here made that switch a build error.
+
+    # Quiet mode (Mod+Ctrl+P): displays, RGB and fans off until the next input.
+    # Board-specific knobs -- a pump header to keep running, a USB screen --
+    # are described in nixos/services/quiet.nix.
+    services.mujo-quiet.enable = true;
 
     secrets.vaultwarden.enable = true;
     # Wired but inert until secrets are declared. Usage shape:
